@@ -4,22 +4,13 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::try_define_property_or_throw,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_object_create_with_intrinsics,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::unwrap_try},
-        fundamental_objects::function_objects::function_constructor::{
-            DynamicFunctionKind, create_dynamic_function,
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
-            String, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, DynamicFunctionKind, Function, JsResult, Object,
+        PropertyDescriptor, ProtoIntrinsics, Realm, String, Value,
+        builders::BuiltinFunctionBuilder, create_dynamic_function,
+        ordinary_object_create_with_intrinsics, try_define_property_or_throw, unwrap_try,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -46,7 +37,7 @@ impl GeneratorFunctionConstructor {
         let new_target = new_target.bind(gc.nogc());
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
-            (&[] as &[Value], String::EMPTY_STRING.into_value())
+            (&[] as &[Value], String::EMPTY_STRING.into())
         } else {
             let (last, others) = arguments.split_last().unwrap();
             (others, last.bind(gc.nogc()))
@@ -78,13 +69,13 @@ impl GeneratorFunctionConstructor {
         //   a. Let prototype be OrdinaryObjectCreate(%GeneratorFunction.prototype.prototype%).
         let prototype = ordinary_object_create_with_intrinsics(
             agent,
-            Some(ProtoIntrinsics::Object),
+            ProtoIntrinsics::Object,
             Some(
                 agent
                     .current_realm_record()
                     .intrinsics()
                     .generator_prototype()
-                    .into_object(),
+                    .into(),
             ),
             gc,
         );
@@ -98,7 +89,7 @@ impl GeneratorFunctionConstructor {
             // PropertyDescriptor {
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.into_value().unbind()),
+                value: Some(prototype.unbind().into()),
                 // [[Writable]]: true,
                 writable: Some(true),
                 // [[Enumerable]]: false,
@@ -112,7 +103,7 @@ impl GeneratorFunctionConstructor {
         ));
         // }).
 
-        Ok(f.into_value())
+        Ok(f.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -123,7 +114,7 @@ impl GeneratorFunctionConstructor {
             agent, realm,
         )
         .with_property_capacity(1)
-        .with_prototype_property(generator_function_prototype.into_object())
+        .with_prototype_property(generator_function_prototype.into())
         .build();
     }
 }

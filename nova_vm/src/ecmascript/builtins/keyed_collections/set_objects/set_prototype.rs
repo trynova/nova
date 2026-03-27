@@ -8,28 +8,16 @@ use ahash::AHasher;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::call_function,
-            testing_and_comparison::{is_callable, same_value},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-            keyed_collections::{
-                map_objects::map_prototype::canonicalize_keyed_collection_key,
-                set_objects::set_iterator_objects::set_iterator::SetIterator,
-            },
-            set::Set,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, JsResult, Number, PropertyKey,
+        Realm, Set, SetIterator, String, Value, builders::OrdinaryObjectBuilder, call_function,
+        canonicalize_keyed_collection_key, is_callable, same_value,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    heap::{
+        ArenaAccessSoA, ArenaAccessSoAMut, DirectArenaAccessSoA, DirectArenaAccessSoAMut, Heap,
+        IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbols,
     },
-    heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct SetPrototype;
@@ -113,7 +101,7 @@ impl SetPrototype {
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(numbers, value);
+        let value = canonicalize_keyed_collection_key(&primitive_heap.numbers, value);
 
         let set_heap_data = s.get_direct_mut(sets);
         let values = set_heap_data.values;
@@ -140,11 +128,11 @@ impl SetPrototype {
             // 5. Append value to S.[[SetData]].
             let index = u32::try_from(values.len()).unwrap();
             entry.insert(index);
-            values.push(Some(value));
+            values.push(Some(value.unbind()));
         }
         // i. Return S.
         // 6. Return S.
-        Ok(s.into_value())
+        Ok(s.into())
     }
 
     /// ### [24.2.4.2 Set.prototype.clear ( )](https://tc39.es/ecma262/#sec-set.prototype.clear)
@@ -249,7 +237,7 @@ impl SetPrototype {
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
-        Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::KeyAndValue).into_value())
+        Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::KeyAndValue).into())
     }
 
     /// ### [24.2.4.7 Set.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-set.prototype.foreach)
@@ -335,7 +323,7 @@ impl SetPrototype {
                     Some(ArgumentsList::from_mut_slice(&mut [
                         e.unbind(),
                         e.unbind(),
-                        s.into_value().unbind(),
+                        s.unbind().into(),
                     ])),
                     gc.reborrow(),
                 )
@@ -370,7 +358,7 @@ impl SetPrototype {
             strings,
             sets,
             ..
-        } = &agent.heap;
+        } = &mut agent.heap;
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
         let set_heap_data = s.get_direct(sets);
         let values = set_heap_data.values;
@@ -414,7 +402,7 @@ impl SetPrototype {
         // 3. Let size be SetDataSize(S.[[SetData]]).
         let size = s.get(agent).set_data.borrow().len() as u32;
         // 4. Return 𝔽(size).
-        Ok(Number::from(size).into_value())
+        Ok(Number::from(size).into())
     }
 
     /// ### [24.2.4.17 Set.prototype.values ( )](https://tc39.es/ecma262/#sec-set.prototype.values)
@@ -432,7 +420,7 @@ impl SetPrototype {
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
-        Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into_value())
+        Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -455,7 +443,7 @@ impl SetPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.keys.to_property_key())
-                    .with_value(set_prototype_values.into_value())
+                    .with_value(set_prototype_values.into())
                     .with_enumerable(SetPrototypeValues::ENUMERABLE)
                     .with_configurable(SetPrototypeValues::CONFIGURABLE)
                     .build()
@@ -464,16 +452,16 @@ impl SetPrototype {
             .with_builtin_intrinsic_function_property::<SetPrototypeValues>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value(set_prototype_values.into_value())
+                    .with_key(WellKnownSymbols::Iterator.into())
+                    .with_value(set_prototype_values.into())
                     .with_enumerable(SetPrototypeValues::ENUMERABLE)
                     .with_configurable(SetPrototypeValues::CONFIGURABLE)
                     .build()
             })
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Set.into_value())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Set.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

@@ -5,21 +5,15 @@
 use ahash::AHashMap;
 
 use super::{
-    CompactionLists, HeapMarkAndSweep, WorkQueues,
-    indexes::{ElementIndex, PropertyKeyIndex},
+    CompactionLists, ElementIndex, HeapMarkAndSweep, PropertyKeyIndex, WorkQueues,
     object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        types::{Function, PropertyDescriptor, PropertyKey, Value},
-    },
-    engine::context::{Bindable, NoGcScope, bindable_handle},
+    ecmascript::{Agent, Function, PropertyDescriptor, PropertyKey, Value},
+    engine::{Bindable, NoGcScope, bindable_handle},
+    heap::HeapIndexHandle,
 };
-use core::{
-    mem::MaybeUninit,
-    ops::{Index, IndexMut},
-};
+use core::mem::MaybeUninit;
 use std::collections::{TryReserveError, hash_map::Entry};
 
 /// Shared access to an element storage.
@@ -96,7 +90,7 @@ impl<'a, 'gc> PropertyStorageMut<'a, 'gc> {
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum ElementArrayKey {
+pub(crate) enum ElementArrayKey {
     #[default]
     Empty,
     /// Uniquely owned zero-sized elements array
@@ -208,8 +202,24 @@ impl Default for ElementsVector<'static> {
 }
 
 impl<'gc> ElementsVector<'gc> {
+    #[inline]
+    pub(crate) fn get<'a>(&self, agent: &'a Agent) -> &'a [Option<Value<'gc>>] {
+        agent.heap.elements.get_values(self)
+    }
+
+    #[inline]
+    pub(crate) fn get_mut<'a>(&self, agent: &'a mut Agent) -> &'a mut [Option<Value<'gc>>] {
+        // SAFETY: shortening the GC lifetime is safe, as moving a shorter
+        // lifetime into the heap puts it into the GC's view.
+        unsafe {
+            core::mem::transmute::<&'a mut [Option<Value<'static>>], &'a mut [Option<Value<'gc>>]>(
+                agent.heap.elements.get_values_mut(self),
+            )
+        }
+    }
+
     pub(crate) const EMPTY: Self = Self {
-        elements_index: ElementIndex::from_u32_index(0),
+        elements_index: ElementIndex::ZERO,
         cap: ElementArrayKey::Empty,
         len: 0,
         len_writable: true,
@@ -435,6 +445,7 @@ impl HeapMarkAndSweep for ElementsVector<'static> {
     }
 }
 
+/// Property descriptor enumeration used for creating objects.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum ElementDescriptor<'a> {
@@ -489,61 +500,93 @@ pub enum ElementDescriptor<'a> {
     /// ```js
     /// { get, set: undefined, enumerable: true, configurable: true }
     /// ```
-    ReadOnlyEnumerableConfigurableAccessor { get: Function<'a> },
+    ReadOnlyEnumerableConfigurableAccessor {
+        /// Getter function of a read-only accessor property.
+        get: Function<'a>,
+    },
     /// ```js
     /// { get, set: undefined, enumerable: true, configurable: false }
     /// ```
-    ReadOnlyEnumerableUnconfigurableAccessor { get: Function<'a> },
+    ReadOnlyEnumerableUnconfigurableAccessor {
+        /// Getter function of a read-only accessor property.
+        get: Function<'a>,
+    },
     /// ```js
     /// { get, set: undefined, enumerable: false, configurable: true }
     /// ```
-    ReadOnlyUnenumerableConfigurableAccessor { get: Function<'a> },
+    ReadOnlyUnenumerableConfigurableAccessor {
+        /// Getter function of a read-only accessor property.
+        get: Function<'a>,
+    },
     /// ```js
     /// { get, set: undefined, enumerable: false, configurable: false }
     /// ```
-    ReadOnlyUnenumerableUnconfigurableAccessor { get: Function<'a> },
+    ReadOnlyUnenumerableUnconfigurableAccessor {
+        /// Getter function of a read-only accessor property.
+        get: Function<'a>,
+    },
     /// ```js
     /// { get: undefined, set, enumerable: true, configurable: true }
     /// ```
-    WriteOnlyEnumerableConfigurableAccessor { set: Function<'a> },
+    WriteOnlyEnumerableConfigurableAccessor {
+        /// Setter function of a write-only accessor property.
+        set: Function<'a>,
+    },
     /// ```js
     /// { get: undefined, set, enumerable: true, configurable: false }
     /// ```
-    WriteOnlyEnumerableUnconfigurableAccessor { set: Function<'a> },
+    WriteOnlyEnumerableUnconfigurableAccessor {
+        /// Setter function of a write-only accessor property.
+        set: Function<'a>,
+    },
     /// ```js
     /// { get: undefined, set, enumerable: false, configurable: true }
     /// ```
-    WriteOnlyUnenumerableConfigurableAccessor { set: Function<'a> },
+    WriteOnlyUnenumerableConfigurableAccessor {
+        /// Setter function of a write-only accessor property.
+        set: Function<'a>,
+    },
     /// ```js
     /// { get: undefined, set, enumerable: false, configurable: false }
     /// ```
-    WriteOnlyUnenumerableUnconfigurableAccessor { set: Function<'a> },
+    WriteOnlyUnenumerableUnconfigurableAccessor {
+        /// Setter function of a write-only accessor property.
+        set: Function<'a>,
+    },
     /// ```js
     /// { get, set, enumerable: true, configurable: true }
     /// ```
     ReadWriteEnumerableConfigurableAccessor {
+        /// Getter function of a read-write accessor property.
         get: Function<'a>,
+        /// Setter function of a read-write accessor property.
         set: Function<'a>,
     },
     /// ```js
     /// { get, set, enumerable: true, configurable: false }
     /// ```
     ReadWriteEnumerableUnconfigurableAccessor {
+        /// Getter function of a read-write accessor property.
         get: Function<'a>,
+        /// Setter function of a read-write accessor property.
         set: Function<'a>,
     },
     /// ```js
     /// { get, set, enumerable: false, configurable: true }
     /// ```
     ReadWriteUnenumerableConfigurableAccessor {
+        /// Getter function of a read-write accessor property.
         get: Function<'a>,
+        /// Setter function of a read-write accessor property.
         set: Function<'a>,
     },
     /// ```js
     /// { get, set, enumerable: false, configurable: false }
     /// ```
     ReadWriteUnenumerableUnconfigurableAccessor {
+        /// Getter function of a read-write accessor property.
         get: Function<'a>,
+        /// Setter function of a read-write accessor property.
         set: Function<'a>,
     },
 }
@@ -1218,7 +1261,7 @@ impl<const N: usize> ElementArray<N> {
         ElementStorageMut {
             values: &mut self
                 .values
-                .get_mut(vector.elements_index.into_index())
+                .get_mut(vector.elements_index.get_index())
                 .unwrap()
                 .as_mut_slice()[0..vector.len() as usize],
             descriptors: self.descriptors.entry(vector.elements_index.unbind()),
@@ -1396,7 +1439,7 @@ impl<const N: usize> PropertyKeyArray<N> {
     }
 
     fn get_raw<'a>(&self, keys_index: PropertyKeyIndex<'a>, len: u32) -> &[PropertyKey<'a>] {
-        let keys = &self.keys[keys_index.into_index()].as_slice()[0..len as usize];
+        let keys = &self.keys[keys_index.get_index()].as_slice()[0..len as usize];
         debug_assert!(keys.iter().all(|k| k.is_some()));
         // SAFETY: We're indexing into an initialized part of the slice where
         // only Some keys are present, and PropertyKey uses enum niches so Some
@@ -1405,7 +1448,7 @@ impl<const N: usize> PropertyKeyArray<N> {
     }
 
     fn get_uninit(&mut self, index: PropertyKeyIndex) -> &mut [Option<PropertyKey<'static>>] {
-        self.keys[index.into_index()].as_mut_slice()
+        self.keys[index.get_index()].as_mut_slice()
     }
 
     fn push(
@@ -1476,14 +1519,14 @@ impl<const N: usize> PropertyKeyArray<N> {
     }
 
     unsafe fn push_key(&mut self, index: PropertyKeyIndex, len: u32, key: PropertyKey) {
-        let keys = self.keys[index.into_index()].as_mut_slice();
+        let keys = self.keys[index.get_index()].as_mut_slice();
         let previous = keys[len as usize].replace(key.unbind());
         debug_assert!(previous.is_none());
     }
 
     unsafe fn remove(&mut self, index: PropertyKeyIndex, len: u32, removal_index: u32) {
         let len = usize::try_from(len).unwrap_or(usize::MAX);
-        let keys = &mut self.keys[index.into_index()].as_mut_slice()[..len];
+        let keys = &mut self.keys[index.get_index()].as_mut_slice()[..len];
         let Some(next_index) = usize::try_from(removal_index)
             .ok()
             .and_then(|i| i.checked_add(1))
@@ -1505,7 +1548,7 @@ impl<const N: usize> PropertyKeyArray<N> {
         len: u32,
     ) -> Result<PropertyKeyIndex<'a>, TryReserveError> {
         self.keys.try_reserve(1)?;
-        let start = key_index.into_index();
+        let start = key_index.get_index();
         let end = start.saturating_add(1);
         // TODO: We'd want to use split_at_spare_mut here to only copy len keys
         // instead of copying N keys and writing None into N - len.
@@ -1525,7 +1568,7 @@ impl<const N: usize> PropertyKeyArray<N> {
     ) -> Result<PropertyKeyIndex<'a>, TryReserveError> {
         self.keys.try_reserve(1)?;
         let len = len as usize;
-        let start = key_index.into_index();
+        let start = key_index.get_index();
         let end = start.saturating_add(1);
         // TODO: We'd want to use split_at_spare_mut here to only copy len keys
         // instead of copying N keys and writing None into N - len.
@@ -1600,34 +1643,6 @@ pub(crate) struct ElementArrays {
     pub(crate) e2pow32: ElementArray2Pow32,
 }
 
-impl Index<&ElementsVector<'_>> for ElementArrays {
-    type Output = [Option<Value<'static>>];
-
-    fn index(&self, index: &ElementsVector) -> &Self::Output {
-        self.get_values(index)
-    }
-}
-
-impl IndexMut<&ElementsVector<'_>> for ElementArrays {
-    fn index_mut(&mut self, index: &ElementsVector) -> &mut Self::Output {
-        self.get_values_mut(index)
-    }
-}
-
-impl Index<&ElementsVector<'_>> for Agent {
-    type Output = [Option<Value<'static>>];
-
-    fn index(&self, index: &ElementsVector) -> &Self::Output {
-        &self.heap.elements[index]
-    }
-}
-
-impl IndexMut<&ElementsVector<'_>> for Agent {
-    fn index_mut(&mut self, index: &ElementsVector) -> &mut Self::Output {
-        &mut self.heap.elements[index]
-    }
-}
-
 impl ElementArrays {
     fn push_values(
         &mut self,
@@ -1656,7 +1671,7 @@ impl ElementArrays {
         match key {
             ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
                 assert!(source.is_empty() && descriptors.is_none());
-                Ok(ElementIndex::from_u32_index(0))
+                Ok(ElementIndex::ZERO)
             }
             ElementArrayKey::E1 => e2pow1.push(source, descriptors),
             ElementArrayKey::E2 => e2pow2.push(source, descriptors),
@@ -2049,9 +2064,7 @@ impl ElementArrays {
         } = self;
         let key = ElementArrayKey::from(capacity);
         let index = match key {
-            ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
-                PropertyKeyIndex::from_u32_index(0)
-            }
+            ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => PropertyKeyIndex::ZERO,
             ElementArrayKey::E1 => k2pow1.push(&[])?,
             ElementArrayKey::E2 => k2pow2.push(&[])?,
             ElementArrayKey::E3 => k2pow3.push(&[])?,
@@ -2251,7 +2264,7 @@ impl ElementArrays {
         if len <= 1 {
             // Removing the last key.
             debug_assert_eq!(removal_index, 0);
-            return Ok((ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0)));
+            return Ok((ElementArrayKey::Empty, PropertyKeyIndex::ZERO));
         }
         let Self {
             k2pow1,
@@ -2420,7 +2433,7 @@ impl ElementArrays {
         len: u32,
     ) -> Result<(ElementArrayKey, PropertyKeyIndex<'a>), TryReserveError> {
         if capacity == 0 {
-            return Ok((ElementArrayKey::Empty, PropertyKeyIndex::from_u32_index(0)));
+            return Ok((ElementArrayKey::Empty, PropertyKeyIndex::ZERO));
         }
         let Self {
             k2pow1,
@@ -2471,7 +2484,7 @@ impl ElementArrays {
         if dst_cap.capacity() == 0 {
             // Removing the last key.
             debug_assert_eq!(removal_index, 0);
-            return Ok(ElementIndex::from_u32_index(0));
+            return Ok(ElementIndex::ZERO);
         }
 
         if dst_cap == src_cap {
@@ -3511,7 +3524,7 @@ impl ElementArrays {
         &mut self,
         elements_vector: &ElementsVector<'a>,
     ) -> ElementsVector<'a> {
-        let index = elements_vector.elements_index.into_index();
+        let index = elements_vector.elements_index.get_index();
         let ElementArrays {
             e2pow1,
             e2pow2,
@@ -3527,9 +3540,7 @@ impl ElementArrays {
             ..
         } = self;
         let new_index = match elements_vector.cap {
-            ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => {
-                ElementIndex::from_u32_index(0)
-            }
+            ElementArrayKey::Empty | ElementArrayKey::EmptyIntrinsic => ElementIndex::ZERO,
             ElementArrayKey::E1 => {
                 let elements = e2pow1;
                 elements.values.extend_from_within(index..index + 1);
@@ -3670,12 +3681,14 @@ impl HeapMarkAndSweep for ElementDescriptor<'static> {
     }
 }
 
+#[doc(hidden)]
 impl AsRef<ElementArrays> for Agent {
     fn as_ref(&self) -> &ElementArrays {
         &self.heap.elements
     }
 }
 
+#[doc(hidden)]
 impl AsMut<ElementArrays> for Agent {
     fn as_mut(&mut self) -> &mut ElementArrays {
         &mut self.heap.elements

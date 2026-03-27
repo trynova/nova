@@ -4,23 +4,13 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_index, validate_index},
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array_buffer::{allocate_array_buffer, get_array_buffer_max_byte_length_option},
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
-            Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, PropertyKey, Realm,
+        String, Value, allocate_array_buffer, builders::BuiltinFunctionBuilder,
+        get_array_buffer_max_byte_length_option, to_index, validate_index,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope, Scopable},
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct ArrayBufferConstructor;
@@ -48,8 +38,7 @@ struct ArrayBufferGetSpecies;
 impl Builtin for ArrayBufferGetSpecies {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
 
     const LENGTH: u8 = 0;
 
@@ -121,7 +110,7 @@ impl ArrayBufferConstructor {
             requested_max_byte_length,
             gc,
         )
-        .map(|ab| ab.into_value())
+        .map(|ab| ab.into())
     }
 
     /// ### [25.1.5.1 ArrayBuffer.isView ( arg )](https://tc39.es/ecma262/#sec-arraybuffer.isview)
@@ -182,7 +171,7 @@ impl ArrayBufferConstructor {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ArrayBufferConstructor>(agent, realm)
             .with_property_capacity(3)
             .with_builtin_function_property::<ArrayBufferIsView>()
-            .with_prototype_property(array_buffer_prototype.into_object())
+            .with_prototype_property(array_buffer_prototype.into())
             .with_builtin_function_getter_property::<ArrayBufferGetSpecies>()
             .build();
     }

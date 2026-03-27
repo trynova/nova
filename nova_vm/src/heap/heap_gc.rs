@@ -4,101 +4,55 @@
 
 use std::thread;
 
-#[cfg(feature = "array-buffer")]
-use super::heap_bits::sweep_side_table_values;
-use super::{
-    Heap, WellKnownSymbolIndexes,
-    element_array::ElementArrays,
-    heap_bits::{
-        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_descriptors,
-        sweep_heap_elements_vector_descriptors, sweep_heap_soa_vector_values,
-        sweep_heap_vector_values, sweep_lookup_table,
-    },
-    indexes::{ElementIndex, PropertyKeyIndex},
-};
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::Date;
+use crate::ecmascript::Date;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::VoidArray};
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::{
-    data_view::SharedDataView, shared_array_buffer::SharedArrayBuffer, typed_array::SharedVoidArray,
-};
-#[cfg(feature = "set")]
-use crate::ecmascript::builtins::{
-    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
-};
+use crate::ecmascript::{ArrayBuffer, DataView, VoidArray};
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::{
-    regexp::RegExp,
-    text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-};
+use crate::ecmascript::{RegExp, RegExpStringIterator};
+#[cfg(feature = "set")]
+use crate::ecmascript::{Set, SetIterator};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{SharedArrayBuffer, SharedDataView, SharedVoidArray};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{TemporalDuration, TemporalInstant};
 #[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
+use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
+#[cfg(feature = "array-buffer")]
+use crate::heap::heap_bits::sweep_side_table_values;
 use crate::{
     ecmascript::{
-        builtins::{
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            async_generator_objects::AsyncGenerator,
-            bound_function::BoundFunction,
-            control_abstraction_objects::{
-                async_function_objects::await_reaction::AwaitReaction,
-                generator_objects::Generator,
-                promise_objects::promise_abstract_operations::{
-                    promise_reaction_records::PromiseReaction,
-                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
-                },
-            },
-            embedder_object::EmbedderObject,
-            error::Error,
-            finalization_registry::FinalizationRegistry,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::Map,
-            module::Module,
-            ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-            primitive_objects::PrimitiveObject,
-            promise::Promise,
-            promise_objects::promise_abstract_operations::{
-                promise_finally_functions::BuiltinPromiseFinallyFunction,
-                promise_group_record::PromiseGroup,
-            },
-            proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
-        },
-        execution::{
-            Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
-            ModuleEnvironment, ObjectEnvironment, Realm,
-        },
-        scripts_and_modules::{
-            module::module_semantics::{
-                ModuleRequest, source_text_module_records::SourceTextModule,
-            },
-            script::Script,
-            source_code::SourceCode,
-        },
-        types::{
-            BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol,
-            bigint::HeapBigInt,
-        },
+        Agent, Array, ArrayIterator, AsyncGenerator, AwaitReaction, BUILTIN_STRINGS_LIST,
+        BoundFunction, BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+        BuiltinPromiseResolvingFunction, DeclarativeEnvironment, ECMAScriptFunction,
+        EmbedderObject, Environments, Error, FinalizationRegistry, FunctionEnvironment, Generator,
+        GlobalEnvironment, HeapBigInt, HeapNumber, HeapString, Map, MapIterator, Module,
+        ModuleEnvironment, ModuleRequest, ObjectEnvironment, ObjectShape, OrdinaryObject,
+        PrimitiveObject, PrivateEnvironment, Promise, PromiseGroup, PromiseReaction,
+        PropertyLookupCache, Proxy, Realm, Script, SourceCode, SourceTextModule, StringIterator,
+        Symbol,
     },
-    engine::{
-        Executable,
-        context::{Bindable, GcScope},
+    engine::{Bindable, Executable, GcScope},
+    heap::{
+        ElementIndex, Heap, HeapIndexHandle, PropertyKeyIndex, WellKnownSymbols,
+        element_array::ElementArrays,
+        heap_bits::{
+            CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_descriptors,
+            sweep_heap_elements_vector_descriptors, sweep_heap_soa_vector_values,
+            sweep_heap_vector_values, sweep_lookup_table,
+        },
     },
     ndt,
 };
 
-pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc: GcScope) {
+pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc: GcScope) {
     ndt::gc_start!(|| ());
 
     let mut bits = HeapBits::new(&agent.heap);
     bits.strings
         .mark_range(0..(BUILTIN_STRINGS_LIST.len() as u32), &mut bits.bits);
-    bits.symbols.mark_range(
-        0..(WellKnownSymbolIndexes::Unscopables as u32),
-        &mut bits.bits,
-    );
+    bits.symbols
+        .mark_range(0..(WellKnownSymbols::Unscopables as u32), &mut bits.bits);
     let mut queues = WorkQueues::new(&agent.heap, &bits);
     root_realms.iter().for_each(|realm| {
         if let Some(realm) = realm {
@@ -128,6 +82,12 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             caches,
             #[cfg(feature = "date")]
             dates,
+            #[cfg(feature = "temporal")]
+            instants,
+            #[cfg(feature = "temporal")]
+            durations,
+            #[cfg(feature = "temporal")]
+            plain_times,
             ecmascript_functions,
             elements,
             embedder_objects,
@@ -214,7 +174,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             global: global_environments,
             module: module_environments,
             object: object_environments,
-            private: _private_environments,
+            private: private_environments,
         } = environments;
         let ElementArrays {
             e2pow1,
@@ -256,7 +216,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut script_marks: Box<[Script]> = queues.scripts.drain(..).collect();
             script_marks.sort();
             script_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.scripts.set_bit(index, &bits.bits) {
                     // Did mark.
                     scripts.get(index).mark_values(&mut queues);
@@ -267,7 +227,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut realm_marks: Box<[Realm]> = queues.realms.drain(..).collect();
             realm_marks.sort();
             realm_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.realms.set_bit(index, &bits.bits) {
                     // Did mark.
                     realms.get(index).mark_values(&mut queues);
@@ -280,7 +240,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.declarative_environments.drain(..).collect();
             declarative_environment_marks.sort();
             declarative_environment_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.declarative_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     declarative_environments.get(index).mark_values(&mut queues);
@@ -293,7 +253,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.function_environments.drain(..).collect();
             function_environment_marks.sort();
             function_environment_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.function_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     function_environments.get(index).mark_values(&mut queues);
@@ -306,7 +266,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.global_environments.drain(..).collect();
             global_environment_marks.sort();
             global_environment_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.global_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     global_environments.get(index).mark_values(&mut queues);
@@ -319,7 +279,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.module_environments.drain(..).collect();
             module_environment_marks.sort();
             module_environment_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.module_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     module_environments.get(index).mark_values(&mut queues);
@@ -332,10 +292,23 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.object_environments.drain(..).collect();
             object_environment_marks.sort();
             object_environment_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.object_environments.set_bit(index, &bits.bits) {
                     // Did mark.
                     object_environments.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+
+        if !queues.private_environments.is_empty() {
+            let mut private_environment_marks: Box<[PrivateEnvironment]> =
+                queues.private_environments.drain(..).collect();
+            private_environment_marks.sort();
+            private_environment_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.private_environments.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    private_environments.get(index).mark_values(&mut queues);
                 }
             });
         }
@@ -411,7 +384,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 queues.await_reactions.drain(..).collect();
             await_reaction_marks.sort();
             await_reaction_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.await_reactions.set_bit(index, &bits.bits) {
                     // Did mark.
                     await_reactions.get(index).mark_values(&mut queues);
@@ -545,6 +518,39 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
                 if bits.dates.set_bit(index, &bits.bits) {
                     // Did mark.
                     dates.get(index).mark_values(&mut queues);
+                }
+            });
+        }
+        #[cfg(feature = "temporal")]
+        {
+            use crate::ecmascript::TemporalPlainTime;
+
+            let mut instant_marks: Box<[TemporalInstant]> = queues.instants.drain(..).collect();
+            instant_marks.sort();
+            instant_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.instants.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    instants.get(index).mark_values(&mut queues);
+                }
+            });
+            let mut duration_marks: Box<[TemporalDuration]> = queues.durations.drain(..).collect();
+            duration_marks.sort();
+            duration_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.durations.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    durations.get(index).mark_values(&mut queues);
+                }
+            });
+            let mut plain_time_marks: Box<[TemporalPlainTime]> =
+                queues.plain_times.drain(..).collect();
+            plain_time_marks.sort();
+            plain_time_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if bits.plain_times.set_bit(index, &bits.bits) {
+                    // Did mark.
+                    plain_times.get(index).mark_values(&mut queues);
                 }
             });
         }
@@ -940,7 +946,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_1_marks: Box<[ElementIndex]> = queues.e_2_1.drain(..).collect();
             e_2_1_marks.sort();
             e_2_1_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_1.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow1.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -955,7 +961,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_2_marks: Box<[ElementIndex]> = queues.e_2_2.drain(..).collect();
             e_2_2_marks.sort();
             e_2_2_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_2.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow2.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -970,7 +976,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_3_marks: Box<[ElementIndex]> = queues.e_2_3.drain(..).collect();
             e_2_3_marks.sort();
             e_2_3_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_3.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow3.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -985,7 +991,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_4_marks: Box<[ElementIndex]> = queues.e_2_4.drain(..).collect();
             e_2_4_marks.sort();
             e_2_4_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_4.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow4.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1000,7 +1006,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_6_marks: Box<[ElementIndex]> = queues.e_2_6.drain(..).collect();
             e_2_6_marks.sort();
             e_2_6_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_6.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow6.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1015,7 +1021,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_8_marks: Box<[ElementIndex]> = queues.e_2_8.drain(..).collect();
             e_2_8_marks.sort();
             e_2_8_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_8.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow8.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1030,7 +1036,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_10_marks: Box<[ElementIndex]> = queues.e_2_10.drain(..).collect();
             e_2_10_marks.sort();
             e_2_10_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_10.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow10.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1045,7 +1051,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_12_marks: Box<[ElementIndex]> = queues.e_2_12.drain(..).collect();
             e_2_12_marks.sort();
             e_2_12_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_12.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow12.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1060,7 +1066,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_16_marks: Box<[ElementIndex]> = queues.e_2_16.drain(..).collect();
             e_2_16_marks.sort();
             e_2_16_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_16.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow16.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1075,7 +1081,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_24_marks: Box<[ElementIndex]> = queues.e_2_24.drain(..).collect();
             e_2_24_marks.sort();
             e_2_24_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_24.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow24.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1090,7 +1096,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut e_2_32_marks: Box<[ElementIndex]> = queues.e_2_32.drain(..).collect();
             e_2_32_marks.sort();
             e_2_32_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.e_2_32.set_bit(index, &bits.bits) {
                     if let Some(descriptors) = e2pow32.descriptors.get(&idx) {
                         mark_descriptors(descriptors, &mut queues);
@@ -1106,7 +1112,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_4_marks: Box<[PropertyKeyIndex]> = queues.k_2_4.drain(..).collect();
             k_2_4_marks.sort();
             k_2_4_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_4.set_bit(index, &bits.bits) {
                     k2pow4.keys.get(index).mark_values(&mut queues)
                 }
@@ -1116,7 +1122,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_1_marks: Box<[PropertyKeyIndex]> = queues.k_2_1.drain(..).collect();
             k_2_1_marks.sort();
             k_2_1_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_1.set_bit(index, &bits.bits) {
                     k2pow1.keys.get(index).mark_values(&mut queues)
                 }
@@ -1126,7 +1132,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_2_marks: Box<[PropertyKeyIndex]> = queues.k_2_2.drain(..).collect();
             k_2_2_marks.sort();
             k_2_2_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_2.set_bit(index, &bits.bits) {
                     k2pow2.keys.get(index).mark_values(&mut queues)
                 }
@@ -1136,7 +1142,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_3_marks: Box<[PropertyKeyIndex]> = queues.k_2_3.drain(..).collect();
             k_2_3_marks.sort();
             k_2_3_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_3.set_bit(index, &bits.bits) {
                     k2pow3.keys.get(index).mark_values(&mut queues)
                 }
@@ -1146,7 +1152,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_6_marks: Box<[PropertyKeyIndex]> = queues.k_2_6.drain(..).collect();
             k_2_6_marks.sort();
             k_2_6_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_6.set_bit(index, &bits.bits) {
                     k2pow6.keys.get(index).mark_values(&mut queues)
                 }
@@ -1156,7 +1162,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_8_marks: Box<[PropertyKeyIndex]> = queues.k_2_8.drain(..).collect();
             k_2_8_marks.sort();
             k_2_8_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_8.set_bit(index, &bits.bits) {
                     k2pow8.keys.get(index).mark_values(&mut queues)
                 }
@@ -1166,7 +1172,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_10_marks: Box<[PropertyKeyIndex]> = queues.k_2_10.drain(..).collect();
             k_2_10_marks.sort();
             k_2_10_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_10.set_bit(index, &bits.bits) {
                     k2pow10.keys.get(index).mark_values(&mut queues)
                 }
@@ -1176,7 +1182,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_12_marks: Box<[PropertyKeyIndex]> = queues.k_2_12.drain(..).collect();
             k_2_12_marks.sort();
             k_2_12_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_12.set_bit(index, &bits.bits) {
                     k2pow12.keys.get(index).mark_values(&mut queues)
                 }
@@ -1186,7 +1192,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_16_marks: Box<[PropertyKeyIndex]> = queues.k_2_16.drain(..).collect();
             k_2_16_marks.sort();
             k_2_16_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_16.set_bit(index, &bits.bits) {
                     k2pow16.keys.get(index).mark_values(&mut queues)
                 }
@@ -1196,7 +1202,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_24_marks: Box<[PropertyKeyIndex]> = queues.k_2_24.drain(..).collect();
             k_2_24_marks.sort();
             k_2_24_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_24.set_bit(index, &bits.bits) {
                     k2pow24.keys.get(index).mark_values(&mut queues)
                 }
@@ -1206,7 +1212,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
             let mut k_2_32_marks: Box<[PropertyKeyIndex]> = queues.k_2_32.drain(..).collect();
             k_2_32_marks.sort();
             k_2_32_marks.iter().for_each(|&idx| {
-                let index = idx.into_index();
+                let index = idx.get_index();
                 if bits.k_2_32.set_bit(index, &bits.bits) {
                     k2pow32.keys.get(index).mark_values(&mut queues)
                 }
@@ -1221,6 +1227,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
     ndt::gc_done!(|| ());
 }
 
+// NOTE: This is the one true use of the `GcScope` which is why we allow a lint
+// exception here. For future reference see [this comment](https://github.com/trynova/nova/pull/913#discussion_r2616482397).
+#[allow(unknown_lints, can_use_no_gc_scope)]
 fn sweep(
     agent: &mut Agent,
     bits: &HeapBits,
@@ -1251,6 +1260,12 @@ fn sweep(
         caches,
         #[cfg(feature = "date")]
         dates,
+        #[cfg(feature = "temporal")]
+        instants,
+        #[cfg(feature = "temporal")]
+        durations,
+        #[cfg(feature = "temporal")]
+        plain_times,
         ecmascript_functions,
         elements,
         embedder_objects,
@@ -1339,7 +1354,7 @@ fn sweep(
         global,
         module,
         object,
-        private: _private_environments,
+        private,
     } = environments;
     let ElementArrays {
         e2pow1,
@@ -1704,6 +1719,24 @@ fn sweep(
                 sweep_heap_vector_values(dates, &compactions, &bits.dates, &bits.bits);
             });
         }
+        #[cfg(feature = "temporal")]
+        if !instants.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(instants, &compactions, &bits.instants, &bits.bits);
+            });
+        }
+        #[cfg(feature = "temporal")]
+        if !durations.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(durations, &compactions, &bits.durations, &bits.bits);
+            });
+        }
+        #[cfg(feature = "temporal")]
+        if !plain_times.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(plain_times, &compactions, &bits.plain_times, &bits.bits);
+            });
+        }
         if !declarative.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(
@@ -1830,6 +1863,16 @@ fn sweep(
                     object,
                     &compactions,
                     &bits.object_environments,
+                    &bits.bits,
+                );
+            });
+        }
+        if !private.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    private,
+                    &compactions,
+                    &bits.private_environments,
                     &bits.bits,
                 );
             });
@@ -2072,18 +2115,18 @@ fn sweep(
 
 #[test]
 fn test_heap_gc() {
-    use crate::engine::context::GcScope;
+    use crate::engine::GcScope;
     use crate::{
-        ecmascript::execution::{DefaultHostHooks, agent::Options},
-        engine::rootable::HeapRootData,
+        ecmascript::{AgentOptions, DefaultHostHooks},
+        engine::HeapRootData,
     };
 
-    let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+    let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
 
     let (mut gc, mut scope) = unsafe { GcScope::create_root() };
     let mut gc = GcScope::new(&mut gc, &mut scope);
     assert!(agent.heap.objects.is_empty());
-    let obj = HeapRootData::Object(
+    let obj = HeapRootData::from(
         OrdinaryObject::create_object(&mut agent, None, &[]).expect("Should perform GC here"),
     );
     agent.heap.globals.borrow_mut().push(obj);

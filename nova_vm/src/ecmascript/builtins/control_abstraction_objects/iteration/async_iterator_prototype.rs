@@ -4,13 +4,11 @@
 
 use crate::{
     ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, Realm},
-        types::{BUILTIN_STRING_MEMORY, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, JsResult, PropertyKey,
+        Realm, String, Value, builders::OrdinaryObjectBuilder,
     },
-    engine::context::{Bindable, GcScope},
-    heap::WellKnownSymbolIndexes,
+    engine::{Bindable, GcScope},
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct AsyncIteratorPrototype;
@@ -19,7 +17,7 @@ struct AsyncIteratorPrototypeIterator;
 impl Builtin for AsyncIteratorPrototypeIterator {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_asyncIterator_;
     const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::AsyncIterator.to_property_key());
+        Some(WellKnownSymbols::AsyncIterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncIteratorPrototype::iterator);
 }

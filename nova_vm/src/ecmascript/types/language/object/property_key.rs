@@ -8,30 +8,19 @@ use ahash::AHasher;
 use wtf8::{Wtf8, Wtf8Buf};
 
 use crate::{
-    SmallInteger, SmallString,
     ecmascript::{
-        abstract_operations::type_conversion::parse_string_to_integer_property_key,
-        execution::Agent,
-        types::{
-            IntoPrimitive, Primitive, PrivateName, String, Symbol, Value,
-            language::{
-                string::HeapString,
-                value::{
-                    INTEGER_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-                    SYMBOL_DISCRIMINANT,
-                },
-            },
-        },
+        Agent, HeapString, INTEGER_DISCRIMINANT, Primitive, PrivateName, SMALL_STRING_DISCRIMINANT,
+        STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, SmallInteger, SmallString, String, Symbol, Value,
+        parse_string_to_integer_property_key,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, Scoped, bindable_handle},
+    heap::{
+        ArenaAccess, CompactionLists, HeapMarkAndSweep, PropertyKeyHeapAccess, WellKnownSymbols,
+        WorkQueues,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, PropertyKeyHeapIndexable, WorkQueues},
 };
 
-const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT & 0b1000_0000;
+const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT + 0b1000_0000;
 
 /// # [Property key](https://tc39.es/ecma262/#property-key)
 ///
@@ -50,14 +39,33 @@ const PRIVATE_NAME_DISCRIMINANT: u8 = SYMBOL_DISCRIMINANT & 0b1000_0000;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum PropertyKey<'a> {
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// 54-bit signed integer on the stack.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
+    ///
+    /// 7-byte WTF-8 string on the stack. End of the string is determined by the
+    /// first 0xFF byte in the data. WTF-16 indexing is calculated on demand
+    /// from the data.
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
+    ///
+    /// WTF-8 string on the heap. Accessing the data can only be done through
+    /// the Agent. ECMAScript specification compliant WTF-16 indexing is
+    /// implemented through an index mapping.
     String(HeapString<'a>) = STRING_DISCRIMINANT,
+    /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
     Symbol(Symbol<'a>) = SYMBOL_DISCRIMINANT,
+    /// ### [6.2.12 Private Names](https://tc39.es/ecma262/#sec-private-names)
     PrivateName(PrivateName) = PRIVATE_NAME_DISCRIMINANT,
 }
 
 impl<'a> PropertyKey<'a> {
+    /// Perform a dummy scoping operation on a stack-allocated PropertyKey.
+    ///
+    /// This is useful when types dictate that scoping must be performed, but
+    /// the value is known to be stack-allocated.
     pub const fn scope_static(self) -> Scoped<'static, PropertyKey<'static>> {
         let key_root_repr = match self {
             PropertyKey::Integer(small_integer) => PropertyKeyRootRepr::Integer(small_integer),
@@ -69,17 +77,31 @@ impl<'a> PropertyKey<'a> {
         Scoped::from_root_repr(key_root_repr)
     }
 
-    // FIXME: This API is not necessarily in the right place.
+    /// Parse a borrowed UTF-8 string into a PropertyKey, converting
+    /// integer-like strings into [`PropertyKey::Integer`] and copying the
+    /// string if the heap if necessary.
+    ///
+    /// [`PropertyKey::Integer`]: PropertyKey::Integer
     pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope<'a, '_>) -> Self {
         parse_string_to_integer_property_key(str)
             .unwrap_or_else(|| String::from_str(agent, str, gc).into())
     }
 
+    /// Parse a static UTF-8 string literal into a PropertyKey, converting
+    /// integer-like strings into [`PropertyKey::Integer`] and copying the
+    /// string reference onto the heap if necessary.
+    ///
+    /// [`PropertyKey::Integer`]: PropertyKey::Integer
     pub fn from_static_str(agent: &mut Agent, str: &'static str, gc: NoGcScope<'a, '_>) -> Self {
         parse_string_to_integer_property_key(str)
             .unwrap_or_else(|| String::from_static_str(agent, str, gc).into())
     }
 
+    /// Parse an owned UTF-8 string into a PropertyKey, converting integer-like
+    /// strings into [`PropertyKey::Integer`] and moving the string onto the
+    /// heap as necessary.
+    ///
+    /// [`PropertyKey::Integer`]: PropertyKey::Integer
     pub fn from_string(
         agent: &mut Agent,
         string: std::string::String,
@@ -100,8 +122,7 @@ impl<'a> PropertyKey<'a> {
     ) -> Primitive<'gc> {
         match self {
             PropertyKey::Integer(small_integer) => {
-                String::from_string(agent, small_integer.into_i64().to_string(), gc)
-                    .into_primitive()
+                String::from_string(agent, small_integer.into_i64().to_string(), gc).into()
             }
             PropertyKey::SmallString(small_string) => Primitive::SmallString(small_string),
             PropertyKey::String(heap_string) => Primitive::String(heap_string.unbind()),
@@ -161,7 +182,8 @@ impl<'a> PropertyKey<'a> {
         }
     }
 
-    pub fn is_array_index(self) -> bool {
+    /// Returns `true` if this PropertyKey is a 54-bit signed integer.
+    pub(crate) fn is_array_index(self) -> bool {
         matches!(self, PropertyKey::Integer(_))
     }
 
@@ -185,6 +207,7 @@ impl<'a> PropertyKey<'a> {
         s == Wtf8Buf::from_string(n.to_string())
     }
 
+    /// Checks equality of two PropertyKeys.
     pub fn equals(self, agent: &Agent, y: Self) -> bool {
         let x = self;
 
@@ -195,7 +218,7 @@ impl<'a> PropertyKey<'a> {
                 s1.as_wtf8() == s2.as_wtf8()
             }
             (PropertyKey::String(s), PropertyKey::Integer(n)) => {
-                let s = agent[s.unbind()].as_wtf8();
+                let s = s.unbind().get(agent).as_wtf8();
 
                 Self::is_str_eq_num(s, n.into_i64())
             }
@@ -236,7 +259,7 @@ impl<'a> PropertyKey<'a> {
         matches!(self, PropertyKey::PrivateName(_))
     }
 
-    pub(crate) fn heap_hash(self, heap: &impl PropertyKeyHeapIndexable) -> u64 {
+    pub(crate) fn heap_hash(self, agent: &impl PropertyKeyHeapAccess) -> u64 {
         let mut hasher = AHasher::default();
         match self {
             PropertyKey::Symbol(sym) => {
@@ -245,7 +268,7 @@ impl<'a> PropertyKey<'a> {
             }
             PropertyKey::String(s) => {
                 // Skip discriminant hashing in strings
-                heap[s.unbind()].data.hash(&mut hasher);
+                s.get(agent).data.hash(&mut hasher);
             }
             PropertyKey::SmallString(s) => {
                 s.as_wtf8().hash(&mut hasher);
@@ -270,19 +293,19 @@ pub(crate) struct DisplayablePropertyKey<'a, 'b, 'c> {
 impl core::fmt::Display for DisplayablePropertyKey<'_, '_, '_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.key {
-            PropertyKey::Integer(data) => data.into_i64().fmt(f),
-            PropertyKey::SmallString(data) => data.to_string_lossy().fmt(f),
-            PropertyKey::String(data) => data.to_string_lossy(self.agent).fmt(f),
-            PropertyKey::Symbol(data) => {
-                if let Some(descriptor) = self.agent[*data].descriptor {
-                    let descriptor = descriptor.to_string_lossy(self.agent);
+            PropertyKey::Integer(i) => i.into_i64().fmt(f),
+            PropertyKey::SmallString(s) => s.to_string_lossy().fmt(f),
+            PropertyKey::String(s) => s.to_string_lossy(self.agent).fmt(f),
+            PropertyKey::Symbol(s) => {
+                if let Some(desc) = s.description(self.agent) {
+                    let descriptor = desc.to_string_lossy_(self.agent);
                     f.debug_tuple("Symbol").field(&descriptor).finish()
                 } else {
                     "Symbol()".fmt(f)
                 }
             }
-            PropertyKey::PrivateName(data) => {
-                write!(f, "##{}", data.into_u32())
+            PropertyKey::PrivateName(p) => {
+                write!(f, "##{}", p.into_u32())
             }
         }
     }
@@ -414,9 +437,10 @@ impl HeapMarkAndSweep for PropertyKey<'static> {
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[repr(u8)]
-pub enum PropertyKeyRootRepr {
+pub(crate) enum PropertyKeyRootRepr {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    Symbol(WellKnownSymbols) = SYMBOL_DISCRIMINANT,
     PrivateName(PrivateName) = PRIVATE_NAME_DISCRIMINANT,
     HeapRef(HeapRootRef) = 0x80,
 }
@@ -427,10 +451,16 @@ impl Rootable for PropertyKey<'_> {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            PropertyKey::Integer(small_integer) => Ok(Self::RootRepr::Integer(small_integer)),
-            PropertyKey::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
-            PropertyKey::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
-            PropertyKey::Symbol(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
+            PropertyKey::Integer(s) => Ok(Self::RootRepr::Integer(s)),
+            PropertyKey::SmallString(s) => Ok(Self::RootRepr::SmallString(s)),
+            PropertyKey::String(s) => Err(HeapRootData::from(s)),
+            PropertyKey::Symbol(symbol) => {
+                if let Ok(s) = WellKnownSymbols::try_from(symbol) {
+                    Ok(PropertyKeyRootRepr::Symbol(s))
+                } else {
+                    Err(HeapRootData::try_from(symbol).unwrap())
+                }
+            }
             PropertyKey::PrivateName(p) => Ok(Self::RootRepr::PrivateName(p)),
         }
     }
@@ -440,6 +470,7 @@ impl Rootable for PropertyKey<'_> {
         match *value {
             PropertyKeyRootRepr::Integer(small_integer) => Ok(Self::Integer(small_integer)),
             PropertyKeyRootRepr::SmallString(small_string) => Ok(Self::SmallString(small_string)),
+            PropertyKeyRootRepr::Symbol(s) => Ok(Self::Symbol(s.into())),
             PropertyKeyRootRepr::PrivateName(p) => Ok(Self::PrivateName(p)),
             PropertyKeyRootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
         }
@@ -453,8 +484,8 @@ impl Rootable for PropertyKey<'_> {
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
         match heap_data {
-            HeapRootData::String(heap_string) => Some(Self::String(heap_string)),
-            HeapRootData::Symbol(symbol) => Some(Self::Symbol(symbol)),
+            HeapRootData::String(s) => Some(Self::String(s)),
+            HeapRootData::Symbol(s) => Some(Self::Symbol(s)),
             _ => None,
         }
     }

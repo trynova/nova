@@ -4,20 +4,12 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_index,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array_buffer::get_array_buffer_max_byte_length_option,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsicConstructor, ExceptionType, JsResult, Object, PropertyKey, Realm, String,
+        Value, builders::BuiltinFunctionBuilder, get_array_buffer_max_byte_length_option, to_index,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope, Scopable},
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
 use super::allocate_shared_array_buffer;
@@ -38,8 +30,7 @@ struct SharedArrayBufferGetSpecies;
 impl Builtin for SharedArrayBufferGetSpecies {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
 
     const LENGTH: u8 = 0;
 
@@ -91,7 +82,7 @@ impl SharedArrayBufferConstructor {
             requested_max_byte_length,
             gc,
         )
-        .map(|sab| sab.into_value())
+        .map(|sab| sab.into())
     }
 
     /// ### [25.2.4.2 get SharedArrayBuffer \[ %Symbol.species% \]](https://tc39.es/ecma262/#sec-sharedarraybuffer-%symbol.species%)
@@ -119,7 +110,7 @@ impl SharedArrayBufferConstructor {
             agent, realm,
         )
         .with_property_capacity(2)
-        .with_prototype_property(shared_array_buffer_prototype.into_object())
+        .with_prototype_property(shared_array_buffer_prototype.into())
         .with_builtin_function_getter_property::<SharedArrayBufferGetSpecies>()
         .build();
     }

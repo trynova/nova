@@ -1,0 +1,4 @@
+# Fix for the default linker crashing on large symbol names:
+# https://github.com/rust-lang/rust/issues/141626
+[target.'cfg(target_os = "windows")']
+linker = "rust-lld"

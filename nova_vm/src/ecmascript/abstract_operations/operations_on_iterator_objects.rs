@@ -6,31 +6,18 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, get, get_method, get_object_method, try_get_object_method,
-            },
-            testing_and_comparison::is_callable,
-            type_conversion::to_boolean,
-        },
-        builtins::ArgumentsList,
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, JsError, try_result_into_option_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyKey, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, Function, JsError, JsResult,
+        Object, OrdinaryObject, PropertyKey, Value, call_function, get, get_method,
+        get_object_method, is_callable, to_boolean, try_get_object_method,
+        try_result_into_option_js,
     },
     engine::{
-        ScopableCollection, ScopedCollection, VmIteratorRecord,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
+        Bindable, GcScope, NoGcScope, Scopable, ScopableCollection, ScopedCollection,
+        VmIteratorRecord, bindable_handle,
     },
     heap::{
         CompactionLists, HeapMarkAndSweep, ObjectEntry, ObjectEntryPropertyDescriptor,
-        WellKnownSymbolIndexes, WorkQueues,
+        WellKnownSymbols, WorkQueues,
     },
 };
 
@@ -39,7 +26,7 @@ use crate::{
 /// An Iterator Record is a Record value used to encapsulate an Iterator or
 /// AsyncIterator along with the next method.
 #[derive(Debug, Clone, Copy)]
-pub struct IteratorRecord<'a> {
+pub(crate) struct IteratorRecord<'a> {
     pub(crate) iterator: Object<'a>,
     pub(crate) next_method: Function<'a>,
     // Note: The done field doesn't seem to be used anywhere.
@@ -199,7 +186,7 @@ pub(crate) fn get_iterator<'a>(
         let method = get_method(
             agent,
             obj.unbind(),
-            PropertyKey::Symbol(WellKnownSymbolIndexes::AsyncIterator.into()),
+            PropertyKey::Symbol(WellKnownSymbols::AsyncIterator.into()),
             gc.reborrow(),
         )
         .unbind()?
@@ -211,7 +198,7 @@ pub(crate) fn get_iterator<'a>(
             let Some(sync_method) = get_method(
                 agent,
                 scoped_obj.get(agent),
-                PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                PropertyKey::Symbol(WellKnownSymbols::Iterator.into()),
                 gc.reborrow(),
             )
             .unbind()?
@@ -245,7 +232,7 @@ pub(crate) fn get_iterator<'a>(
         get_method(
             agent,
             obj.unbind(),
-            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+            PropertyKey::Symbol(WellKnownSymbols::Iterator.into()),
             gc.reborrow(),
         )
         .unbind()?
@@ -492,7 +479,7 @@ pub(crate) fn iterator_close_with_value<'a>(
             call_function(
                 agent,
                 return_function.unbind(),
-                iterator.into_value().unbind(),
+                iterator.unbind().into(),
                 None,
                 gc.reborrow(),
             )
@@ -566,7 +553,7 @@ pub(crate) fn iterator_close_with_error<'a>(
         let _ = call_function(
             agent,
             r#return.unbind(),
-            iterator.into_value().unbind(),
+            iterator.unbind().into(),
             None,
             gc.reborrow(),
         );
@@ -582,12 +569,12 @@ macro_rules! if_abrupt_close_iterator {
         // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
         if let Err(err) = $value {
             return Err(
-                crate::ecmascript::abstract_operations::operations_on_iterator_objects::iterator_close_with_error(
+                crate::ecmascript::abstract_operations::iterator_close_with_error(
                     $agent,
                     $iterator_record.iterator.unbind(),
                     err.unbind(),
-                    $gc
-                )
+                    $gc,
+                ),
             );
         } else if let Ok(value) = $value {
             value.unbind().bind($gc.nogc())
@@ -622,7 +609,7 @@ pub(crate) fn create_iter_result_object<'a>(
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
-                .into_object(),
+                .into(),
         ),
         &[
             ObjectEntry {
@@ -637,7 +624,7 @@ pub(crate) fn create_iter_result_object<'a>(
             ObjectEntry {
                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.done),
                 value: ObjectEntryPropertyDescriptor::Data {
-                    value: done.into_value(),
+                    value: done.into(),
                     writable: true,
                     enumerable: true,
                     configurable: true,

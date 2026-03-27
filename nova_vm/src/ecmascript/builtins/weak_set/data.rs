@@ -6,12 +6,12 @@ use ahash::AHashSet;
 
 use crate::{
     ecmascript::{execution::WeakKey, types::OrdinaryObject},
-    engine::context::{Bindable, bindable_handle},
+    engine::{Bindable, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, sweep_side_set},
 };
 
 #[derive(Debug, Default)]
-pub struct WeakSetHeapData<'a> {
+pub(crate) struct WeakSetHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     /// ### \[\[WeakSetData]]
     weak_set_data: AHashSet<WeakKey<'a>>,
@@ -29,7 +29,7 @@ impl WeakSetHeapData<'_> {
     }
 
     /// Returns true if the WeakSet contains the given weakly holdable key.
-    pub(crate) fn has(&mut self, value: WeakKey) -> bool {
+    pub(crate) fn has(&self, value: WeakKey) -> bool {
         self.weak_set_data.contains(&value.unbind())
     }
 }

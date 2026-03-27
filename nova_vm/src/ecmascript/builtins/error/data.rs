@@ -3,16 +3,13 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{
-        execution::agent::ExceptionType,
-        types::{OrdinaryObject, String, Value},
-    },
-    engine::context::bindable_handle,
+    ecmascript::{OrdinaryObject, String, Value, execution::ExceptionType},
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct ErrorHeapData<'a> {
+pub(crate) struct ErrorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) kind: ExceptionType,
     pub(crate) message: Option<String<'a>>,

@@ -5,9 +5,15 @@
 //! ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 
 #[cfg(feature = "shared-array-buffer")]
-use core::sync::atomic::{AtomicUsize, Ordering};
-#[cfg(feature = "shared-array-buffer")]
-use std::hint::assert_unchecked;
+use std::{
+    collections::hash_map::Entry,
+    hint::assert_unchecked,
+    sync::{
+        Arc, Condvar, Mutex, MutexGuard, WaitTimeoutResult,
+        atomic::{AtomicBool, AtomicPtr, AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 use core::{
     f32, f64,
@@ -27,15 +33,12 @@ use num_bigint::Sign;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{
-            to_big_int64_big_int, to_big_uint64_big_int, to_int8_number, to_int16_number,
-            to_int32_number, to_uint8_clamp_number, to_uint8_number, to_uint16_number,
-            to_uint32_number,
-        },
-        execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BigInt, IntoNumeric, Number, Numeric, Value},
+        Agent, BigInt, ExceptionType, JsResult, Number, Numeric, Value, to_big_int64_big_int,
+        to_big_uint64_big_int, to_int8_number, to_int16_number, to_int32_number,
+        to_uint8_clamp_number, to_uint8_number, to_uint16_number, to_uint32_number,
     },
-    engine::context::{NoGcScope, trivially_bindable},
+    engine::{NoGcScope, trivially_bindable},
+    heap::ArenaAccess,
 };
 
 #[cfg(feature = "array-buffer")]
@@ -59,13 +62,12 @@ trivially_bindable!(DataBlock);
 
 impl core::fmt::Debug for DataBlock {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let slice = if let Some(ptr) = self.ptr {
+        if let Some(ptr) = self.ptr {
             // SAFETY: ptr points to a valid allocation of byte_length bytes.
-            unsafe { core::slice::from_raw_parts(ptr.as_ptr(), self.byte_length) }
+            unsafe { core::slice::from_raw_parts(ptr.as_ptr(), self.byte_length) }.fmt(f)
         } else {
-            &[]
-        };
-        slice.fmt(f)
+            f.write_str("<detached>")
+        }
     }
 }
 
@@ -423,17 +425,138 @@ impl SharedDataBlockMaxByteLength {
     }
 }
 
-/// # [Shared Data Block](https://tc39.es/ecma262/#sec-data-blocks)
+#[cfg(feature = "shared-array-buffer")]
+#[derive(Default)]
+pub(crate) struct WaiterRecord {
+    condvar: Condvar,
+    notified: AtomicBool,
+}
+
+#[cfg(feature = "shared-array-buffer")]
+impl WaiterRecord {
+    pub(crate) fn new_shared() -> Arc<Self> {
+        Arc::new(Self::default())
+    }
+
+    pub(crate) fn notify_waiters(self: Arc<Self>) {
+        self.notified
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.condvar.notify_all();
+    }
+
+    pub(crate) fn wait<'a, T>(self: &Arc<Self>, guard: MutexGuard<'a, T>) {
+        let lock_result = self
+            .condvar
+            .wait_while(guard, |_| !self.notified.load(Ordering::Relaxed));
+        match lock_result {
+            Ok(_) => (),
+            Err(e) => panic!(
+                "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
+            ),
+        }
+    }
+
+    pub(crate) fn wait_timeout<'a, T>(
+        self: &Arc<Self>,
+        guard: MutexGuard<'a, T>,
+        dur: Duration,
+    ) -> (MutexGuard<'a, T>, WaitTimeoutResult) {
+        let lock_result = self
+            .condvar
+            .wait_timeout_while(guard, dur, |_| !self.notified.load(Ordering::Relaxed));
+
+        match lock_result {
+            Ok(result) => result,
+            Err(e) => panic!(
+                "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
+            ),
+        }
+    }
+}
+
+/// Result of an `Atomics.wait` or `Atomics.waitAsync` operation.
+#[derive(Debug)]
+#[cfg(feature = "shared-array-buffer")]
+pub(crate) enum WaitResult {
+    Ok,
+    TimedOut,
+    NotEqual,
+}
+
+#[cfg(feature = "shared-array-buffer")]
+#[derive(Default)]
+#[repr(transparent)]
+pub(crate) struct WaiterList {
+    waiters: std::collections::VecDeque<Arc<WaiterRecord>>,
+}
+
+impl WaiterList {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.waiters.is_empty()
+    }
+
+    pub(crate) fn pop(&mut self) -> Option<Arc<WaiterRecord>> {
+        self.waiters.pop_front()
+    }
+
+    pub(crate) fn push(&mut self, w: Arc<WaiterRecord>) {
+        self.waiters.push_back(w);
+    }
+
+    pub(crate) fn remove(&mut self, w: Arc<WaiterRecord>) -> bool {
+        let Some(index) = self
+            .waiters
+            .iter()
+            .enumerate()
+            .find(|(_, e)| Arc::ptr_eq(e, &w))
+            .map(|(i, _)| i)
+        else {
+            return false;
+        };
+        self.waiters.remove(index);
+        true
+    }
+}
+
+#[cfg(feature = "shared-array-buffer")]
+#[repr(transparent)]
+#[derive(Default)]
+pub(crate) struct WaiterLists {
+    map: std::collections::HashMap<usize, WaiterList>,
+}
+
+impl WaiterLists {
+    pub(crate) fn get_list_mut(&mut self, index: usize) -> Option<&mut WaiterList> {
+        self.map.get_mut(&index)
+    }
+
+    pub(crate) fn push_to_list(&mut self, index: usize, w: Arc<WaiterRecord>) {
+        self.map.entry(index).or_default().push(w);
+    }
+
+    pub(crate) fn remove_from_list(&mut self, index: usize, w: Arc<WaiterRecord>) {
+        match self.map.entry(index) {
+            Entry::Occupied(mut entry) => {
+                if entry.get_mut().remove(w) && entry.get().is_empty() {
+                    entry.remove();
+                }
+            }
+            Entry::Vacant(_) => {}
+        }
+    }
+}
+
+/// ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 ///
 /// The Shared Data Block specification type is used to describe a distinct and
-/// mutable sequence of byte-sized (8 bit) atomic numeric values. A byte value
-/// is an integer in the inclusive interval from 0 to 255. A Shared Data Block
-/// value is created with a fixed number of bytes that each have the initial
-/// value 0.
+/// mutable sequence of byte-sized (8 bit) racy atomic memory values. A byte
+/// value is an integer in the inclusive interval from 0 to 255. A Shared Data
+/// Block value is created with a fixed number of bytes that each have the
+/// initial value 0.
 ///
 /// The `ptr` points to a continuous buffer of bytes, the length of which is
-/// determined by the capacity. Before the buffer of bytes, a usize is
-/// allocated that is used for reference counting.
+/// determined by the capacity. Before the buffer of bytes, a usize is allocated
+/// that is used for reference counting.
 ///
 /// ## Buffer memory layout
 ///
@@ -443,8 +566,9 @@ impl SharedDataBlockMaxByteLength {
 /// ```rust,ignore
 /// #[repr(C)]
 /// struct StaticSharedDataBuffer<const N: usize> {
+///   waiters: AtomicPtr<SharedWaiterMap>,
 ///   rc: AtomicUsize,
-///   bytes: [AtomicU8; N],
+///   bytes: [RacyU8; N],
 /// }
 /// ```
 ///
@@ -453,15 +577,32 @@ impl SharedDataBlockMaxByteLength {
 /// #[repr(C)]
 /// struct GrowableSharedDataBuffer<const N: usize> {
 ///   byte_length: AtomicUsize,
+///   waiters: AtomicPtr<SharedWaiterMap>,
 ///   rc: AtomicUsize,
-///   bytes: [AtomicU8; N],
+///   bytes: [RacyU8; N],
 /// }
 /// ```
 ///
-/// The `ptr` field points to the start of the `bytes`
+/// The `ptr` field points to the start of the `bytes`.
+///
+/// The `waiters` pointer is initially null. It is lazily initialized via
+/// a compare-and-swap the first time any thread calls `Atomics.wait` or
+/// `Atomics.waitAsync` on this block. Its lifetime is managed by the
+/// buffer's existing reference count.
 ///
 /// Note that the "viewed" byte length of the buffer is defined inside the
 /// buffer when the SharedDataBlock is growable.
+///
+/// ## Memory model
+///
+/// The [ECMAScript memory model](https://tc39.es/ecma262/#sec-memory-model) is
+/// sequentially consistent when the program as no data races, but data races
+/// are allowed by the model. This makes the model strictly weaker than the Rust
+/// memory model, which decrees all data races to be undefined behaviour. Thus,
+/// it is not possible to access the backing bytes of a [`SharedDataBlock`]
+/// from Rust under any circumstances.
+///
+/// [`SharedDataBlock`]: SharedDataBlock
 #[must_use]
 #[repr(C)]
 #[derive(PartialEq, Eq)]
@@ -511,8 +652,8 @@ impl Drop for SharedDataBlock {
             return;
         }
         let growable = self.is_growable();
-        // SAFETY: SharedDataBlock guarantees we have a AtomicUsize allocated
-        // before the bytes.
+        // SAFETY: SharedDataBlock guarantees we have waiters_ptr and rc
+        // allocated before the bytes. rc is 1 slot before ptr.
         let rc_ptr = unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(1) };
         {
             // SAFETY: the RC is definitely still allocated, as we haven't
@@ -538,12 +679,31 @@ impl Drop for SharedDataBlock {
                 return;
             }
         }
-        let max_byte_length = self.max_byte_length();
-        // SAFETY: if we're here then we're the last holder of the data block.
-        let (size, base_ptr) = if growable {
-            // This is a growable SharedDataBlock that we're working with here.
 
+        // We are the last holder. Drop the waiter map if it was initialized.
+        // SAFETY: non-dangling, and we're the sole owner now.
+        let waiters_ptr = unsafe { self.get_waiters_ptr() };
+        let waiters = waiters_ptr.load(Ordering::Acquire);
+        if !waiters.is_null() {
+            // SAFETY: the pointer was allocated via Box::into_raw in
+            // get_or_init_waiters, and we are the last holder.
+            let _ = unsafe { Box::from_raw(waiters) };
+        }
+
+        let max_byte_length = self.max_byte_length();
+        let (size, base_ptr) = if growable {
             // SAFETY: layout guaranteed by type
+            unsafe {
+                (
+                    max_byte_length.unchecked_add(core::mem::size_of::<(
+                        AtomicUsize,
+                        AtomicUsize,
+                        AtomicUsize,
+                    )>()),
+                    rc_ptr.sub(2),
+                )
+            }
+        } else {
             unsafe {
                 (
                     max_byte_length
@@ -551,20 +711,13 @@ impl Drop for SharedDataBlock {
                     rc_ptr.sub(1),
                 )
             }
-        } else {
-            unsafe {
-                (
-                    max_byte_length.unchecked_add(core::mem::size_of::<AtomicUsize>()),
-                    rc_ptr,
-                )
-            }
         };
         let memory = RacyMemory::from_raw_parts(self.ptr, max_byte_length);
         // SAFETY: As per the CAS loop on the reference count, we are the only
         // referrer to the racy memory. We can thus deallocate the ECMAScript
         // memory; this effectively grows our Rust memory from being just the
-        // RC and possible byte length value, into also containing the byte
-        // data.
+        // Waiters pointer, RC, and possible byte length value, into also
+        // containing the byte data.
         let _ = unsafe { memory.exit() };
         // SAFETY: layout guaranteed by type.
         let layout = unsafe { Layout::from_size_align(size, 8).unwrap_unchecked() };
@@ -609,10 +762,10 @@ impl SharedDataBlock {
             use ecmascript_atomics::RacyMemory;
             let alloc_size = if growable {
                 // Growable SharedArrayBuffer
-                size.checked_add(core::mem::size_of::<(AtomicUsize, AtomicUsize)>())?
+                size.checked_add(core::mem::size_of::<(AtomicUsize, AtomicUsize, AtomicUsize)>())?
             } else {
                 // Static SharedArrayBuffer
-                size.checked_add(core::mem::size_of::<AtomicUsize>())?
+                size.checked_add(core::mem::size_of::<(AtomicUsize, AtomicUsize)>())?
             };
             let Ok(layout) = Layout::from_size_align(alloc_size, 8) else {
                 return None;
@@ -626,23 +779,26 @@ impl SharedDataBlock {
                 // SAFETY: properly allocated, everything is fine.
                 unsafe { base_ptr.write(byte_length) };
                 // SAFETY: allocation size is
-                // (AtomicUsize, AtomicUsize, [AtomicU8; max_byte_length])
-                unsafe { base_ptr.add(1) }
+                // (AtomicUsize, AtomicUsize, AtomicUsize, [AtomicU8; max_byte_length])
+                // Skip byte_length and waiters to reach rc.
+                unsafe { base_ptr.add(2) }
             } else {
-                base_ptr
+                // Skip waiters to reach rc.
+                unsafe { base_ptr.add(1) }
             };
             {
                 // SAFETY: we're the only owner of this data.
                 unsafe { rc_ptr.write(1) };
             }
-            // SAFETY: the pointer is len + usize
+
+            // SAFETY: ptr is past waiters_ptr and rc
             let ptr = unsafe { rc_ptr.add(1) };
             // SAFETY: ptr does point to size bytes of readable and writable
             // Rust memory. After this call, that memory is deallocated and we
             // receive a new RacyMemory in its stead. Reads and writes through
             // it are undefined behaviour. Note though that we still have the
-            // RC and possible length values before the pointer; those are in
-            // normal Rust memory.
+            // Waiters pointer, RC, and possible length values before the
+            // pointer; those are in normal Rust memory.
             let ptr = unsafe { RacyMemory::<u8>::enter(ptr.cast(), size) };
             Some(Self {
                 ptr: ptr.as_slice().into_raw_parts().0,
@@ -666,7 +822,7 @@ impl SharedDataBlock {
     ///
     /// Must not be a dangling SharedDataBlock.
     unsafe fn get_rc(&self) -> &AtomicUsize {
-        // SAFETY: type guarantees layout
+        // SAFETY: type guarantees layout; rc is 1 slot before ptr.
         unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(1).as_ref() }
     }
 
@@ -677,7 +833,7 @@ impl SharedDataBlock {
     /// Must be a growable, non-dangling SharedDataBlock.
     unsafe fn get_byte_length(&self) -> &AtomicUsize {
         // SAFETY: caller guarantees growable; type guarantees layout.
-        unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(2).as_ref() }
+        unsafe { self.ptr.as_ptr().cast::<AtomicUsize>().sub(3).as_ref() }
     }
 
     /// Returns the byte length of the SharedArrayBuffer.
@@ -722,6 +878,86 @@ impl SharedDataBlock {
     #[inline(always)]
     pub(crate) fn is_growable(&self) -> bool {
         self.max_byte_length.is_growable()
+    }
+
+    /// Get a reference to the atomic waiters pointer.
+    ///
+    /// ## Safety
+    ///
+    /// Must not be a dangling SharedDataBlock.
+    unsafe fn get_waiters_ptr(&self) -> &AtomicPtr<Mutex<WaiterLists>> {
+        // SAFETY: type guarantees layout; waiters_ptr is 2 slots before ptr.
+        unsafe {
+            self.ptr
+                .as_ptr()
+                .cast::<AtomicPtr<Mutex<WaiterLists>>>()
+                .sub(2)
+                .as_ref()
+        }
+    }
+
+    /// Get or lazily initialize the shared waiter map for this data block.
+    ///
+    /// On first call, allocates a new `SharedWaiterMap` and attempts to
+    /// store it via compare-and-swap. If another thread wins the race,
+    /// the locally allocated map is dropped and the winner's map is used.
+    ///
+    /// ## Safety
+    ///
+    /// Must not be a dangling SharedDataBlock.
+    pub(crate) unsafe fn get_or_init_waiters(&self) -> &Mutex<WaiterLists> {
+        // SAFETY: caller guarantees non-dangling.
+        let waiters_atomic = unsafe { self.get_waiters_ptr() };
+        let current = waiters_atomic.load(Ordering::Acquire);
+        if !current.is_null() {
+            // SAFETY: non-null means it was previously initialized; the
+            // buffer RC keeps the allocation alive.
+            return unsafe { &*current };
+        }
+
+        let new_map = Box::into_raw(Box::default());
+        match waiters_atomic.compare_exchange(
+            core::ptr::null_mut(),
+            new_map,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => {
+                // We won the race; our map is now the canonical one.
+                // SAFETY: we just stored it and the buffer RC keeps it alive.
+                unsafe { &*new_map }
+            }
+            Err(winner) => {
+                // Another thread already initialized the waiters pointer.
+                // Drop our allocation and use theirs.
+                // SAFETY: new_map was just allocated by us and never shared.
+                let _ = unsafe { Box::from_raw(new_map) };
+                // SAFETY: winner is the non-null pointer stored by the
+                // winning thread; the buffer RC keeps it alive.
+                unsafe { &*winner }
+            }
+        }
+    }
+
+    /// Get the shared waiter map if it has been initialized.
+    ///
+    /// Returns `None` if no thread has ever called `get_or_init_waiters` on
+    /// this block (i.e. no `Atomics.wait` / `Atomics.waitAsync` has occurred).
+    ///
+    /// ## Safety
+    ///
+    /// Must not be a dangling SharedDataBlock.
+    pub(crate) unsafe fn get_waiters(&self) -> Option<&Mutex<WaiterLists>> {
+        // SAFETY: caller guarantees non-dangling.
+        let waiters_atomic = unsafe { self.get_waiters_ptr() };
+        let current = waiters_atomic.load(Ordering::Acquire);
+        if current.is_null() {
+            None
+        } else {
+            // SAFETY: non-null means it was previously initialized; the
+            // buffer RC keeps the allocation alive.
+            Some(unsafe { &*current })
+        }
     }
 
     /// Read a value at the given aligned offset and with the given ordering.
@@ -1143,6 +1379,9 @@ pub(crate) fn copy_shared_data_block_bytes(
     // 7. Return UNUSED.
 }
 
+/// Wrapper type for defining the clamping behaviour of [`Uint8ClampedArray`]s.
+///
+/// [`Uint8ClampedArray`]: crate::ecmascript::Uint8ClampedArray
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct U8Clamped(pub u8);
@@ -1173,7 +1412,9 @@ mod private {
     impl Sealed for f64 {}
 }
 
-pub trait Viewable: 'static + private::Sealed + Copy + PartialEq + core::fmt::Debug {
+pub(crate) trait Viewable:
+    'static + private::Sealed + Copy + PartialEq + core::fmt::Debug
+{
     /// Type of the data in its storage format. This is used with
     /// SharedDataBlock.
     type Storage: RacyStorage;
@@ -1363,11 +1604,11 @@ impl Viewable for u8 {
     const NAME: &str = "Uint8Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -1474,11 +1715,11 @@ impl Viewable for U8Clamped {
     const NAME: &str = "Uint8ClampedArray";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.0.to_be()).into_numeric()
+        Number::from(self.0.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.0.to_le()).into_numeric()
+        Number::from(self.0.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -1585,11 +1826,11 @@ impl Viewable for i8 {
     const NAME: &str = "Int8Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -1696,11 +1937,11 @@ impl Viewable for u16 {
     const NAME: &str = "Uint16Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -1807,11 +2048,11 @@ impl Viewable for i16 {
     const NAME: &str = "Int16Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -1918,11 +2159,11 @@ impl Viewable for u32 {
     const NAME: &str = "Uint32Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2029,11 +2270,11 @@ impl Viewable for i32 {
     const NAME: &str = "Int32Array";
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_be()).into_numeric()
+        Number::from(self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(self.to_le()).into_numeric()
+        Number::from(self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2141,11 +2382,11 @@ impl Viewable for u64 {
     const NAME: &str = "BigUint64Array";
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        BigInt::from_u64(agent, self.to_be()).into_numeric()
+        BigInt::from_u64(agent, self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        BigInt::from_u64(agent, self.to_le()).into_numeric()
+        BigInt::from_u64(agent, self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2168,7 +2409,7 @@ impl Viewable for u64 {
             return u64::try_from(value).ok();
         };
         if let Value::BigInt(value) = value {
-            let data = &agent[value];
+            let data = value.get(agent);
             let mut iter = data.data.iter_u64_digits();
             let sign = data.data.sign();
             if sign == Sign::Minus {
@@ -2264,11 +2505,11 @@ impl Viewable for i64 {
     const NAME: &str = "BigInt64Array";
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        BigInt::from_i64(agent, self.to_be()).into_numeric()
+        BigInt::from_i64(agent, self.to_be()).into()
     }
 
     fn into_le_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        BigInt::from_i64(agent, self.to_le()).into_numeric()
+        BigInt::from_i64(agent, self.to_le()).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2290,7 +2531,7 @@ impl Viewable for i64 {
             return Some(value.into_i64());
         };
         if let Value::BigInt(value) = value {
-            let data = &agent[value];
+            let data = value.get(agent);
             let mut iter = data.data.iter_u64_digits();
             if iter.len() > 1 {
                 return None;
@@ -2395,11 +2636,11 @@ impl Viewable for f16 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float16Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
+        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
+        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2527,11 +2768,11 @@ impl Viewable for f32 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
+        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into()
     }
 
     fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
+        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2552,7 +2793,7 @@ impl Viewable for f32 {
         let Ok(value) = Number::try_from(value) else {
             return None;
         };
-        let value = value.into_f64(agent);
+        let value = value.into_f64_(agent);
         if value.is_nan() {
             return Some(f32::NAN);
         }
@@ -2660,11 +2901,11 @@ impl Viewable for f64 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
 
     fn into_be_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes()), gc).into_numeric()
+        Number::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes()), gc).into()
     }
 
     fn into_le_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()), gc).into_numeric()
+        Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()), gc).into()
     }
 
     fn from_be_value(agent: &Agent, value: Numeric) -> Self {
@@ -2685,7 +2926,7 @@ impl Viewable for f64 {
         let Ok(value) = Number::try_from(value) else {
             return None;
         };
-        Some(value.into_f64(agent))
+        Some(value.into_f64_(agent))
     }
 
     fn default() -> Self {

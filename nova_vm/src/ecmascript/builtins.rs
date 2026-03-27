@@ -30,71 +30,98 @@
 //! are modified such that they delegate "ordinary object business" to the
 //! backing object if it exists.
 
-pub(crate) mod arguments;
+mod arguments;
 mod array;
 #[cfg(feature = "array-buffer")]
-pub mod array_buffer;
-pub mod bound_function;
+mod array_buffer;
+mod bound_function;
 mod builtin_constructor;
 mod builtin_function;
-pub(crate) mod control_abstraction_objects;
+mod control_abstraction_objects;
 #[cfg(feature = "array-buffer")]
-pub(crate) mod data_view;
+mod data_view;
 #[cfg(feature = "date")]
-pub mod date;
+mod date;
 mod ecmascript_function;
-pub(crate) mod embedder_object;
-pub mod error;
-pub(crate) mod finalization_registry;
-pub(crate) mod fundamental_objects;
-pub(crate) mod global_object;
-pub(crate) mod indexed_collections;
-pub(crate) mod keyed_collections;
-pub(crate) mod managing_memory;
-pub(crate) mod map;
-pub(crate) mod module;
-pub(crate) mod numbers_and_dates;
-pub mod ordinary;
-pub(crate) mod primitive_objects;
-pub(crate) mod promise;
-pub(crate) mod proxy;
-pub(crate) mod reflection;
+mod embedder_object;
+mod error;
+mod finalization_registry;
+mod fundamental_objects;
+mod global_object;
+mod indexed_collections;
+mod keyed_collections;
+mod managing_memory;
+mod map;
+mod module;
+mod numbers_and_dates;
+mod ordinary;
+mod primitive_objects;
+mod promise;
+mod proxy;
+mod reflection;
 #[cfg(feature = "regexp")]
-pub(crate) mod regexp;
+mod regexp;
 #[cfg(feature = "set")]
-pub(crate) mod set;
+mod set;
 #[cfg(feature = "shared-array-buffer")]
-pub(crate) mod shared_array_buffer;
-pub(crate) mod structured_data;
-pub(crate) mod text_processing;
+mod shared_array_buffer;
+mod structured_data;
+#[cfg(feature = "temporal")]
+mod temporal;
+mod text_processing;
 #[cfg(feature = "array-buffer")]
-pub(crate) mod typed_array;
+mod typed_array;
 #[cfg(feature = "weak-refs")]
-pub(crate) mod weak_map;
+mod weak_map;
 #[cfg(feature = "weak-refs")]
-pub(crate) mod weak_ref;
+mod weak_ref;
 #[cfg(feature = "weak-refs")]
-pub(crate) mod weak_set;
+mod weak_set;
 
 pub(crate) use arguments::*;
-pub use array::Array;
-pub(crate) use array::ArrayHeapData;
-pub(crate) use array::abstract_operations::*;
+pub use array::*;
 #[cfg(feature = "array-buffer")]
-pub use array_buffer::ArrayBuffer;
-#[cfg(feature = "array-buffer")]
-pub(crate) use array_buffer::ArrayBufferHeapData;
-pub use builtin_constructor::BuiltinConstructorFunction;
-pub(crate) use builtin_constructor::{BuiltinConstructorArgs, create_builtin_constructor};
-pub use builtin_function::{
-    ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinFunctionArgs, BuiltinGetter,
-    BuiltinSetter, ConstructorFn, RegularFn as JsFunction, RegularFn, ScopedArgumentsList,
-    create_builtin_function,
-};
-pub(crate) use builtin_function::{BuiltinIntrinsic, BuiltinIntrinsicConstructor};
+pub use array_buffer::*;
+pub use bound_function::*;
+pub use builtin_constructor::*;
+pub use builtin_function::*;
 pub use control_abstraction_objects::*;
-pub(crate) use ecmascript_function::*;
+#[cfg(feature = "array-buffer")]
+pub use data_view::*;
+#[cfg(feature = "date")]
+pub use date::*;
+pub use ecmascript_function::*;
+pub use embedder_object::*;
+pub use error::*;
+pub use finalization_registry::*;
+pub(crate) use fundamental_objects::*;
+pub(crate) use global_object::*;
+pub use indexed_collections::*;
+pub use keyed_collections::*;
+pub(crate) use managing_memory::*;
+pub use map::*;
+pub use module::*;
+pub(crate) use numbers_and_dates::*;
+pub use ordinary::*;
+pub use primitive_objects::*;
+pub use promise::*;
+pub use proxy::*;
+pub(crate) use reflection::*;
+#[cfg(feature = "regexp")]
+pub use regexp::*;
+#[cfg(feature = "set")]
+pub use set::*;
 #[cfg(feature = "shared-array-buffer")]
-pub use shared_array_buffer::SharedArrayBuffer;
+pub use shared_array_buffer::*;
+pub(crate) use structured_data::*;
+#[cfg(feature = "temporal")]
+pub use temporal::*;
+pub use text_processing::*;
 #[cfg(feature = "array-buffer")]
 pub use typed_array::*;
+#[cfg(feature = "weak-refs")]
+pub use weak_map::*;
+#[cfg(feature = "weak-refs")]
+pub use weak_ref::*;
+#[cfg(feature = "weak-refs")]
+pub use weak_set::*;

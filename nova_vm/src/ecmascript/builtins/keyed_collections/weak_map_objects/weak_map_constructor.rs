@@ -6,20 +6,12 @@ use std::hint::unreachable_unchecked;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::get, testing_and_comparison::is_callable},
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            keyed_collections::map_objects::map_constructor::add_entries_from_iterable,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
+        Realm, String, Value, add_entries_from_iterable, builders::BuiltinFunctionBuilder, get,
+        is_callable, ordinary_create_from_constructor,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -83,7 +75,7 @@ impl WeakMapConstructor {
         // 3. Set map.[[WeakMapData]] to a new empty List.
         // 4. If iterable is either undefined or null, return map.
         if iterable_is_undefined_or_null {
-            return Ok(map.into_value());
+            return Ok(map.into());
         }
         let scoped_map = map.scope(agent, gc.nogc());
         // 5. Let adder be ? Get(map, "set").
@@ -113,7 +105,7 @@ impl WeakMapConstructor {
             adder.unbind(),
             gc,
         )
-        .map(|m| m.into_value())
+        .map(|m| m.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -122,7 +114,7 @@ impl WeakMapConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<WeakMapConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype_property(weak_map_prototype.into_object())
+            .with_prototype_property(weak_map_prototype.into())
             .build();
     }
 }

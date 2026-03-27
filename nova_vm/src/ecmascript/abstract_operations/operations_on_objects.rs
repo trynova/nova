@@ -7,50 +7,24 @@
 use core::ops::ControlFlow;
 
 use crate::{
-    SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            keyed_group::KeyedGroup,
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
-                iterator_step_value,
-            },
-            testing_and_comparison::{is_callable, is_constructor, require_object_coercible},
-            type_conversion::{
-                to_length, to_object, to_property_key, to_property_key_simple, try_to_length,
-            },
-        },
-        builtins::{
-            ArgumentsList, Array, BuiltinConstructorFunction, array_create,
-            keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
-            ordinary::caches::PropertyLookupCache,
-            proxy::abstract_operations::{
-                try_validate_non_revoked_proxy, validate_non_revoked_proxy,
-            },
-        },
-        execution::{
-            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
-            ProtoIntrinsics, Realm,
-            agent::{
-                ExceptionType, JsError, TryError, TryResult, js_result_into_try,
-                try_result_into_js, unwrap_try,
-            },
-            new_class_field_initializer_environment,
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, IntoValue, Number, Object, OrdinaryObject, PrivateName, PropertyDescriptor,
-            PropertyKey, PropertyKeySet, SetResult, String, TryGetResult, TryHasResult, Value,
-            try_get_result_into_value,
-        },
+        Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, BuiltinConstructorFunction,
+        ECMAScriptCodeEvaluationState, Environment, ExceptionType, ExecutionContext, Function,
+        InternalMethods, InternalSlots, IteratorRecord, JsError, JsResult, KeyedGroup, Number,
+        Object, OrdinaryObject, PrivateName, PropertyDescriptor, PropertyKey, PropertyKeySet,
+        PropertyLookupCache, ProtoIntrinsics, Realm, SetResult, SmallInteger, String, TryError,
+        TryGetResult, TryHasResult, TryResult, Value, array_create,
+        canonicalize_keyed_collection_key, get_iterator, if_abrupt_close_iterator, is_callable,
+        is_constructor, iterator_close_with_error, iterator_step_value, js_result_into_try,
+        new_class_field_initializer_environment, require_object_coercible, to_length, to_object,
+        to_property_key, to_property_key_simple, try_get_result_into_value, try_result_into_js,
+        try_to_length, try_validate_non_revoked_proxy, unwrap_try, validate_non_revoked_proxy,
     },
     engine::{
-        ScopableCollection, Scoped, ScopedCollection, Vm,
-        context::{Bindable, GcScope, NoGcScope},
-        instanceof_operator,
-        rootable::{Rootable, Scopable},
+        Bindable, GcScope, NoGcScope, Rootable, Scopable, ScopableCollection, Scoped,
+        ScopedCollection, Vm, instanceof_operator,
     },
-    heap::{ObjectEntry, WellKnownSymbolIndexes, element_array::ElementDescriptor},
+    heap::{ArenaAccess, ElementDescriptor, ObjectEntry, WellKnownSymbols},
 };
 
 use super::{
@@ -72,7 +46,7 @@ pub(crate) fn get<'a, 'b>(
 ) -> JsResult<'a, Value<'a>> {
     let p = p.bind(gc.nogc());
     // 1. Return ? O.[[Get]](P, O).
-    o.internal_get(agent, p.unbind(), o.into_value(), gc)
+    o.internal_get(agent, p.unbind(), o.into(), gc)
 }
 
 /// ### Try [7.3.2 Get ( O, P )](https://tc39.es/ecma262/#sec-get-o-p)
@@ -90,7 +64,7 @@ pub(crate) fn try_get<'a, 'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, TryGetResult<'gc>> {
     // 1. Return ? O.[[Get]](P, O).
-    o.try_get(agent, p, o.into_value(), cache, gc)
+    o.try_get(agent, p, o.into(), cache, gc)
 }
 
 /// ### [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -122,7 +96,7 @@ pub(crate) fn get_v<'gc>(
             .current_realm_record()
             .intrinsics()
             .boolean_prototype()
-            .into_object(),
+            .into(),
         Value::String(_) | Value::SmallString(_) => {
             let v = String::try_from(v).unwrap();
             if let Some(value) = v.get_property_value(agent, p) {
@@ -132,23 +106,23 @@ pub(crate) fn get_v<'gc>(
                 .current_realm_record()
                 .intrinsics()
                 .string_prototype()
-                .into_object()
+                .into()
         }
         Value::Symbol(_) => agent
             .current_realm_record()
             .intrinsics()
             .symbol_prototype()
-            .into_object(),
+            .into(),
         Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
             .current_realm_record()
             .intrinsics()
             .number_prototype()
-            .into_object(),
+            .into(),
         Value::BigInt(_) | Value::SmallBigInt(_) => agent
             .current_realm_record()
             .intrinsics()
             .big_int_prototype()
-            .into_object(),
+            .into(),
         _ => Object::try_from(v).unwrap(),
     };
     // 2. Return ? O.[[Get]](P, V).
@@ -184,7 +158,7 @@ pub(crate) fn try_get_v<'gc>(
             .current_realm_record()
             .intrinsics()
             .boolean_prototype()
-            .into_object(),
+            .into(),
         Value::String(_) | Value::SmallString(_) => {
             let v = String::try_from(v).unwrap();
             if let Some(value) = v.get_property_value(agent, p) {
@@ -194,23 +168,23 @@ pub(crate) fn try_get_v<'gc>(
                 .current_realm_record()
                 .intrinsics()
                 .string_prototype()
-                .into_object()
+                .into()
         }
         Value::Symbol(_) => agent
             .current_realm_record()
             .intrinsics()
             .symbol_prototype()
-            .into_object(),
+            .into(),
         Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
             .current_realm_record()
             .intrinsics()
             .number_prototype()
-            .into_object(),
+            .into(),
         Value::BigInt(_) | Value::SmallBigInt(_) => agent
             .current_realm_record()
             .intrinsics()
             .big_int_prototype()
-            .into_object(),
+            .into(),
         _ => Object::try_from(v).unwrap(),
     };
     // 2. Return ? O.[[Get]](P, V).
@@ -232,11 +206,13 @@ pub(crate) fn set<'a>(
     throw: bool,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
+    let o = o.bind(gc.nogc());
     let p = p.bind(gc.nogc());
     let scoped_p = p.scope(agent, gc.nogc());
     // 1. Let success be ? O.[[Set]](P, V, O).
     let success = o
-        .internal_set(agent, p.unbind(), v, o.into_value(), gc.reborrow())
+        .unbind()
+        .internal_set(agent, p.unbind(), v, o.unbind().into(), gc.reborrow())
         .unbind()?;
     // SAFETY: p is not shared.
     let p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
@@ -277,7 +253,7 @@ pub(crate) fn try_set<'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, SetResult<'gc>> {
     // 1. Let success be ? O.[[Set]](P, V, O).
-    let result = o.try_set(agent, p, v, o.into_value(), cache, gc)?;
+    let result = o.try_set(agent, p, v, o.into(), cache, gc)?;
     // 2. If success is false and Throw is true, throw a TypeError exception.
     if result.failed() && throw {
         return throw_set_error(agent, p, gc).into();
@@ -525,7 +501,7 @@ pub(crate) fn try_get_object_method<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<'a, Option<Function<'a>>> {
     // 1. Let func be ? GetV(V, P).
-    let func = try_get_result_into_value(o.try_get(agent, p, o.into_value(), None, gc))?;
+    let func = try_get_result_into_value(o.try_get(agent, p, o.into(), None, gc))?;
     js_result_into_try(get_method_internal(agent, func, gc))
 }
 
@@ -566,7 +542,7 @@ pub(crate) fn get_object_method<'a>(
     let p = p.bind(gc.nogc());
     // 1. Let func be ? GetV(V, P).
     let func = o
-        .internal_get(agent, p.unbind(), o.into_value(), gc.reborrow())
+        .internal_get(agent, p.unbind(), o.into(), gc.reborrow())
         .unbind()?;
     let gc = gc.into_nogc();
     let func = func.bind(gc);
@@ -722,7 +698,7 @@ pub(crate) trait Level {
     const LEVEL: IntegrityLevel;
 }
 
-pub(crate) mod integrity {
+mod integrity {
     use super::{IntegrityLevel, Level};
 
     pub(crate) struct Sealed {}
@@ -736,6 +712,8 @@ pub(crate) mod integrity {
         const LEVEL: IntegrityLevel = IntegrityLevel::Frozen;
     }
 }
+
+pub(crate) use integrity::*;
 
 /// ### [7.3.15 SetIntegrityLevel ( O, level )](https://tc39.es/ecma262/#sec-setintegritylevel)
 ///
@@ -1309,7 +1287,7 @@ pub(crate) fn invoke<'a>(
 pub(crate) fn ordinary_has_instance<'a, 'b>(
     agent: &mut Agent,
     c: impl TryInto<Function<'b>>,
-    o: impl IntoValue<'b>,
+    o: impl Into<Value<'b>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, bool> {
     // 1. If IsCallable(C) is false, return false.
@@ -1319,12 +1297,12 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
     // 2. If C has a [[BoundTargetFunction]] internal slot, then
     if let Function::BoundFunction(c) = c {
         // a. Let BC be C.[[BoundTargetFunction]].
-        let bc = agent[c].bound_target_function.bind(gc.nogc());
+        let bc = c.bound_target_function(agent);
         // b. Return ? InstanceofOperator(O, BC).
         return instanceof_operator(agent, o, bc.unbind(), gc);
     }
     // 3. If O is not an Object, return false.
-    let Ok(o) = Object::try_from(o.into_value()) else {
+    let Ok(o) = Object::try_from(o.into()) else {
         return Ok(false);
     };
     // 4. Let P be ? Get(C, "prototype").
@@ -1382,7 +1360,7 @@ pub(crate) fn species_constructor<'a>(
     let s = get(
         agent,
         c.unbind(),
-        WellKnownSymbolIndexes::Species.into(),
+        WellKnownSymbols::Species.into(),
         gc.reborrow(),
     )
     .unbind()?
@@ -1459,7 +1437,7 @@ pub(crate) fn try_species_constructor<'gc>(
     let s = try_get_result_into_value(try_get(
         agent,
         c,
-        WellKnownSymbolIndexes::Species.into(),
+        WellKnownSymbols::Species.into(),
         None,
         gc,
     ))?;
@@ -1535,7 +1513,7 @@ pub(crate) trait EnumerablePropertiesKind {
     const KIND: EnumPropKind;
 }
 
-pub(crate) mod enumerable_properties_kind {
+mod enumerable_properties_kind {
     use super::{EnumPropKind, EnumerablePropertiesKind};
 
     pub(crate) struct EnumerateValues;
@@ -1549,6 +1527,8 @@ pub(crate) mod enumerable_properties_kind {
         const KIND: EnumPropKind = EnumPropKind::KeyValue;
     }
 }
+
+pub(crate) use enumerable_properties_kind::*;
 
 /// ### [7.3.23 EnumerableOwnKeys ( O, kind )](https://tc39.es/ecma262/#sec-enumerableownproperties)
 ///
@@ -1703,7 +1683,11 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
 
         // Optimisation: If [[GetOwnProperty]] has returned us a Value, we
         // shouldn't need to call [[Get]] except if the object is a Proxy.
-        let value = if desc.value.is_none() || matches!(o, Object::Proxy(_)) {
+        let value = if let Some(value) = desc.value
+            && !matches!(o, Object::Proxy(_))
+        {
+            value
+        } else {
             match try_get(agent, o, key, None, gc.nogc()) {
                 ControlFlow::Continue(TryGetResult::Unset) => Value::Undefined,
                 ControlFlow::Continue(TryGetResult::Value(value)) => value,
@@ -1712,8 +1696,6 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
                     break;
                 }
             }
-        } else {
-            desc.value.unwrap()
         };
         // b. If kind is VALUE, then
         if Kind::KIND == EnumPropKind::Value {
@@ -1735,9 +1717,9 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
                 PropertyKey::String(str) => str.into(),
             };
             // ii. Let entry be CreateArrayFromList(« key, value »).
-            let entry = create_array_from_list(agent, &[key_value.into_value(), value], gc.nogc());
+            let entry = create_array_from_list(agent, &[key_value.into(), value], gc.nogc());
             // iii. Append entry to results.
-            results.push(entry.into_value());
+            results.push(entry.into());
         }
         i += 1;
     }
@@ -1809,11 +1791,11 @@ fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
             // ii. Let entry be CreateArrayFromList(« key, value »).
             let entry = create_array_from_list(
                 agent,
-                &[key_value.into_value().unbind(), value.unbind()],
+                &[key_value.unbind().into(), value.unbind()],
                 gc.nogc(),
             );
             // iii. Append entry to results.
-            results.push(agent, entry.into_value());
+            results.push(agent, entry.into());
         }
     }
     Ok(results.take(agent))
@@ -1990,20 +1972,20 @@ fn enumerable_own_keys_slow<'gc>(
 /// a throw completion.
 pub(crate) fn get_function_realm<'a, 'gc>(
     agent: &mut Agent,
-    obj: impl IntoObject<'a>,
+    obj: impl Into<Object<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, Realm<'gc>> {
     // 1. If obj has a [[Realm]] internal slot, then
     // a. Return obj.[[Realm]].
-    let obj = obj.into_object();
+    let obj = obj.into().bind(gc);
     match obj {
-        Object::BuiltinFunction(idx) => Ok(agent[idx].realm),
-        Object::ECMAScriptFunction(idx) => Ok(agent[idx].ecmascript_function.realm),
-        Object::BoundFunction(idx) => {
+        Object::BuiltinFunction(f) => Ok(f.realm(agent)),
+        Object::ECMAScriptFunction(f) => Ok(f.realm(agent)),
+        Object::BoundFunction(f) => {
             // 2. If obj is a bound function exotic object, then
             // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
             // b. Return ? GetFunctionRealm(boundTargetFunction).
-            get_function_realm(agent, agent[idx].bound_target_function, gc)
+            get_function_realm(agent, f.bound_target_function(agent), gc)
         }
         // 3. If obj is a Proxy exotic object, then
         Object::Proxy(obj) => {
@@ -2031,20 +2013,20 @@ pub(crate) fn get_function_realm<'a, 'gc>(
 /// error.
 pub(crate) fn try_get_function_realm<'a, 'gc>(
     agent: &Agent,
-    obj: impl IntoObject<'a>,
+    obj: impl Into<Object<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> Option<Realm<'gc>> {
     // 1. If obj has a [[Realm]] internal slot, then
     // a. Return obj.[[Realm]].
-    let obj = obj.into_object();
+    let obj = obj.into().bind(gc);
     match obj {
-        Object::BuiltinFunction(idx) => Some(agent[idx].realm),
-        Object::ECMAScriptFunction(idx) => Some(agent[idx].ecmascript_function.realm),
-        Object::BoundFunction(idx) => {
+        Object::BuiltinFunction(f) => Some(f.realm(agent)),
+        Object::ECMAScriptFunction(f) => Some(f.realm(agent)),
+        Object::BoundFunction(f) => {
             // 2. If obj is a bound function exotic object, then
             // a. Let boundTargetFunction be obj.[[BoundTargetFunction]].
             // b. Return ? GetFunctionRealm(boundTargetFunction).
-            try_get_function_realm(agent, agent[idx].bound_target_function, gc)
+            try_get_function_realm(agent, f.bound_target_function(agent), gc)
         }
         // 3. If obj is a Proxy exotic object, then
         Object::Proxy(obj) => {
@@ -2206,11 +2188,11 @@ fn copy_data_properties_slow<'a>(
 /// object destructuring, but not the spread operator in object literals.
 pub(crate) fn try_copy_data_properties_into_object<'gc, 'b>(
     agent: &mut Agent,
-    source: impl IntoObject<'b>,
+    source: impl Into<Object<'b>>,
     excluded_items: &PropertyKeySet,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, OrdinaryObject<'gc>> {
-    let from = source.into_object();
+    let from = source.into();
     let mut entries = Vec::new();
 
     // 3. Let keys be ? from.[[OwnPropertyKeys]]().
@@ -2254,7 +2236,7 @@ pub(crate) fn try_copy_data_properties_into_object<'gc, 'b>(
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
-                .into_object(),
+                .into(),
         ),
         &entries,
     );
@@ -2276,11 +2258,11 @@ pub(crate) fn try_copy_data_properties_into_object<'gc, 'b>(
 /// object destructuring, but not the spread operator in object literals.
 pub(crate) fn copy_data_properties_into_object<'a, 'b>(
     agent: &mut Agent,
-    source: impl IntoObject<'b>,
+    source: impl Into<Object<'b>>,
     excluded_items: ScopedCollection<PropertyKeySet>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, OrdinaryObject<'a>> {
-    let from = source.into_object().bind(gc.nogc());
+    let from = source.into().bind(gc.nogc());
     let scoped_from = from.scope(agent, gc.nogc());
     let mut entries = Vec::new();
 
@@ -2339,7 +2321,7 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
-                .into_object(),
+                .into(),
         ),
         &entries,
     ) {
@@ -2507,7 +2489,7 @@ pub(crate) fn private_get<'a>(
                 return Err(throw_no_private_name_getter_error(agent, gc.into_nogc()));
             };
             // 7. Return ? Call(getter, O).
-            call_function(agent, getter.unbind(), o.into_value().unbind(), None, gc)
+            call_function(agent, getter.unbind(), o.unbind().into(), None, gc)
         }
         // 2. If entry is empty, throw a TypeError exception.
         _ => Err(throw_no_private_name_error(agent, gc.into_nogc())),
@@ -2619,7 +2601,7 @@ pub(crate) fn private_set<'a>(
             call_function(
                 agent,
                 setter.unbind(),
-                o.into_value().unbind(),
+                o.unbind().into(),
                 Some(ArgumentsList::from_mut_value(&mut value.unbind())),
                 gc,
             )?;
@@ -2701,7 +2683,7 @@ pub(crate) fn try_private_set<'gc>(
     }
 }
 
-///### [7.3.33 InitializeInstanceElements ( O, constructor )](https://tc39.es/ecma262/#sec-initializeinstanceelements)
+/// ### [7.3.33 InitializeInstanceElements ( O, constructor )](https://tc39.es/ecma262/#sec-initializeinstanceelements)
 ///
 /// The abstract operation InitializeInstanceElements takes arguments O (an
 /// Object) and constructor (an ECMAScript function object) and returns either
@@ -2725,7 +2707,7 @@ pub(crate) fn initialize_instance_elements<'a>(
     // 4. For each element fieldRecord of fields, do
     // a. Perform ? DefineField(O, fieldRecord).
     // 5. Return unused.
-    let constructor_data = &agent[constructor];
+    let constructor_data = constructor.get(agent);
     if let Some(bytecode) = constructor_data.compiled_initializer_bytecode {
         // Note: The code here looks quite a bit different from what the spec
         // says. For one, the spec is bugged and doesn't consider default
@@ -2740,7 +2722,7 @@ pub(crate) fn initialize_instance_elements<'a>(
         // To do this, we need a new execution context that points to a new
         // Function environment. The function environment should be lexically a
         // child of the class constructor's creating environment.
-        let f = constructor.into_function();
+        let f = constructor.into();
         let outer_env = constructor_data.environment;
         let outer_priv_env = constructor_data.private_environment;
         let source_code = constructor_data.source_code;
@@ -2749,12 +2731,12 @@ pub(crate) fn initialize_instance_elements<'a>(
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
                 lexical_environment: Environment::Function(decl_env.unbind()),
                 variable_environment: Environment::Function(decl_env.unbind()),
-                private_environment: outer_priv_env,
+                private_environment: outer_priv_env.unbind(),
                 is_strict_mode: true,
-                source_code,
+                source_code: source_code.unbind(),
             }),
             function: Some(f.unbind()),
-            realm: agent[constructor].realm,
+            realm: constructor.get(agent).realm.unbind(),
             script_or_module: None,
         });
         let bytecode = bytecode.scope(agent, gc.nogc());
@@ -2892,7 +2874,7 @@ pub(crate) fn group_by_property<'gc>(
         let scoped_value = value.scope(agent, gc.nogc());
 
         // 𝔽(k)
-        let fk = Number::try_from(k).unwrap().into_value();
+        let fk = Number::try_from(k).unwrap().into();
 
         // e. Let key be Completion(Call(callback, undefined, « value, 𝔽(k) »)).
         let key = call_function(
@@ -3026,7 +3008,7 @@ pub(crate) fn group_by_collection<'gc>(
         let scoped_value = value.scope(agent, gc.nogc());
 
         // 𝔽(k)
-        let fk = Number::try_from(k).unwrap().into_value();
+        let fk = Number::try_from(k).unwrap().into();
 
         // e. Let key be Completion(Call(callback, undefined, « value, 𝔽(k) »)).
         let key = call_function(

@@ -2,16 +2,23 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{IntoObject, Object, OrdinaryObject};
-use crate::ecmascript::{
-    builtins::ordinary::shape::ObjectShape,
-    execution::{Agent, ProtoIntrinsics},
+use crate::{
+    ecmascript::{Agent, Object, ObjectShape, OrdinaryObject, ProtoIntrinsics, Value},
+    engine::Bindable,
 };
 
 /// ## [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 pub trait InternalSlots<'a>
 where
-    Self: 'a + Sized + Copy + Into<Object<'a>> + IntoObject<'a>,
+    Self: 'a
+        + Bindable
+        + core::fmt::Debug
+        + Sized
+        + Copy
+        + Into<Object<'a>>
+        + TryFrom<Object<'a>>
+        + Into<Value<'a>>
+        + TryFrom<Value<'a>>,
 {
     /// Default prototype of the object; this is used by
     /// [InternalSlots::internal_prototype].

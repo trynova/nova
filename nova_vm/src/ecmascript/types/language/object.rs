@@ -5,156 +5,100 @@
 mod data;
 mod internal_methods;
 mod internal_slots;
-mod into_object;
 mod property_key;
 mod property_key_set;
 mod property_key_vec;
 mod property_storage;
 
-use core::hash::Hash;
-use std::collections::TryReserveError;
+pub(crate) use data::*;
+pub use internal_methods::*;
+pub use internal_slots::*;
+pub use property_key::*;
+pub(crate) use property_key_set::*;
+pub(crate) use property_key_vec::*;
+pub(crate) use property_storage::*;
 
-#[cfg(feature = "date")]
-use super::value::DATE_DISCRIMINANT;
-#[cfg(feature = "weak-refs")]
-use super::value::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
-use super::{
-    Function, Value,
-    value::{
-        ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-        ASYNC_GENERATOR_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
-        BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
-        ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
-        FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, MAP_DISCRIMINANT,
-        MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
-        PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
-        STRING_ITERATOR_DISCRIMINANT,
-    },
-};
-#[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-#[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
-#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
 use crate::ecmascript::{
-    builtins::typed_array::SharedFloat16Array, types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
+    ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
+    ASYNC_GENERATOR_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
+    BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
+    BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT, BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
+    BUILTIN_PROXY_REVOKER_FUNCTION, ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT,
+    ERROR_DISCRIMINANT, FINALIZATION_REGISTRY_DISCRIMINANT, Function, GENERATOR_DISCRIMINANT,
+    MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
+    PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
+    STRING_ITERATOR_DISCRIMINANT, UnmappedArguments, Value,
 };
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
-    builtins::{
-        ArrayBuffer,
-        data_view::DataView,
-        typed_array::{
-            BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int8Array, Int16Array,
-            Int32Array, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
-        },
-    },
-    types::{
-        ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-        DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
-        INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-        UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
-        UINT_32_ARRAY_DISCRIMINANT,
-    },
+    ARRAY_BUFFER_DISCRIMINANT, ArrayBuffer, BIGINT_64_ARRAY_DISCRIMINANT,
+    BIGUINT_64_ARRAY_DISCRIMINANT, BigInt64Array, BigUint64Array, DATA_VIEW_DISCRIMINANT, DataView,
+    FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, Float32Array, Float64Array,
+    INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, Int8Array,
+    Int16Array, Int32Array, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Uint8Array, Uint8ClampedArray,
+    Uint16Array, Uint32Array,
 };
-#[cfg(feature = "shared-array-buffer")]
+#[cfg(feature = "date")]
+use crate::ecmascript::{DATE_DISCRIMINANT, Date};
+#[cfg(feature = "temporal")]
 use crate::ecmascript::{
-    builtins::{
-        data_view::SharedDataView,
-        shared_array_buffer::SharedArrayBuffer,
-        typed_array::{
-            SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
-            SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
-            SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
-        },
-    },
-    types::{
-        SHARED_ARRAY_BUFFER_DISCRIMINANT, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
-        SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_DATA_VIEW_DISCRIMINANT,
-        SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
-        SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
-        SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
-        SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
-        SHARED_UINT_32_ARRAY_DISCRIMINANT,
-    },
+    DURATION_DISCRIMINANT, INSTANT_DISCRIMINANT, PLAIN_TIME_DISCRIMINANT, TemporalDuration,
+    TemporalInstant, TemporalPlainTime,
 };
-#[cfg(feature = "set")]
-use crate::ecmascript::{
-    builtins::{
-        keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
-    },
-    types::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT},
-};
+#[cfg(feature = "proposal-float16array")]
+use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
-    builtins::{
-        regexp::RegExp,
-        text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-    },
-    types::{REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT},
+    REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, RegExp, RegExpStringIterator,
 };
+#[cfg(feature = "set")]
+use crate::ecmascript::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT, Set, SetIterator};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{
+    SHARED_ARRAY_BUFFER_DISCRIMINANT, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
+    SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_DATA_VIEW_DISCRIMINANT,
+    SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+    SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
+    SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
+    SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
+    SHARED_UINT_32_ARRAY_DISCRIMINANT, SharedArrayBuffer, SharedBigInt64Array,
+    SharedBigUint64Array, SharedDataView, SharedFloat32Array, SharedFloat64Array, SharedInt8Array,
+    SharedInt16Array, SharedInt32Array, SharedUint8Array, SharedUint8ClampedArray,
+    SharedUint16Array, SharedUint32Array,
+};
+#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+use crate::ecmascript::{SHARED_FLOAT_16_ARRAY_DISCRIMINANT, SharedFloat16Array};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
 use crate::{
     ecmascript::{
-        builtins::{
-            ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            async_generator_objects::AsyncGenerator,
-            bound_function::BoundFunction,
-            control_abstraction_objects::{
-                generator_objects::Generator,
-                promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
-            },
-            embedder_object::EmbedderObject,
-            error::Error,
-            finalization_registry::FinalizationRegistry,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::Map,
-            module::Module,
-            ordinary::{
-                caches::{PropertyLookupCache, PropertyOffset},
-                ordinary_object_create_with_intrinsics,
-                shape::{ObjectShape, ObjectShapeRecord},
-            },
-            primitive_objects::PrimitiveObject,
-            promise::Promise,
-            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
-            proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::TryResult},
-        types::PropertyDescriptor,
+        Agent, ArgumentsList, Array, ArrayIterator, AsyncGenerator, BoundFunction,
+        BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+        BuiltinPromiseResolvingFunction, ECMAScriptFunction, EmbedderObject, Error,
+        FinalizationRegistry, Generator, JsResult, Map, MapIterator, Module, ObjectShape,
+        ObjectShapeRecord, PrimitiveObject, Promise, PropertyDescriptor, PropertyLookupCache,
+        PropertyOffset, ProtoIntrinsics, Proxy, StringIterator, TryResult,
+        ordinary_object_create_with_intrinsics,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::{Bindable, GcScope, HeapRootData, NoGcScope, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicConstructorIndexes, IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes,
-        ObjectEntry, WorkQueues,
-        element_array::{
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, DirectArenaAccess,
+        Heap, HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
+        IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, ObjectEntry, WorkQueues,
+        arena_vec_access,
+        {
             ElementDescriptor, ElementStorageMut, ElementStorageRef, ElementStorageUninit,
             ElementsVector, PropertyStorageMut, PropertyStorageRef,
         },
-        indexes::BaseIndex,
     },
 };
 
 use ahash::AHashMap;
-pub(crate) use data::ObjectRecord;
-pub use internal_methods::*;
-pub use internal_slots::InternalSlots;
-pub use into_object::IntoObject;
-pub use property_key::PropertyKey;
-pub use property_key_set::PropertyKeySet;
-#[cfg(feature = "json")]
-pub(crate) use property_key_vec::ScopedPropertyKey;
-pub use property_storage::PropertyStorage;
+use core::hash::Hash;
+use std::collections::TryReserveError;
 
 /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
 ///
@@ -162,118 +106,240 @@ pub use property_storage::PropertyStorage;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum Object<'a> {
+    /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
     Object(OrdinaryObject<'a>) = OBJECT_DISCRIMINANT,
+    /// ### [10.4.1 Bound Function Exotic Objects](https://tc39.es/ecma262/#sec-bound-function-exotic-objects)
     BoundFunction(BoundFunction<'a>) = BOUND_FUNCTION_DISCRIMINANT,
+    /// ## [10.3 Built-in Function Objects](https://tc39.es/ecma262/#sec-built-in-function-objects)
     BuiltinFunction(BuiltinFunction<'a>) = BUILTIN_FUNCTION_DISCRIMINANT,
+    /// ## [10.2 ECMAScript Function Objects](https://tc39.es/ecma262/#sec-ecmascript-function-objects)
     ECMAScriptFunction(ECMAScriptFunction<'a>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+    /// ### [4.4.36 built-in constructor](https://tc39.es/ecma262/#sec-built-in-constructor)
+    ///
+    /// A class built-in default constructor created in step 14 of
+    /// ClassDefinitionEvaluation.
     BuiltinConstructorFunction(BuiltinConstructorFunction<'a>) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
+    /// Special built-in functions created to resolve or reject native [`Promise`]
+    /// objects.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>) =
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
+    /// Special functions created as part of `Promise.prototype.finally`.
     BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'a>) =
         BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-    BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+    /// Placeholder.
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
+    /// Primitive objects are special objects that hold a primitive value in their
+    /// internal data.
     PrimitiveObject(PrimitiveObject<'a>) = PRIMITIVE_OBJECT_DISCRIMINANT,
-    Arguments(OrdinaryObject<'a>) = ARGUMENTS_DISCRIMINANT,
+    /// ### [10.4.4 Arguments Exotic Objects](https://tc39.es/ecma262/#sec-arguments-exotic-objects)
+    ///
+    /// An unmapped arguments object is an ordinary object with an additional
+    /// internal slot \[\[ParameterMap]] whose value is always **undefined**.
+    Arguments(UnmappedArguments<'a>) = ARGUMENTS_DISCRIMINANT,
+    /// ### [10.4.2 Array Exotic Objects](https://tc39.es/ecma262/#sec-array-exotic-objects)
     Array(Array<'a>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
+    /// ## [21.4 Date Objects](https://tc39.es/ecma262/#sec-date-objects)
     Date(Date<'a>) = DATE_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    /// # [8 Temporal.Instant Objects](https://tc39.es/proposal-temporal/#sec-temporal-instant-objects)
+    Instant(TemporalInstant<'a>) = INSTANT_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    /// # [7 Temporal.Duration Objects](https://tc39.es/proposal-temporal/#sec-temporal-duration-objects)
+    Duration(TemporalDuration<'a>) = DURATION_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    /// # [4 Temporal.PlainTime Objects](https://tc39.es/proposal-temporal/#sec-temporal-plaintime-objects)
+    PlainTime(TemporalPlainTime<'a>) = PLAIN_TIME_DISCRIMINANT,
+    /// ## [20.5 Error Objects](https://tc39.es/ecma262/#sec-error-objects)
     Error(Error<'a>) = ERROR_DISCRIMINANT,
+    /// ## [26.2 FinalizationRegistry Objects](https://tc39.es/ecma262/#sec-finalization-registry-objects)
     FinalizationRegistry(FinalizationRegistry<'a>) = FINALIZATION_REGISTRY_DISCRIMINANT,
+    /// ## [24.1 Map Objects](https://tc39.es/ecma262/#sec-map-objects)
     Map(Map<'a>) = MAP_DISCRIMINANT,
+    /// ## [27.2 Promise Objects](https://tc39.es/ecma262/#sec-promise-objects)
     Promise(Promise<'a>) = PROMISE_DISCRIMINANT,
+    /// ## [28.2 Proxy Objects](https://tc39.es/ecma262/#sec-proxy-objects)
     Proxy(Proxy<'a>) = PROXY_DISCRIMINANT,
     #[cfg(feature = "regexp")]
+    /// ## [22.2 RegExp (Regular Expression) Objects](https://tc39.es/ecma262/#sec-regexp-regular-expression-objects)
     RegExp(RegExp<'a>) = REGEXP_DISCRIMINANT,
     #[cfg(feature = "set")]
+    /// ## [24.2 Set Objects](https://tc39.es/ecma262/#sec-set-objects)
     Set(Set<'a>) = SET_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
+    /// ## [24.3 WeakMap Objects](https://tc39.es/ecma262/#sec-weakmap-objects)
     WeakMap(WeakMap<'a>) = WEAK_MAP_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
+    /// ## [26.1 WeakRef Objects](https://tc39.es/ecma262/#sec-weak-ref-objects)
     WeakRef(WeakRef<'a>) = WEAK_REF_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
+    /// ## [24.4 WeakSet Objects](https://tc39.es/ecma262/#sec-weakset-objects)
     WeakSet(WeakSet<'a>) = WEAK_SET_DISCRIMINANT,
 
     /// ## [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer<'a>) = ARRAY_BUFFER_DISCRIMINANT,
-    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
-    #[cfg(feature = "array-buffer")]
-    DataView(DataView<'a>) = DATA_VIEW_DISCRIMINANT,
-    // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
-    #[cfg(feature = "array-buffer")]
-    Int8Array(Int8Array<'a>) = INT_8_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Uint8Array(Uint8Array<'a>) = UINT_8_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Uint8ClampedArray(Uint8ClampedArray<'a>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Int16Array(Int16Array<'a>) = INT_16_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Uint16Array(Uint16Array<'a>) = UINT_16_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Int32Array(Int32Array<'a>) = INT_32_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Uint32Array(Uint32Array<'a>) = UINT_32_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    BigInt64Array(BigInt64Array<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    BigUint64Array(BigUint64Array<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "proposal-float16array")]
-    Float16Array(Float16Array<'a>) = FLOAT_16_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Float32Array(Float32Array<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
-    #[cfg(feature = "array-buffer")]
-    Float64Array(Float64Array<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
-
     /// ## [25.2 SharedArrayBuffer Objects](https://tc39.es/ecma262/#sec-sharedarraybuffer-objects)
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer<'a>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+    #[cfg(feature = "array-buffer")]
+    DataView(DataView<'a>) = DATA_VIEW_DISCRIMINANT,
     /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
     ///
     /// A variant of DataView Objects viewing a SharedArrayBuffer.
     #[cfg(feature = "shared-array-buffer")]
     SharedDataView(SharedDataView<'a>) = SHARED_DATA_VIEW_DISCRIMINANT,
     // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.17 Int8Array ( . . . )](https://tc39.es/ecma262/#sec-int8array)
+    ///
+    /// An `i8` view into an ArrayBuffer.
+    Int8Array(Int8Array<'a>) = INT_8_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.35 Uint8Array ( . . . )](https://tc39.es/ecma262/#sec-uint8array)
+    ///
+    /// A `u8` view into an ArrayBuffer.
+    Uint8Array(Uint8Array<'a>) = UINT_8_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.36 Uint8ClampedArray ( . . . )](https://tc39.es/ecma262/#sec-uint8clampedarray)
+    ///
+    /// A `u8` view into an ArrayBuffer with clamping behaviour on assignment.
+    Uint8ClampedArray(Uint8ClampedArray<'a>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.18 Int16Array ( . . . )](https://tc39.es/ecma262/#sec-int16array)
+    ///
+    /// An `i16` view into an ArrayBuffer.
+    Int16Array(Int16Array<'a>) = INT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.37 Uint16Array ( . . . )](https://tc39.es/ecma262/#sec-uint16array)
+    ///
+    /// A `u16` view into an ArrayBuffer.
+    Uint16Array(Uint16Array<'a>) = UINT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.19 Int32Array ( . . . )](https://tc39.es/ecma262/#sec-int32array)
+    ///
+    /// An `i32` view into an ArrayBuffer.
+    Int32Array(Int32Array<'a>) = INT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.38 Uint32Array ( . . . )](https://tc39.es/ecma262/#sec-uint32array)
+    ///
+    /// A `u32` view into an ArrayBuffer.
+    Uint32Array(Uint32Array<'a>) = UINT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.5 BigInt64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-bigint64array)
+    ///
+    /// An `i64` view into an ArrayBuffer.
+    BigInt64Array(BigInt64Array<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.6 BigUint64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-biguint64array)
+    ///
+    /// A `u64` view into an ArrayBuffer.
+    BigUint64Array(BigUint64Array<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "proposal-float16array")]
+    /// ### [19.3.13 Float16Array ( . . . )](https://tc39.es/ecma262/#sec-float16array)
+    ///
+    /// An `f16` view into an ArrayBuffer.
+    Float16Array(Float16Array<'a>) = FLOAT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.13 Float32Array ( . . . )](https://tc39.es/ecma262/#sec-float32array)
+    ///
+    /// An `f32` view into an ArrayBuffer.
+    Float32Array(Float32Array<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
+    /// ### [19.3.13 Float64Array ( . . . )](https://tc39.es/ecma262/#sec-float64array)
+    ///
+    /// An `f64` view into an ArrayBuffer.
+    Float64Array(Float64Array<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
+
+    // ### [23.2 TypedArray Objects](https://tc39.es/ecma262/#sec-typedarray-objects)
     //
     // Variants of TypedArray Objects viewing a SharedArrayBuffer.
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.17 Int8Array ( . . . )](https://tc39.es/ecma262/#sec-int8array)
+    ///
+    /// An `i8` view into a SharedArrayBuffer.
     SharedInt8Array(SharedInt8Array<'a>) = SHARED_INT_8_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.35 Uint8Array ( . . . )](https://tc39.es/ecma262/#sec-uint8array)
+    ///
+    /// A `u8` view into a SharedArrayBuffer.
     SharedUint8Array(SharedUint8Array<'a>) = SHARED_UINT_8_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.36 Uint8ClampedArray ( . . . )](https://tc39.es/ecma262/#sec-uint8clampedarray)
+    ///
+    /// A `u8` view into an ArrayBuffer with clamping behaviour o Sharedassignment.
     SharedUint8ClampedArray(SharedUint8ClampedArray<'a>) = SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.18 Int16Array ( . . . )](https://tc39.es/ecma262/#sec-int16array)
+    ///
+    /// An `i16` view into a SharedArrayBuffer.
     SharedInt16Array(SharedInt16Array<'a>) = SHARED_INT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.37 Uint16Array ( . . . )](https://tc39.es/ecma262/#sec-uint16array)
+    ///
+    /// A `u16` view into a SharedArrayBuffer.
     SharedUint16Array(SharedUint16Array<'a>) = SHARED_UINT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.19 Int32Array ( . . . )](https://tc39.es/ecma262/#sec-int32array)
+    ///
+    /// An `i32` view into a SharedArrayBuffer.
     SharedInt32Array(SharedInt32Array<'a>) = SHARED_INT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.38 Uint32Array ( . . . )](https://tc39.es/ecma262/#sec-uint32array)
+    ///
+    /// A `u32` view into a SharedArrayBuffer.
     SharedUint32Array(SharedUint32Array<'a>) = SHARED_UINT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.5 BigInt64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-bigint64array)
+    ///
+    /// An `i64` view into a SharedArrayBuffer.
     SharedBigInt64Array(SharedBigInt64Array<'a>) = SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.6 BigUint64Array ( . . . )](https://tc39.es/ecma262/#sec-constructor-properties-of-the-global-object-biguint64array)
+    ///
+    /// A `u64` view into a SharedArrayBuffer.
     SharedBigUint64Array(SharedBigUint64Array<'a>) = SHARED_BIGUINT_64_ARRAY_DISCRIMINANT,
     #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+    /// ### [19.3.13 Float16Array ( . . . )](https://tc39.es/ecma262/#sec-float16array)
+    ///
+    /// An `f16` view into a SharedArrayBuffer.
     SharedFloat16Array(SharedFloat16Array<'a>) = SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.13 Float32Array ( . . . )](https://tc39.es/ecma262/#sec-float32array)
+    ///
+    /// An `f32` view into a SharedArrayBuffer.
     SharedFloat32Array(SharedFloat32Array<'a>) = SHARED_FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ### [19.3.13 Float64Array ( . . . )](https://tc39.es/ecma262/#sec-float64array)
+    ///
+    /// An `f64` view into a SharedArrayBuffer.
     SharedFloat64Array(SharedFloat64Array<'a>) = SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
 
+    /// ## [27.6 AsyncGenerator Objects](https://tc39.es/ecma262/#sec-asyncgenerator-objects)
     AsyncGenerator(AsyncGenerator<'a>) = ASYNC_GENERATOR_DISCRIMINANT,
+    /// ### [23.1.5 Array Iterator Objects](https://tc39.es/ecma262/#sec-array-iterator-objects)
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
+    /// ### [24.2.6 Set Iterator Objects](https://tc39.es/ecma262/#sec-set-iterator-objects)
     SetIterator(SetIterator<'a>) = SET_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
+    /// ### [24.1.5 Map Iterator Objects](https://tc39.es/ecma262/#sec-map-iterator-objects)
     MapIterator(MapIterator<'a>) = MAP_ITERATOR_DISCRIMINANT,
+    /// ### [22.1.5 String Iterator Objects](https://tc39.es/ecma262/#sec-string-iterator-objects)
     StringIterator(StringIterator<'a>) = STRING_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "regexp")]
+    /// ### [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
     RegExpStringIterator(RegExpStringIterator<'a>) = REGEXP_STRING_ITERATOR_DISCRIMINANT,
+    /// ## [27.5 Generator Objects](https://tc39.es/ecma262/#sec-generator-objects)
     Generator(Generator<'a>) = GENERATOR_DISCRIMINANT,
+    /// ### [10.4.6 Module Namespace Exotic Objects](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects)
     Module(Module<'a>) = MODULE_DISCRIMINANT,
+    /// Embedder objects are intended for embedders to create objects with
+    /// native data embedded into them.
     EmbedderObject(EmbedderObject<'a>) = EMBEDDER_OBJECT_DISCRIMINANT,
 }
 
@@ -291,10 +357,32 @@ impl Object<'_> {
     }
 }
 
+/// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
+///
+/// Each instance of the _Object type_, also referred to simply as “an Object”,
+/// represents a collection of properties. [`OrdinaryObject`]s specifically are
+/// the only type in the Nova JavaScript engine that are truly Objects in the
+/// strictest sense. They are ["ordinary objects"] in the specification's sense,
+/// but they are not the only "ordinary objects" in the engine. They are,
+/// however, the only ones that actually own a collection of properties.
+///
+/// All other objects in the Nova JavaScript engine merely optionally refer to
+/// an [`OrdinaryObject`], called then the "backing object", and delegate to the
+/// backing object all things related to ordinary object features such as
+/// prototype changes and property assignments.
+///
+/// [`OrdinaryObject`]: OrdinaryObject
+/// ["ordinary objects"]: https://tc39.es/ecma262/#sec-ordinary-object
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct OrdinaryObject<'a>(BaseIndex<'a, ObjectRecord<'static>>);
-
-bindable_handle!(OrdinaryObject);
+object_handle!(OrdinaryObject, Object);
+arena_vec_access!(
+    OrdinaryObject,
+    'a,
+    ObjectRecord,
+    objects
+);
 
 impl<'a> OrdinaryObject<'a> {
     /// Allocate a a new blank OrdinaryObject and return its reference.
@@ -304,43 +392,6 @@ impl<'a> OrdinaryObject<'a> {
     pub(crate) fn new_uninitialised(agent: &mut Agent) -> Self {
         agent.heap.objects.push(ObjectRecord::BLANK);
         OrdinaryObject(BaseIndex::last(&agent.heap.objects))
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    #[inline(always)]
-    pub(crate) fn get(self, agent: &Agent) -> &ObjectRecord<'a> {
-        self.get_direct(&agent.heap.objects)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_mut(self, agent: &mut Agent) -> &mut ObjectRecord<'a> {
-        self.get_direct_mut(&mut agent.heap.objects)
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct<'o>(self, objects: &'o [ObjectRecord<'a>]) -> &'o ObjectRecord<'a> {
-        &objects[self.get_index()]
-    }
-
-    #[inline(always)]
-    pub(crate) fn get_direct_mut<'o>(
-        self,
-        objects: &'o mut [ObjectRecord<'static>],
-    ) -> &'o mut ObjectRecord<'a> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<&mut ObjectRecord<'static>, &mut ObjectRecord<'a>>(
-                &mut objects[self.get_index()],
-            )
-        }
     }
 
     /// Returns true if the Object has no properties.
@@ -353,9 +404,10 @@ impl<'a> OrdinaryObject<'a> {
         self.get(agent).len(agent)
     }
 
+    /// Create an empty object with the default prototype.
     pub fn create_empty_object(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
         let Object::Object(ordinary) =
-            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc)
+            ordinary_object_create_with_intrinsics(agent, ProtoIntrinsics::Object, None, gc)
         else {
             unreachable!()
         };
@@ -509,6 +561,7 @@ impl<'a> OrdinaryObject<'a> {
         agent.heap.create(ObjectRecord::new(shape, values))
     }
 
+    /// Create an object with the given prototype and properties.
     pub fn create_object(
         agent: &mut Agent,
         prototype: Option<Object<'a>>,
@@ -647,8 +700,8 @@ impl IntrinsicObjectIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+        OrdinaryObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -658,8 +711,8 @@ impl IntrinsicConstructorIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+        OrdinaryObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::OBJECT_INDEX_OFFSET,
         ))
     }
 }
@@ -669,44 +722,9 @@ impl IntrinsicPrimitiveObjectIndexes {
         self,
         base: BaseIndex<'a, ObjectRecord<'static>>,
     ) -> OrdinaryObject<'a> {
-        OrdinaryObject(BaseIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::OBJECT_INDEX_OFFSET,
+        OrdinaryObject(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::OBJECT_INDEX_OFFSET,
         ))
-    }
-}
-
-impl<'a> From<OrdinaryObject<'a>> for Object<'a> {
-    fn from(value: OrdinaryObject<'a>) -> Self {
-        Self::Object(value)
-    }
-}
-
-impl<'a> From<OrdinaryObject<'a>> for Value<'a> {
-    fn from(value: OrdinaryObject<'a>) -> Self {
-        Self::Object(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for OrdinaryObject<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Object(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for OrdinaryObject<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::Object(data) => Ok(data),
-            _ => Err(()),
-        }
     }
 }
 
@@ -750,13 +768,8 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
     }
 }
 
-impl<'a> From<BoundFunction<'a>> for Object<'a> {
-    fn from(value: BoundFunction) -> Self {
-        Object::BoundFunction(value.unbind())
-    }
-}
-
 impl<'a> From<Object<'a>> for Value<'a> {
+    #[inline]
     fn from(value: Object<'a>) -> Self {
         match value {
             Object::Object(data) => Self::Object(data),
@@ -770,13 +783,18 @@ impl<'a> From<Object<'a>> for Value<'a> {
             Object::BuiltinPromiseFinallyFunction(data) => {
                 Self::BuiltinPromiseFinallyFunction(data)
             }
-            Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
             Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
             Object::PrimitiveObject(data) => Self::PrimitiveObject(data),
             Object::Arguments(data) => Self::Arguments(data),
             Object::Array(data) => Self::Array(data),
             #[cfg(feature = "date")]
             Object::Date(data) => Self::Date(data),
+            #[cfg(feature = "temporal")]
+            Object::Instant(data) => Value::Instant(data),
+            #[cfg(feature = "temporal")]
+            Object::Duration(data) => Value::Duration(data),
+            #[cfg(feature = "temporal")]
+            Object::PlainTime(data) => Value::PlainTime(data),
             Object::Error(data) => Self::Error(data),
             Object::FinalizationRegistry(data) => Self::FinalizationRegistry(data),
             Object::Map(data) => Self::Map(data),
@@ -889,7 +907,7 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
 }
 
 impl<'a> OrdinaryObject<'a> {
-    pub fn property_storage(self) -> PropertyStorage<'a> {
+    pub(crate) fn property_storage(self) -> PropertyStorage<'a> {
         PropertyStorage::new(self)
     }
 }
@@ -901,6 +919,12 @@ macro_rules! object_delegate {
             Self::Array(data) => data.$method($($arg),+),
             #[cfg(feature = "date")]
             Self::Date(data) => data.$method($($arg),+),
+            #[cfg(feature = "temporal")]
+            Object::Instant(data) => data.$method($($arg),+),
+            #[cfg(feature = "temporal")]
+            Object::Duration(data) => data.$method($($arg),+),
+            #[cfg(feature = "temporal")]
+            Object::PlainTime(data) => data.$method($($arg),+),
             Self::Error(data) => data.$method($($arg),+),
             Self::BoundFunction(data) => data.$method($($arg),+),
             Self::BuiltinFunction(data) => data.$method($($arg),+),
@@ -908,7 +932,6 @@ macro_rules! object_delegate {
             Self::BuiltinConstructorFunction(data) => data.$method($($arg),+),
             Self::BuiltinPromiseResolvingFunction(data) => data.$method($($arg),+),
             Self::BuiltinPromiseFinallyFunction(data) => data.$method($($arg),+),
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::PrimitiveObject(data) => data.$method($($arg),+),
             Self::Arguments(data) => data.$method($($arg),+),
@@ -1278,7 +1301,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
@@ -1331,6 +1354,12 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::Array(data) => data.sweep_weak_reference(compactions).map(Self::Array),
             #[cfg(feature = "date")]
             Self::Date(data) => data.sweep_weak_reference(compactions).map(Self::Date),
+            #[cfg(feature = "temporal")]
+            Self::Instant(data) => data.sweep_weak_reference(compactions).map(Self::Instant),
+            #[cfg(feature = "temporal")]
+            Self::Duration(data) => data.sweep_weak_reference(compactions).map(Self::Duration),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(data) => data.sweep_weak_reference(compactions).map(Self::PlainTime),
             Self::Error(data) => data.sweep_weak_reference(compactions).map(Self::Error),
             Self::BoundFunction(data) => data
                 .sweep_weak_reference(compactions)
@@ -1350,7 +1379,6 @@ impl HeapSweepWeakReference for Object<'static> {
             Self::BuiltinPromiseFinallyFunction(data) => data
                 .sweep_weak_reference(compactions)
                 .map(Self::BuiltinPromiseFinallyFunction),
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::PrimitiveObject(data) => data
                 .sweep_weak_reference(compactions)
@@ -1515,14 +1543,114 @@ impl<'a> CreateHeapData<ObjectRecord<'a>, OrdinaryObject<'a>> for Heap {
     }
 }
 
-impl TryFrom<HeapRootData> for OrdinaryObject<'_> {
-    type Error = ();
+impl From<Object<'_>> for HeapRootData {
+    #[inline]
+    fn from(value: Object<'_>) -> Self {
+        match value {
+            Object::Object(d) => Self::from(d),
+            Object::BoundFunction(d) => Self::from(d),
+            Object::BuiltinFunction(d) => Self::from(d),
+            Object::ECMAScriptFunction(d) => Self::from(d),
+            Object::BuiltinConstructorFunction(d) => Self::from(d),
+            Object::BuiltinPromiseResolvingFunction(d) => Self::from(d),
+            Object::BuiltinPromiseFinallyFunction(d) => Self::from(d),
+            Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
+            Object::PrimitiveObject(d) => Self::from(d),
+            Object::Arguments(d) => Self::from(d),
+            Object::Array(d) => Self::from(d),
+            #[cfg(feature = "date")]
+            Object::Date(d) => Self::from(d),
+            #[cfg(feature = "temporal")]
+            Object::Duration(d) => Self::from(d),
+            #[cfg(feature = "temporal")]
+            Object::Instant(d) => Self::from(d),
+            #[cfg(feature = "temporal")]
+            Object::PlainTime(d) => Self::from(d),
+            Object::Error(d) => Self::from(d),
+            Object::FinalizationRegistry(d) => Self::from(d),
+            Object::Map(d) => Self::from(d),
+            Object::Promise(d) => Self::from(d),
+            Object::Proxy(d) => Self::from(d),
+            #[cfg(feature = "regexp")]
+            Object::RegExp(d) => Self::from(d),
+            #[cfg(feature = "set")]
+            Object::Set(d) => Self::from(d),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakMap(d) => Self::from(d),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakRef(d) => Self::from(d),
+            #[cfg(feature = "weak-refs")]
+            Object::WeakSet(d) => Self::from(d),
 
-    fn try_from(value: HeapRootData) -> Result<Self, ()> {
-        if let HeapRootData::Object(value) = value {
-            Ok(value)
-        } else {
-            Err(())
+            #[cfg(feature = "array-buffer")]
+            Object::ArrayBuffer(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::DataView(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8Array(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint8ClampedArray(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::Int16Array(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint16Array(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::Int32Array(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::Uint32Array(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::BigInt64Array(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::BigUint64Array(d) => Self::from(d),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::Float32Array(d) => Self::from(d),
+            #[cfg(feature = "array-buffer")]
+            Object::Float64Array(d) => Self::from(d),
+
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedArrayBuffer(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedDataView(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt8Array(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint8Array(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint8ClampedArray(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt16Array(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint16Array(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedInt32Array(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedUint32Array(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedBigInt64Array(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedBigUint64Array(d) => Self::from(d),
+            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+            Object::SharedFloat16Array(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedFloat32Array(d) => Self::from(d),
+            #[cfg(feature = "shared-array-buffer")]
+            Object::SharedFloat64Array(d) => Self::from(d),
+
+            Object::AsyncGenerator(d) => Self::from(d),
+            Object::ArrayIterator(d) => Self::from(d),
+            #[cfg(feature = "set")]
+            Object::SetIterator(d) => Self::from(d),
+            Object::MapIterator(d) => Self::from(d),
+            Object::StringIterator(d) => Self::from(d),
+            #[cfg(feature = "regexp")]
+            Object::RegExpStringIterator(d) => Self::from(d),
+            Object::Generator(d) => Self::from(d),
+            Object::Module(d) => Self::from(d),
+            Object::EmbedderObject(d) => Self::from(d),
         }
     }
 }
@@ -1537,127 +1665,110 @@ impl TryFrom<HeapRootData> for Object<'_> {
             | HeapRootData::Symbol(_)
             | HeapRootData::Number(_)
             | HeapRootData::BigInt(_) => Err(()),
-            HeapRootData::Object(ordinary_object) => Ok(Self::Object(ordinary_object)),
-            HeapRootData::BoundFunction(bound_function) => Ok(Self::BoundFunction(bound_function)),
-            HeapRootData::BuiltinFunction(builtin_function) => {
-                Ok(Self::BuiltinFunction(builtin_function))
-            }
-            HeapRootData::ECMAScriptFunction(ecmascript_function) => {
-                Ok(Self::ECMAScriptFunction(ecmascript_function))
-            }
-            HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => Ok(
-                Self::BuiltinConstructorFunction(builtin_constructor_function),
-            ),
-            HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
-                Ok(Self::BuiltinPromiseResolvingFunction(
-                    builtin_promise_resolving_function,
-                ))
-            }
-            HeapRootData::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => Ok(
-                Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function),
-            ),
-            HeapRootData::BuiltinPromiseCollectorFunction => {
-                Ok(Self::BuiltinPromiseCollectorFunction)
-            }
+            HeapRootData::Object(o) => Ok(Self::from(o)),
+            HeapRootData::BoundFunction(f) => Ok(Self::from(f)),
+            HeapRootData::BuiltinFunction(f) => Ok(Self::from(f)),
+            HeapRootData::ECMAScriptFunction(f) => Ok(Self::from(f)),
+            HeapRootData::BuiltinConstructorFunction(f) => Ok(Self::BuiltinConstructorFunction(f)),
+            HeapRootData::BuiltinPromiseResolvingFunction(f) => Ok(Self::from(f)),
+            HeapRootData::BuiltinPromiseFinallyFunction(f) => Ok(Self::from(f)),
             HeapRootData::BuiltinProxyRevokerFunction => Ok(Self::BuiltinProxyRevokerFunction),
-            HeapRootData::PrimitiveObject(primitive_object) => {
-                Ok(Self::PrimitiveObject(primitive_object))
-            }
-            HeapRootData::Arguments(ordinary_object) => Ok(Self::Arguments(ordinary_object)),
-            HeapRootData::Array(array) => Ok(Self::Array(array)),
+            HeapRootData::PrimitiveObject(o) => Ok(Self::from(o)),
+            HeapRootData::Arguments(o) => Ok(Self::from(o)),
+            HeapRootData::Array(o) => Ok(Self::from(o)),
             #[cfg(feature = "date")]
-            HeapRootData::Date(date) => Ok(Self::Date(date)),
-            HeapRootData::Error(error) => Ok(Self::Error(error)),
-            HeapRootData::FinalizationRegistry(finalization_registry) => {
-                Ok(Self::FinalizationRegistry(finalization_registry))
-            }
-            HeapRootData::Map(map) => Ok(Self::Map(map)),
-            HeapRootData::Promise(promise) => Ok(Self::Promise(promise)),
-            HeapRootData::Proxy(proxy) => Ok(Self::Proxy(proxy)),
+            HeapRootData::Date(o) => Ok(Self::from(o)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::Instant(o) => Ok(Self::from(o)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::Duration(o) => Ok(Self::from(o)),
+            #[cfg(feature = "temporal")]
+            HeapRootData::PlainTime(o) => Ok(Self::from(o)),
+            HeapRootData::Error(o) => Ok(Self::from(o)),
+            HeapRootData::FinalizationRegistry(o) => Ok(Self::from(o)),
+            HeapRootData::Map(o) => Ok(Self::from(o)),
+            HeapRootData::Promise(o) => Ok(Self::from(o)),
+            HeapRootData::Proxy(o) => Ok(Self::from(o)),
             #[cfg(feature = "regexp")]
-            HeapRootData::RegExp(reg_exp) => Ok(Self::RegExp(reg_exp)),
+            HeapRootData::RegExp(o) => Ok(Self::from(o)),
             #[cfg(feature = "set")]
-            HeapRootData::Set(set) => Ok(Self::Set(set)),
+            HeapRootData::Set(o) => Ok(Self::from(o)),
             #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakMap(weak_map) => Ok(Self::WeakMap(weak_map)),
+            HeapRootData::WeakMap(o) => Ok(Self::from(o)),
             #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakRef(weak_ref) => Ok(Self::WeakRef(weak_ref)),
+            HeapRootData::WeakRef(o) => Ok(Self::from(o)),
             #[cfg(feature = "weak-refs")]
-            HeapRootData::WeakSet(weak_set) => Ok(Self::WeakSet(weak_set)),
+            HeapRootData::WeakSet(o) => Ok(Self::from(o)),
 
             #[cfg(feature = "array-buffer")]
-            HeapRootData::ArrayBuffer(ab) => Ok(Self::ArrayBuffer(ab)),
+            HeapRootData::ArrayBuffer(ab) => Ok(Self::from(ab)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::DataView(dv) => Ok(Self::DataView(dv)),
+            HeapRootData::DataView(dv) => Ok(Self::from(dv)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Int8Array(ta) => Ok(Self::Int8Array(ta)),
+            HeapRootData::Int8Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
+            HeapRootData::Uint8Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
+            HeapRootData::Uint8ClampedArray(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Int16Array(ta) => Ok(Self::Int16Array(ta)),
+            HeapRootData::Int16Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
+            HeapRootData::Uint16Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Int32Array(ta) => Ok(Self::Int32Array(ta)),
+            HeapRootData::Int32Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
+            HeapRootData::Uint32Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
+            HeapRootData::BigInt64Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
+            HeapRootData::BigUint64Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "proposal-float16array")]
-            HeapRootData::Float16Array(ta) => Ok(Self::Float16Array(ta)),
+            HeapRootData::Float16Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Float32Array(ta) => Ok(Self::Float32Array(ta)),
+            HeapRootData::Float32Array(ta) => Ok(Self::from(ta)),
             #[cfg(feature = "array-buffer")]
-            HeapRootData::Float64Array(ta) => Ok(Self::Float64Array(ta)),
+            HeapRootData::Float64Array(ta) => Ok(Self::from(ta)),
 
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedArrayBuffer(sab) => Ok(Self::SharedArrayBuffer(sab)),
+            HeapRootData::SharedArrayBuffer(sab) => Ok(Self::from(sab)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedDataView(sdv) => Ok(Self::SharedDataView(sdv)),
+            HeapRootData::SharedDataView(sdv) => Ok(Self::from(sdv)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedInt8Array(sta) => Ok(Self::SharedInt8Array(sta)),
+            HeapRootData::SharedInt8Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint8Array(sta) => Ok(Self::SharedUint8Array(sta)),
+            HeapRootData::SharedUint8Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint8ClampedArray(sta) => Ok(Self::SharedUint8ClampedArray(sta)),
+            HeapRootData::SharedUint8ClampedArray(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedInt16Array(sta) => Ok(Self::SharedInt16Array(sta)),
+            HeapRootData::SharedInt16Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint16Array(sta) => Ok(Self::SharedUint16Array(sta)),
+            HeapRootData::SharedUint16Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedInt32Array(sta) => Ok(Self::SharedInt32Array(sta)),
+            HeapRootData::SharedInt32Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedUint32Array(sta) => Ok(Self::SharedUint32Array(sta)),
+            HeapRootData::SharedUint32Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedBigInt64Array(sta) => Ok(Self::SharedBigInt64Array(sta)),
+            HeapRootData::SharedBigInt64Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedBigUint64Array(sta) => Ok(Self::SharedBigUint64Array(sta)),
+            HeapRootData::SharedBigUint64Array(sta) => Ok(Self::from(sta)),
             #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            HeapRootData::SharedFloat16Array(sta) => Ok(Self::SharedFloat16Array(sta)),
+            HeapRootData::SharedFloat16Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedFloat32Array(sta) => Ok(Self::SharedFloat32Array(sta)),
+            HeapRootData::SharedFloat32Array(sta) => Ok(Self::from(sta)),
             #[cfg(feature = "shared-array-buffer")]
-            HeapRootData::SharedFloat64Array(sta) => Ok(Self::SharedFloat64Array(sta)),
+            HeapRootData::SharedFloat64Array(sta) => Ok(Self::from(sta)),
 
-            HeapRootData::AsyncGenerator(r#gen) => Ok(Self::AsyncGenerator(r#gen)),
-            HeapRootData::ArrayIterator(array_iterator) => Ok(Self::ArrayIterator(array_iterator)),
+            HeapRootData::AsyncGenerator(o) => Ok(Self::from(o)),
+            HeapRootData::ArrayIterator(o) => Ok(Self::from(o)),
             #[cfg(feature = "set")]
-            HeapRootData::SetIterator(set_iterator) => Ok(Self::SetIterator(set_iterator)),
-            HeapRootData::MapIterator(map_iterator) => Ok(Self::MapIterator(map_iterator)),
-            HeapRootData::StringIterator(map_iterator) => Ok(Self::StringIterator(map_iterator)),
+            HeapRootData::SetIterator(o) => Ok(Self::from(o)),
+            HeapRootData::MapIterator(o) => Ok(Self::from(o)),
+            HeapRootData::StringIterator(o) => Ok(Self::from(o)),
             #[cfg(feature = "regexp")]
-            HeapRootData::RegExpStringIterator(map_iterator) => {
-                Ok(Self::RegExpStringIterator(map_iterator))
-            }
-            HeapRootData::Generator(generator) => Ok(Self::Generator(generator)),
-            HeapRootData::Module(module) => Ok(Self::Module(module)),
-            HeapRootData::EmbedderObject(embedder_object) => {
-                Ok(Self::EmbedderObject(embedder_object))
-            }
+            HeapRootData::RegExpStringIterator(o) => Ok(Self::from(o)),
+            HeapRootData::Generator(o) => Ok(Self::from(o)),
+            HeapRootData::Module(o) => Ok(Self::from(o)),
+            HeapRootData::EmbedderObject(o) => Ok(Self::from(o)),
             HeapRootData::AwaitReaction(_)
             | HeapRootData::PromiseReaction(_)
             | HeapRootData::PromiseGroup(_)
@@ -1676,3 +1787,32 @@ impl TryFrom<HeapRootData> for Object<'_> {
         }
     }
 }
+
+macro_rules! object_handle {
+    ($name: tt) => {
+        crate::ecmascript::object_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::value_handle!($name, $variant);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::Object<'a> {
+            #[inline(always)]
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::Object<'a>> for $name<'a> {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::Object<'a>) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::Object::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use object_handle;

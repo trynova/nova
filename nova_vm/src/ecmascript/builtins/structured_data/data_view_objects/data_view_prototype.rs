@@ -5,25 +5,15 @@
 use ecmascript_atomics::Ordering;
 
 use crate::{
-    SmallInteger,
     ecmascript::{
-        abstract_operations::type_conversion::to_boolean,
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
-            data_view::{
-                AnyDataView,
-                abstract_operations::{
-                    get_view_byte_length, get_view_value, is_view_out_of_bounds,
-                    make_data_view_with_buffer_witness_record, set_view_value,
-                },
-            },
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value, Viewable},
+        Agent, AnyDataView, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinGetter, ExceptionType, JsResult, Number, PropertyKey, Realm, SmallInteger, String,
+        Value, Viewable, builders::OrdinaryObjectBuilder, get_view_byte_length, get_view_value,
+        is_view_out_of_bounds, make_data_view_with_buffer_witness_record, set_view_value,
+        to_boolean,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
-    heap::WellKnownSymbolIndexes,
+    engine::{Bindable, GcScope, NoGcScope},
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct DataViewPrototype;
@@ -209,7 +199,7 @@ impl DataViewPrototype {
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
         // 4. Let buffer be O.[[ViewedArrayBuffer]].
         // 5. Return buffer.
-        Ok(o.viewed_array_buffer(agent).into_value())
+        Ok(o.viewed_array_buffer(agent).into())
     }
 
     /// ### [25.3.4.2 get DataView.prototype.byteLength](https://tc39.es/ecma262/#sec-get-dataview.prototype.bytelength)
@@ -240,7 +230,7 @@ impl DataViewPrototype {
         // 6. Let size be GetViewByteLength(viewRecord).
         let size = get_view_byte_length(agent, &view_record) as i64;
         // 7. Return 𝔽(size).
-        Ok(Number::from(SmallInteger::try_from(size).unwrap()).into_value())
+        Ok(Number::from(SmallInteger::try_from(size).unwrap()).into())
     }
 
     /// ### [25.3.4.3 get DataView.prototype.byteOffset](https://tc39.es/ecma262/#sec-get-dataview.prototype.byteoffset)
@@ -270,7 +260,7 @@ impl DataViewPrototype {
         }
         // 6. Let offset be O.[[ByteOffset]].
         // 7. Return 𝔽(offset).
-        Ok(Number::from(SmallInteger::try_from(o.byte_offset(agent) as i64).unwrap()).into_value())
+        Ok(Number::from(SmallInteger::try_from(o.byte_offset(agent) as i64).unwrap()).into())
     }
 
     /// ### [25.3.4.5 DataView.prototype.getBigInt64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getbigint64)
@@ -286,7 +276,7 @@ impl DataViewPrototype {
         // 2. Return ? GetViewValue(v, byteOffset, littleEndian, bigint64).
         get_view_value::<i64>(agent, this_value, byte_offset, little_endian, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [25.3.4.6 DataView.prototype.getBigUint64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getbiguint64)
@@ -302,7 +292,7 @@ impl DataViewPrototype {
         // 2. Return ? GetViewValue(v, byteOffset, littleEndian, biguint64).
         get_view_value::<u64>(agent, this_value, byte_offset, little_endian, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [7.1 DataView.prototype.getFloat16 ( byteOffset [ , littleEndian ] )](https://tc39.es/proposal-float16array/#sec-dataview.prototype.getfloat16)
@@ -320,7 +310,7 @@ impl DataViewPrototype {
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float16).
         get_view_value::<f16>(agent, this_value, byte_offset, little_endian, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [25.3.4.7 DataView.prototype.getFloat32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getfloat32)
@@ -337,7 +327,7 @@ impl DataViewPrototype {
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float32).
         get_view_value::<f32>(agent, this_value, byte_offset, little_endian, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [25.3.4.8 DataView.prototype.getFloat64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getfloat64)
@@ -354,7 +344,7 @@ impl DataViewPrototype {
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float64).
         get_view_value::<f64>(agent, this_value, byte_offset, little_endian, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [25.3.4.9 DataView.prototype.getInt8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getint8)
@@ -369,7 +359,7 @@ impl DataViewPrototype {
         // 2. Return ? GetViewValue(v, byteOffset, true, int8).
         get_view_value::<i8>(agent, this_value, byte_offset, true, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [25.3.4.10 DataView.prototype.getInt16 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getint16)
@@ -386,7 +376,7 @@ impl DataViewPrototype {
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, int16).
         get_view_value::<i16>(agent, this_value, byte_offset, little_endian, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [25.3.4.11 DataView.prototype.getInt32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getint32)
@@ -403,7 +393,7 @@ impl DataViewPrototype {
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, int32).
         get_view_value::<i32>(agent, this_value, byte_offset, little_endian, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [25.3.4.12 DataView.prototype.getUint8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint8)
@@ -418,7 +408,7 @@ impl DataViewPrototype {
         // 2. Return ? GetViewValue(v, byteOffset, true, uint8).
         get_view_value::<u8>(agent, this_value, byte_offset, true, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [25.3.4.13 DataView.prototype.getUint16 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint16)
@@ -435,7 +425,7 @@ impl DataViewPrototype {
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, uint16).
         get_view_value::<u16>(agent, this_value, byte_offset, little_endian, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [25.3.4.14 DataView.prototype.getUint32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint32)
@@ -452,7 +442,7 @@ impl DataViewPrototype {
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, uint32).
         get_view_value::<u32>(agent, this_value, byte_offset, little_endian, gc.reborrow())
             .unbind()
-            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into_value())
+            .map(|v| v.into_ne_value(agent, gc.into_nogc()).into())
     }
 
     /// ### [25.3.4.15 DataView.prototype.setBigInt64 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setbigint64)
@@ -666,8 +656,8 @@ impl DataViewPrototype {
             .with_builtin_function_property::<DataViewPrototypeSetUint32>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.DataView.into_value())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.DataView.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

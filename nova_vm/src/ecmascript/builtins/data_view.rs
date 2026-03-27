@@ -2,44 +2,42 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod abstract_operations;
+mod data;
+
+pub(crate) use abstract_operations::*;
+pub(crate) use data::*;
+
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::types::SHARED_DATA_VIEW_DISCRIMINANT;
+use crate::ecmascript::{SHARED_DATA_VIEW_DISCRIMINANT, SharedArrayBuffer};
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
-        types::{
-            DATA_VIEW_DISCRIMINANT, InternalMethods, InternalSlots, Object, OrdinaryObject, Value,
-            Viewable,
-        },
+        Agent, AnyArrayBuffer, ArrayBuffer, DATA_VIEW_DISCRIMINANT, InternalMethods, InternalSlots,
+        Object, OrdinaryObject, ProtoIntrinsics, Value, Viewable, ViewedArrayBufferByteLength,
+        ViewedArrayBufferByteOffset,
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, HeapRootData, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
-use self::data::DataViewRecord;
-#[cfg(feature = "shared-array-buffer")]
-use self::data::SharedDataViewRecord;
-
-#[cfg(feature = "shared-array-buffer")]
-use super::SharedArrayBuffer;
-use super::{
-    ArrayBuffer,
-    array_buffer::{AnyArrayBuffer, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
-};
-
-pub(crate) mod abstract_operations;
-pub mod data;
-
+/// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+///
+/// _DataView_ objects are used to view [`ArrayBuffer`] data. The data viewed by
+/// a [`DataView`] cannot be shared between threads. For viewing shareable
+/// memory, see [`SharedDataView`] objects.
+///
+/// [`ArrayBuffer`]: crate::ecmascript::ArrayBuffer
+/// [`SharedArrayBuffer`]: crate::ecmascript::SharedArrayBuffer
+/// [`DataView`]: crate::ecmascript::DataView
+/// [`SharedDataView`]: crate::ecmascript::SharedDataView
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct DataView<'a>(BaseIndex<'a, DataViewRecord<'static>>);
-bindable_handle!(DataView);
+data_view_handle!(DataView);
+arena_vec_access!(DataView, 'a, DataViewRecord, data_views);
 
 impl<'gc> DataView<'gc> {
     /// \[\[ByteLength]]
@@ -90,7 +88,7 @@ impl<'gc> DataView<'gc> {
         // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
         // 4. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
         // 3. Let block be arrayBuffer.[[ArrayBufferData]].
-        let block = agent[array_buffer].get_data_block();
+        let block = array_buffer.get(agent).get_data_block();
         // 5. If IsSharedArrayBuffer(arrayBuffer) is true, then
         // a. Assert: block is a Shared Data Block.
         // b. Let rawValue be GetRawBytesFromSharedBlock(block, byteIndex, type,
@@ -137,55 +135,24 @@ impl<'gc> DataView<'gc> {
                 .insert(self.unbind(), byte_offset);
         }
     }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    #[inline(always)]
-    fn get<'a>(self, agent: &'a Agent) -> &'a DataViewRecord<'gc> {
-        self.get_direct(&agent.heap.data_views)
-    }
-
-    #[inline(always)]
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut DataViewRecord<'gc> {
-        self.get_direct_mut(&mut agent.heap.data_views)
-    }
-
-    #[inline(always)]
-    fn get_direct<'a>(self, data_views: &'a [DataViewRecord<'static>]) -> &'a DataViewRecord<'gc> {
-        data_views
-            .get(self.get_index())
-            .expect("Invalid DataView reference")
-    }
-
-    #[inline(always)]
-    fn get_direct_mut<'a>(
-        self,
-        data_views: &'a mut [DataViewRecord<'static>],
-    ) -> &'a mut DataViewRecord<'gc> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<&'a mut DataViewRecord<'static>, &'a mut DataViewRecord<'gc>>(
-                data_views
-                    .get_mut(self.get_index())
-                    .expect("Invalid DataView reference"),
-            )
-        }
-    }
 }
 
+/// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+///
+/// _SharedDataView_ objects are used to view [`SharedArrayBuffer`] data. For
+/// viewing [`ArrayBuffer`] data see [`DataView`] objects.
+///
+/// [`ArrayBuffer`]: crate::ecmascript::ArrayBuffer
+/// [`SharedArrayBuffer`]: crate::ecmascript::SharedArrayBuffer
+/// [`DataView`]: crate::ecmascript::DataView
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 #[cfg(feature = "shared-array-buffer")]
 pub struct SharedDataView<'a>(BaseIndex<'a, SharedDataViewRecord<'static>>);
 #[cfg(feature = "shared-array-buffer")]
-bindable_handle!(SharedDataView);
+data_view_handle!(SharedDataView);
+#[cfg(feature = "shared-array-buffer")]
+arena_vec_access!(SharedDataView, 'a, SharedDataViewRecord, shared_data_views);
 
 #[cfg(feature = "shared-array-buffer")]
 impl<'gc> SharedDataView<'gc> {
@@ -238,7 +205,7 @@ impl<'gc> SharedDataView<'gc> {
     ) -> T {
         let array_buffer = self.viewed_array_buffer(agent);
         // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
-        debug_assert!(!array_buffer.is_detached(agent));
+        debug_assert!(!array_buffer.is_detached());
         // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
         // 4. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
         // 3. Let block be arrayBuffer.[[ArrayBufferData]].
@@ -290,76 +257,6 @@ impl<'gc> SharedDataView<'gc> {
                 .insert(self.unbind(), byte_offset);
         }
     }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    #[inline(always)]
-    fn get<'a>(self, agent: &'a Agent) -> &'a SharedDataViewRecord<'gc> {
-        self.get_direct(&agent.heap.shared_data_views)
-    }
-
-    #[inline(always)]
-    fn get_mut<'a>(self, agent: &'a mut Agent) -> &'a mut SharedDataViewRecord<'gc> {
-        self.get_direct_mut(&mut agent.heap.shared_data_views)
-    }
-
-    #[inline(always)]
-    fn get_direct<'a>(
-        self,
-        shared_data_views: &'a [SharedDataViewRecord<'static>],
-    ) -> &'a SharedDataViewRecord<'gc> {
-        shared_data_views
-            .get(self.get_index())
-            .expect("Invalid DataView reference")
-    }
-
-    #[inline(always)]
-    fn get_direct_mut<'a>(
-        self,
-        shared_data_views: &'a mut [SharedDataViewRecord<'static>],
-    ) -> &'a mut SharedDataViewRecord<'gc> {
-        // SAFETY: Lifetime transmute to thread GC lifetime to temporary heap
-        // reference.
-        unsafe {
-            core::mem::transmute::<
-                &'a mut SharedDataViewRecord<'static>,
-                &'a mut SharedDataViewRecord<'gc>,
-            >(
-                shared_data_views
-                    .get_mut(self.get_index())
-                    .expect("Invalid DataView reference"),
-            )
-        }
-    }
-}
-
-impl<'a> From<DataView<'a>> for Value<'a> {
-    fn from(value: DataView<'a>) -> Self {
-        Value::DataView(value)
-    }
-}
-
-impl<'a> From<DataView<'a>> for Object<'a> {
-    fn from(value: DataView<'a>) -> Self {
-        Object::DataView(value)
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for DataView<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::DataView(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
 }
 
 impl<'a> InternalSlots<'a> for DataView<'a> {
@@ -383,55 +280,6 @@ impl<'a> InternalSlots<'a> for DataView<'a> {
 
 impl<'a> InternalMethods<'a> for DataView<'a> {}
 
-impl Rootable for DataView<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::DataView(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::DataView(object) => Some(object),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> From<SharedDataView<'a>> for Value<'a> {
-    fn from(value: SharedDataView<'a>) -> Self {
-        Value::SharedDataView(value)
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> From<SharedDataView<'a>> for Object<'a> {
-    fn from(value: SharedDataView<'a>) -> Self {
-        Object::SharedDataView(value)
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> TryFrom<Object<'a>> for SharedDataView<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::SharedDataView(data) => Ok(data),
-            _ => Err(()),
-        }
-    }
-}
-
 #[cfg(feature = "shared-array-buffer")]
 impl<'a> InternalSlots<'a> for SharedDataView<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::DataView;
@@ -454,30 +302,6 @@ impl<'a> InternalSlots<'a> for SharedDataView<'a> {
 
 #[cfg(feature = "shared-array-buffer")]
 impl<'a> InternalMethods<'a> for SharedDataView<'a> {}
-
-#[cfg(feature = "shared-array-buffer")]
-impl Rootable for SharedDataView<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::SharedDataView(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::SharedDataView(object) => Some(object),
-            _ => None,
-        }
-    }
-}
 
 impl<'a> CreateHeapData<DataViewRecord<'a>, DataView<'a>> for Heap {
     fn create(&mut self, data: DataViewRecord<'a>) -> DataView<'a> {
@@ -533,11 +357,21 @@ impl HeapSweepWeakReference for SharedDataView<'static> {
     }
 }
 
+/// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+///
+/// A [`DataView`] or [`SharedDataView`] object.
+///
+/// [`DataView`]: crate::ecmascript::DataView
+/// [`SharedDataView`]: crate::ecmascript::SharedDataView
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum AnyDataView<'a> {
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
     DataView(DataView<'a>) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
+    /// ## [25.3 DataView Objects](https://tc39.es/ecma262/#sec-dataview-objects)
+    ///
+    /// A variant of DataView Objects viewing a SharedArrayBuffer.
     SharedDataView(SharedDataView<'a>) = SHARED_DATA_VIEW_DISCRIMINANT,
 }
 bindable_handle!(AnyDataView);
@@ -627,32 +461,6 @@ impl<'gc> AnyDataView<'gc> {
     }
 }
 
-impl<'a> From<DataView<'a>> for AnyDataView<'a> {
-    #[inline(always)]
-    fn from(value: DataView<'a>) -> Self {
-        Self::DataView(value)
-    }
-}
-
-#[cfg(feature = "shared-array-buffer")]
-impl<'a> From<SharedDataView<'a>> for AnyDataView<'a> {
-    #[inline(always)]
-    fn from(value: SharedDataView<'a>) -> Self {
-        Self::SharedDataView(value)
-    }
-}
-
-impl<'a> From<AnyDataView<'a>> for Value<'a> {
-    #[inline(always)]
-    fn from(value: AnyDataView<'a>) -> Self {
-        match value {
-            AnyDataView::DataView(dv) => Self::DataView(dv),
-            #[cfg(feature = "shared-array-buffer")]
-            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv),
-        }
-    }
-}
-
 impl<'a> From<AnyDataView<'a>> for Object<'a> {
     #[inline(always)]
     fn from(value: AnyDataView<'a>) -> Self {
@@ -664,16 +472,13 @@ impl<'a> From<AnyDataView<'a>> for Object<'a> {
     }
 }
 
-impl<'a> TryFrom<Value<'a>> for AnyDataView<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+impl<'a> From<AnyDataView<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: AnyDataView<'a>) -> Self {
         match value {
-            Value::DataView(dv) => Ok(Self::DataView(dv)),
+            AnyDataView::DataView(dv) => Self::DataView(dv),
             #[cfg(feature = "shared-array-buffer")]
-            Value::SharedDataView(sdv) => Ok(Self::SharedDataView(sdv)),
-            _ => Err(()),
+            AnyDataView::SharedDataView(sdv) => Self::SharedDataView(sdv),
         }
     }
 }
@@ -692,6 +497,30 @@ impl<'a> TryFrom<Object<'a>> for AnyDataView<'a> {
     }
 }
 
+impl From<AnyDataView<'_>> for HeapRootData {
+    fn from(value: AnyDataView<'_>) -> Self {
+        match value {
+            AnyDataView::DataView(dv) => Self::from(dv),
+            #[cfg(feature = "shared-array-buffer")]
+            AnyDataView::SharedDataView(sdv) => Self::from(sdv),
+        }
+    }
+}
+
+impl<'a> TryFrom<Value<'a>> for AnyDataView<'a> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::DataView(dv) => Ok(Self::DataView(dv)),
+            #[cfg(feature = "shared-array-buffer")]
+            Value::SharedDataView(sdv) => Ok(Self::SharedDataView(sdv)),
+            _ => Err(()),
+        }
+    }
+}
+
 impl TryFrom<HeapRootData> for AnyDataView<'_> {
     type Error = ();
 
@@ -705,3 +534,29 @@ impl TryFrom<HeapRootData> for AnyDataView<'_> {
         }
     }
 }
+
+macro_rules! data_view_handle {
+    ($name: ident) => {
+        crate::ecmascript::types::object_handle!($name);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::builtins::data_view::AnyDataView<'a> {
+            fn from(value: $name<'a>) -> Self {
+                Self::$name(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::builtins::data_view::AnyDataView<'a>> for $name<'a> {
+            type Error = ();
+
+            fn try_from(
+                value: crate::ecmascript::builtins::data_view::AnyDataView<'a>,
+            ) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::builtins::data_view::AnyDataView::$name(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+use data_view_handle;

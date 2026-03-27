@@ -2,5 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod map_iterator;
-pub(crate) mod map_iterator_prototype;
+mod map_iterator;
+mod map_iterator_prototype;
+
+pub use map_iterator::*;
+pub(crate) use map_iterator_prototype::*;

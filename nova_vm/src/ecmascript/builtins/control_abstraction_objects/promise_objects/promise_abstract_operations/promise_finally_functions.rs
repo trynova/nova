@@ -4,21 +4,13 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{call_function, invoke},
-        builtins::{ArgumentsList, promise::Promise},
-        execution::{Agent, JsResult, agent::JsError},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, FunctionInternalProperties, IntoValue, Object,
-            OrdinaryObject, String, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Function, FunctionInternalProperties, JsError,
+        JsResult, OrdinaryObject, Promise, String, Value, call_function, function_handle, invoke,
     },
-    engine::{
-        context::{Bindable, GcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
-    },
+    engine::{Bindable, GcScope, Scopable, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
@@ -26,10 +18,12 @@ use crate::{
 enum PromiseFinallyFunctionType<'a> {
     ResolveFinally {
         on_finally: Function<'a>,
+        /// Promise constructor
         c: Function<'a>,
     },
     RejectFinally {
         on_finally: Function<'a>,
+        /// Promise constructor
         c: Function<'a>,
     },
     ReturnValue {
@@ -47,18 +41,20 @@ enum PromiseFinallyFunctionType<'a> {
 ///
 /// The "length" property of a promise reject function is 1𝔽.
 #[derive(Debug, Clone)]
-pub struct PromiseFinallyFunctionHeapData<'a> {
+pub(crate) struct PromiseFinallyFunctionHeapData<'a> {
     backing_object: Option<OrdinaryObject<'a>>,
     resolve_type: PromiseFinallyFunctionType<'a>,
 }
+bindable_handle!(PromiseFinallyFunctionHeapData);
 
-pub(crate) type BuiltinPromiseFinallyFunctionIndex<'a> =
-    BaseIndex<'a, PromiseFinallyFunctionHeapData<'static>>;
-
+/// Special functions created as part of `Promise.prototype.finally`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct BuiltinPromiseFinallyFunction<'a>(pub(crate) BuiltinPromiseFinallyFunctionIndex<'a>);
-bindable_handle!(BuiltinPromiseFinallyFunction);
+pub struct BuiltinPromiseFinallyFunction<'a>(
+    BaseIndex<'a, PromiseFinallyFunctionHeapData<'static>>,
+);
+function_handle!(BuiltinPromiseFinallyFunction);
+arena_vec_access!(BuiltinPromiseFinallyFunction, 'a, PromiseFinallyFunctionHeapData, promise_finally_functions);
 
 impl<'f> BuiltinPromiseFinallyFunction<'f> {
     pub(crate) fn create_finally_functions(
@@ -75,48 +71,6 @@ impl<'f> BuiltinPromiseFinallyFunction<'f> {
             resolve_type: PromiseFinallyFunctionType::RejectFinally { on_finally, c },
         });
         (then_finally_closure, catch_finally_closure)
-    }
-
-    fn get(self, agent: &Agent) -> &PromiseFinallyFunctionHeapData<'f> {
-        agent
-            .heap
-            .promise_finally_functions
-            .get(self.get_index())
-            .expect("Promise.prototype.finally handler not found")
-    }
-
-    fn get_mut(self, agent: &mut Agent) -> &mut PromiseFinallyFunctionHeapData<'static> {
-        agent
-            .heap
-            .promise_finally_functions
-            .get_mut(self.get_index())
-            .expect("Promise.prototype.finally handler not found")
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-}
-
-impl<'a> From<BuiltinPromiseFinallyFunction<'a>> for Function<'a> {
-    fn from(value: BuiltinPromiseFinallyFunction<'a>) -> Self {
-        Self::BuiltinPromiseFinallyFunction(value)
-    }
-}
-
-impl<'a> From<BuiltinPromiseFinallyFunction<'a>> for Object<'a> {
-    fn from(value: BuiltinPromiseFinallyFunction) -> Self {
-        Self::BuiltinPromiseFinallyFunction(value.unbind())
-    }
-}
-
-impl<'a> From<BuiltinPromiseFinallyFunction<'a>> for Value<'a> {
-    fn from(value: BuiltinPromiseFinallyFunction<'a>) -> Self {
-        Self::BuiltinPromiseFinallyFunction(value)
     }
 }
 
@@ -179,7 +133,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 let _c = unsafe { c.take(agent) }.bind(gc.nogc());
                 // ii. Let p be ? PromiseResolve(C, result).
                 let p = Promise::resolve(agent, result.unbind(), gc.reborrow())
-                    .unbind()
+                    .unbind()?
                     .bind(gc.nogc());
                 // SAFETY: not shared.
                 let value = unsafe { value.take(agent) }.bind(gc.nogc());
@@ -196,10 +150,10 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 // v. Return ? Invoke(p, "then", « valueThunk »).
                 invoke(
                     agent,
-                    p.into_value().unbind(),
+                    p.unbind().into(),
                     BUILTIN_STRING_MEMORY.then.to_property_key(),
                     Some(ArgumentsList::from_mut_value(
-                        &mut value_thunk.into_value().unbind(),
+                        &mut value_thunk.unbind().into(),
                     )),
                     gc,
                 )
@@ -221,10 +175,12 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 let _c = unsafe { c.take(agent) }.bind(gc.nogc());
                 // ii. Let p be ? PromiseResolve(C, result).
                 let p = Promise::resolve(agent, result.unbind(), gc.reborrow())
-                    .unbind()
+                    .unbind()?
                     .bind(gc.nogc());
                 let reason = unsafe { reason.take(agent) }.bind(gc.nogc());
-                // iii. Let throwReason be a new Abstract Closure with no parameters that captures reason and performs the following steps when called:
+                // iii. Let throwReason be a new Abstract Closure with no
+                // parameters that captures reason and performs the following
+                // steps when called:
                 // iv. Let thrower be CreateBuiltinFunction(throwReason, 0, "", « »).
                 let thrower = agent.heap.create(PromiseFinallyFunctionHeapData {
                     backing_object: None,
@@ -236,11 +192,9 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 // v. Return ? Invoke(p, "then", « thrower »).
                 invoke(
                     agent,
-                    p.into_value().unbind(),
+                    p.unbind().into(),
                     BUILTIN_STRING_MEMORY.then.to_property_key(),
-                    Some(ArgumentsList::from_mut_value(
-                        &mut thrower.into_value().unbind(),
-                    )),
+                    Some(ArgumentsList::from_mut_value(&mut thrower.unbind().into())),
                     gc,
                 )
             }
@@ -252,29 +206,6 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseFinallyFunction<'a> {
                 // 1. Return ThrowCompletion(reason).
                 Err(reason.unbind().bind(gc.into_nogc()))
             }
-        }
-    }
-}
-
-impl Rootable for BuiltinPromiseFinallyFunction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::BuiltinPromiseFinallyFunction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::BuiltinPromiseFinallyFunction(d) => Some(d),
-            _ => None,
         }
     }
 }
@@ -313,8 +244,6 @@ impl HeapSweepWeakReference for BuiltinPromiseFinallyFunction<'static> {
             .map(Self)
     }
 }
-
-bindable_handle!(PromiseFinallyFunctionHeapData);
 
 impl HeapMarkAndSweep for PromiseFinallyFunctionHeapData<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

@@ -4,29 +4,14 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, construct, create_array_from_list, create_list_from_array_like,
-            },
-            testing_and_comparison::{is_callable, is_constructor},
-            type_conversion::{to_property_key_complex, to_property_key_simple},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, try_result_into_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyDescriptor, String,
-            Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType,
+        InternalMethods, JsResult, Object, PropertyDescriptor, Realm, String, Value,
+        builders::OrdinaryObjectBuilder, call_function, construct, create_array_from_list,
+        create_list_from_array_like, is_callable, is_constructor, to_property_key_complex,
+        to_property_key_simple, try_result_into_js,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
-    heap::WellKnownSymbolIndexes,
+    engine::{Bindable, GcScope, Scopable},
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct ReflectObject;
@@ -139,7 +124,7 @@ impl Builtin for ReflectObjectSetPrototypeOf {
 }
 
 impl ReflectObject {
-    ///### [28.1.1 Reflect.apply ( target, thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-reflect.apply)
+    /// ### [28.1.1 Reflect.apply ( target, thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-reflect.apply)
     fn apply<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -226,10 +211,10 @@ impl ReflectObject {
             Some(new_target.get(agent)),
             gc,
         )
-        .map(|o| o.into_value())
+        .map(|o| o.into())
     }
 
-    ///### [28.1.3 Reflect.defineProperty ( target, propertyKey, attributes )](https://tc39.es/ecma262/#sec-reflect.defineproperty)
+    /// ### [28.1.3 Reflect.defineProperty ( target, propertyKey, attributes )](https://tc39.es/ecma262/#sec-reflect.defineproperty)
     fn define_property<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -300,7 +285,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
-    ///### [28.1.4 Reflect.deleteProperty ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.deleteproperty)
+    /// ### [28.1.4 Reflect.deleteProperty ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.deleteproperty)
     fn delete_property<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -381,14 +366,14 @@ impl ReflectObject {
         };
         // 3. If receiver is not present, then
         //   a. Set receiver to target.
-        let receiver = receiver.unwrap_or(target.into_value());
+        let receiver = receiver.unwrap_or(target.into());
         // 4. Return ? target.[[Get]](key, receiver).
         target
             .unbind()
             .internal_get(agent, key.unbind(), receiver.unbind(), gc)
     }
 
-    ///### [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
+    /// ### [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
     fn get_own_property_descriptor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -428,12 +413,12 @@ impl ReflectObject {
             .bind(gc.nogc());
         // 4. Return FromPropertyDescriptor(desc).
         match PropertyDescriptor::from_property_descriptor(desc.unbind(), agent, gc.into_nogc()) {
-            Some(ret) => Ok(ret.into_value()),
+            Some(ret) => Ok(ret.into()),
             None => Ok(Value::Undefined),
         }
     }
 
-    ///### [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
+    /// ### [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
     fn get_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -454,12 +439,12 @@ impl ReflectObject {
 
         // 2. Return ? target.[[GetPrototypeOf]]().
         match target.unbind().internal_get_prototype_of(agent, gc)? {
-            Some(ret) => Ok(ret.into_value()),
+            Some(ret) => Ok(ret.into()),
             None => Ok(Value::Null),
         }
     }
 
-    ///### [28.1.8 Reflect.has ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.has)
+    /// ### [28.1.8 Reflect.has ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.has)
     fn has<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -498,7 +483,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
-    ///### [28.1.9 Reflect.isExtensible ( target )](https://tc39.es/ecma262/#sec-reflect.isextensible)
+    /// ### [28.1.9 Reflect.isExtensible ( target )](https://tc39.es/ecma262/#sec-reflect.isextensible)
     fn is_extensible<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -522,7 +507,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
-    ///### [28.1.10 Reflect.ownKeys ( target )](https://tc39.es/ecma262/#sec-reflect.ownkeys)
+    /// ### [28.1.10 Reflect.ownKeys ( target )](https://tc39.es/ecma262/#sec-reflect.ownkeys)
     fn own_keys<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -547,13 +532,13 @@ impl ReflectObject {
             .internal_own_property_keys(agent, gc.reborrow())
             .unbind()?
             .into_iter()
-            .map(|key| key.convert_to_value(agent, gc.nogc()).into_value())
+            .map(|key| key.convert_to_value(agent, gc.nogc()).into())
             .collect();
         // 3. Return CreateArrayFromList(keys).
-        Ok(create_array_from_list(agent, &keys.unbind(), gc.into_nogc()).into_value())
+        Ok(create_array_from_list(agent, &keys.unbind(), gc.into_nogc()).into())
     }
 
-    ///### [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
+    /// ### [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
     fn prevent_extensions<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -621,7 +606,7 @@ impl ReflectObject {
 
         // 3. If receiver is not present, then
         //   a. Set receiver to target.
-        let receiver = receiver.unwrap_or(target.into_value());
+        let receiver = receiver.unwrap_or(target.into());
 
         // 4. Return ? target.[[Set]](key, V, receiver).
         let ret =
@@ -631,7 +616,7 @@ impl ReflectObject {
         Ok(ret.into())
     }
 
-    ///### [28.1.13 Reflect.setPrototypeOf ( target, proto )](https://tc39.es/ecma262/#sec-reflect.setprototypeof)
+    /// ### [28.1.13 Reflect.setPrototypeOf ( target, proto )](https://tc39.es/ecma262/#sec-reflect.setprototypeof)
     fn set_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -694,7 +679,7 @@ impl ReflectObject {
             .with_builtin_function_property::<ReflectObjectSetPrototypeOf>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Reflect.into())
                     .with_enumerable(false)
                     .with_configurable(true)

@@ -7,43 +7,32 @@ use std::ops::ControlFlow;
 use super::{InternalSlots, Object, PropertyKey};
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::call_function,
-        builtins::{
-            ArgumentsList,
-            ordinary::{
-                caches::{PropertyLookupCache, PropertyOffset},
-                ordinary_define_own_property, ordinary_delete, ordinary_get,
-                ordinary_get_own_property, ordinary_get_prototype_of, ordinary_has_property,
-                ordinary_is_extensible, ordinary_own_property_keys, ordinary_prevent_extensions,
-                ordinary_set, ordinary_set_at_offset, ordinary_set_prototype_of, ordinary_try_get,
-                ordinary_try_has_property, ordinary_try_set,
-            },
-            proxy::Proxy,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{TryError, TryResult, js_result_into_try, try_result_ok, unwrap_try},
-        },
-        types::{Function, IntoValue, PropertyDescriptor, Value, throw_cannot_set_property},
+        Agent, ArgumentsList, Function, JsResult, PropertyDescriptor, PropertyLookupCache,
+        PropertyOffset, Proxy, TryError, TryResult, Value, call_function, js_result_into_try,
+        ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
+        ordinary_get_prototype_of, ordinary_has_property, ordinary_is_extensible,
+        ordinary_own_property_keys, ordinary_prevent_extensions, ordinary_set,
+        ordinary_set_at_offset, ordinary_set_prototype_of, ordinary_try_get,
+        ordinary_try_has_property, ordinary_try_set, throw_cannot_set_property, try_result_ok,
+        unwrap_try,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
 };
 
 /// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
 pub trait InternalMethods<'a>
 where
-    Self: 'a + core::fmt::Debug + Sized + Clone + Copy + Into<Object<'a>> + InternalSlots<'a>,
+    Self: InternalSlots<'a>,
 {
     /// ## Infallible \[\[GetPrototypeOf\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_get_prototype_of<'gc>(
         self,
         agent: &mut Agent,
@@ -72,22 +61,19 @@ where
     /// ## Infallible \[\[SetPrototypeOf\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_set_prototype_of<'gc>(
         self,
         agent: &mut Agent,
         prototype: Option<Object>,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
-        TryResult::Continue(ordinary_set_prototype_of(
-            agent,
-            self.into_object(),
-            prototype,
-            gc,
-        ))
+        TryResult::Continue(ordinary_set_prototype_of(agent, self.into(), prototype, gc))
     }
 
     /// ## \[\[SetPrototypeOf\]\]
@@ -108,10 +94,12 @@ where
     /// ## Infallible \[\[IsExtensible\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_is_extensible<'gc>(
         self,
         agent: &mut Agent,
@@ -139,10 +127,12 @@ where
     /// ## Infallible \[\[PreventExtensions\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_prevent_extensions<'gc>(
         self,
         agent: &mut Agent,
@@ -173,10 +163,12 @@ where
     /// ## Infallible \[\[GetOwnProperty\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_get_own_property<'gc>(
         self,
         agent: &mut Agent,
@@ -186,14 +178,17 @@ where
     ) -> TryResult<'gc, Option<PropertyDescriptor<'gc>>> {
         // 1. Return OrdinaryGetOwnProperty(O, P).
         TryResult::Continue(match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_get_own_property(
-                agent,
-                self.into_object().bind(gc),
-                backing_object,
-                property_key,
-                cache,
-                gc,
-            ),
+            Some(backing_object) => {
+                let o: Object = self.into();
+                ordinary_get_own_property(
+                    agent,
+                    o.bind(gc),
+                    backing_object,
+                    property_key,
+                    cache,
+                    gc,
+                )
+            }
             None => None,
         })
     }
@@ -217,10 +212,12 @@ where
     /// ## Infallible \[\[DefineOwnProperty\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_define_own_property<'gc>(
         self,
         agent: &mut Agent,
@@ -234,7 +231,7 @@ where
             .unwrap_or_else(|| self.create_backing_object(agent));
         js_result_into_try(ordinary_define_own_property(
             agent,
-            self.into_object(),
+            self.into(),
             backing_object,
             property_key,
             property_descriptor,
@@ -264,10 +261,12 @@ where
     /// ## Infallible \[\[HasProperty\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_has_property<'gc>(
         self,
         agent: &mut Agent,
@@ -278,7 +277,7 @@ where
         // 1. Return ? OrdinaryHasProperty(O, P).
         ordinary_try_has_property(
             agent,
-            self.into_object(),
+            self.into(),
             self.get_backing_object(agent),
             property_key,
             cache,
@@ -298,7 +297,7 @@ where
         match self.get_backing_object(agent) {
             Some(backing_object) => ordinary_has_property(
                 agent,
-                self.into_object(),
+                self.into(),
                 backing_object,
                 property_key.unbind(),
                 gc,
@@ -342,7 +341,7 @@ where
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         ordinary_try_get(
             agent,
-            self.into_object(),
+            self.into(),
             self.get_backing_object(agent),
             property_key,
             receiver,
@@ -388,10 +387,12 @@ where
     /// ## Infallible \[\[Set\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     #[inline(always)]
     fn try_set<'gc>(
         self,
@@ -417,16 +418,18 @@ where
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, bool> {
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, self.into_object(), property_key, value, receiver, gc)
+        ordinary_set(agent, self.into(), property_key, value, receiver, gc)
     }
 
     /// ## Infallible \[\[Delete\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_delete<'gc>(
         self,
         agent: &mut Agent,
@@ -436,7 +439,7 @@ where
         // 1. Return ? OrdinaryDelete(O, P).
         TryResult::Continue(match self.get_backing_object(agent) {
             Some(backing_object) => {
-                ordinary_delete(agent, self.into_object(), backing_object, property_key, gc)
+                ordinary_delete(agent, self.into(), backing_object, property_key, gc)
             }
             None => true,
         })
@@ -460,10 +463,12 @@ where
     /// ## Infallible \[\[OwnPropertyKeys\]\]
     ///
     /// This is an infallible variant of the method that does not allow calling
-    /// into JavaScript or triggering garbage collection. If the internal
-    /// method cannot be completed without calling into JavaScript, then `None`
+    /// into JavaScript or triggering garbage collection. If the internal method
+    /// cannot be completed without calling into JavaScript, then [`TryError`]
     /// is returned. It is preferable to call this method first and only call
-    /// the main method if this returns None.
+    /// the main method if this fails.
+    ///
+    /// [`TryError`]: crate::ecmascript::TryError
     fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
@@ -515,15 +520,15 @@ where
 
     /// ## \[\[Set]] method with offset.
     ///
-    /// This is a variant of the \[\[Set]] method that attempts to set the
-    /// value of property at an offset. The method cannot call into JavaScript
-    /// or trigger garbage collection, and any such needs must be interrupted
-    /// and control returned to the caller. The method is used as part of the
+    /// This is a variant of the \[\[Set]] method that attempts to set the value
+    /// of property at an offset. The method cannot call into JavaScript or
+    /// trigger garbage collection, and any such needs must be interrupted and
+    /// control returned to the caller. The method is used as part of the
     /// \[\[Set]] method's cached variant.
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
@@ -537,7 +542,7 @@ where
             ordinary_set_at_offset(
                 agent,
                 props,
-                self.into_object(),
+                self.into(),
                 self.get_backing_object(agent),
                 offset,
                 gc,
@@ -629,22 +634,29 @@ pub fn handle_try_get_result<'gc>(
             TryGetResult::Unset => Ok(Value::Undefined),
             TryGetResult::Value(value) => Ok(value.unbind().bind(gc.into_nogc())),
             TryGetResult::Get(getter) => {
-                call_function(agent, getter.unbind(), o.into_value().unbind(), None, gc)
+                let o: Value = o.into();
+                call_function(agent, getter.unbind(), o.unbind(), None, gc)
             }
             TryGetResult::Proxy(proxy) => {
+                let o: Value = o.into();
                 proxy
                     .unbind()
-                    .internal_get(agent, p.unbind(), o.into_value().unbind(), gc)
+                    .internal_get(agent, p.unbind(), o.unbind(), gc)
             }
         },
         ControlFlow::Break(b) => match b {
             TryError::Err(err) => Err(err.unbind().bind(gc.into_nogc())),
-            TryError::GcError => o.internal_get(agent, p.unbind(), o.into_value().unbind(), gc),
+            TryError::GcError => {
+                let receiver: Value = o.into();
+                o.internal_get(agent, p.unbind(), receiver.unbind(), gc)
+            }
         },
     }
 }
 
-pub fn try_get_result_into_value<'a>(
+/// Turn a TryGetResult into a Value without calling into JavaScript, or return
+/// a GcError otherwise.
+pub(crate) fn try_get_result_into_value<'a>(
     v: TryResult<'a, TryGetResult<'a>>,
 ) -> TryResult<'a, Value<'a>> {
     match v? {
@@ -685,31 +697,15 @@ impl<'a, T> From<Value<'a>> for ControlFlow<TryGetResult<'a>, T> {
     }
 }
 
-impl<'a> From<TryGetResult<'a>> for ControlFlow<TryGetResult<'a>, NoCache> {
-    fn from(value: TryGetResult<'a>) -> Self {
-        Self::Break(value)
-    }
+/// Parameters for the \[\[Set]] call when performed at a cached offset.
+pub struct SetAtOffsetProps<'a> {
+    pub(crate) p: PropertyKey<'a>,
+    pub(crate) receiver: Value<'a>,
+    pub(crate) cache: PropertyLookupCache<'a>,
+    pub(crate) value: Value<'a>,
 }
 
-/// No property cache was found.
-///
-/// The normal \[\[Get]] or \[\[Set]] method variant should be entered.
-pub struct NoCache;
-
-impl<T> From<NoCache> for ControlFlow<T, NoCache> {
-    fn from(value: NoCache) -> Self {
-        ControlFlow::Continue(value)
-    }
-}
-
-pub struct SetCachedProps<'a> {
-    pub p: PropertyKey<'a>,
-    pub receiver: Value<'a>,
-    pub cache: PropertyLookupCache<'a>,
-    pub value: Value<'a>,
-}
-
-/// Early-return conditions for [[Set]] method's cached variant.
+/// Early-return conditions for \[\[Set\]\] method's cached variant.
 ///
 /// Early-return effectively means that a cached property lookup was found and
 /// the normal \[\[Set]] method variant need not be entered.
@@ -753,9 +749,9 @@ impl SetResult<'_> {
     }
 }
 
-/// Helper function for calling a Proxy [[Set]] trap when triggered by finding
+/// Helper function for calling a Proxy \[\[Set]] trap when triggered by finding
 /// a Proxy used as a prototype.
-pub fn call_proxy_set<'a>(
+pub(crate) fn call_proxy_set<'a>(
     agent: &mut Agent,
     proxy: Proxy,
     p: PropertyKey,
@@ -771,29 +767,25 @@ pub fn call_proxy_set<'a>(
     if strict {
         let scoped_p = p.scope(agent, gc.nogc());
         let scoped_o = receiver.scope(agent, gc.nogc());
-        let succeeded = proxy.internal_set(agent, p, value, receiver.into_value(), gc.reborrow());
+        let succeeded = proxy.internal_set(agent, p, value, receiver, gc.reborrow());
         // SAFETY: not shared.
         let o = unsafe { scoped_o.take(agent) };
         let succeeded = succeeded.unbind()?;
         if !succeeded {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-            let o = o
-                .into_value()
-                .string_repr(agent, gc.reborrow())
-                .unbind()
-                .bind(gc.nogc());
+            let o = o.string_repr(agent, gc.reborrow()).unbind().bind(gc.nogc());
             // SAFETY: not shared.
             let p = unsafe { scoped_p.take(agent) }.bind(gc.nogc());
             return Err(throw_cannot_set_property(
                 agent,
-                o.into_value().unbind(),
+                o.unbind().into(),
                 p.unbind(),
                 gc.into_nogc(),
             ));
         }
     } else {
         // In sloppy mode we don't care about the result.
-        let _ = proxy.internal_set(agent, p, value, receiver.into_value(), gc)?;
+        let _ = proxy.internal_set(agent, p, value, receiver, gc)?;
     }
     Ok(())
 }

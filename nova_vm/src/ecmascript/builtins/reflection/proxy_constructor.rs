@@ -4,14 +4,11 @@
 
 use crate::{
     ecmascript::{
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, proxy::proxy_create,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, ExceptionType, JsResult, Object, Realm, String, Value,
+        builders::BuiltinFunctionBuilder, proxy_create,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -57,7 +54,7 @@ impl ProxyConstructor {
             ));
         }
         // 2. Return ? ProxyCreate(target, handler).
-        proxy_create(agent, target, handler, gc).map(|proxy| proxy.into_value())
+        proxy_create(agent, target, handler, gc).map(|proxy| proxy.into())
     }
 
     /// ### [28.2.2.1 Proxy.revocable ( target, handler )](https://tc39.es/ecma262/#sec-proxy.revocable)

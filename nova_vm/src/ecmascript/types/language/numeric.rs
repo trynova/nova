@@ -3,24 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    SmallInteger,
-    ecmascript::execution::Agent,
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-        small_bigint::SmallBigInt,
-        small_f64::SmallF64,
+    ecmascript::{
+        Agent, BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, HeapBigInt, HeapNumber,
+        INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT, Number, Primitive, SMALL_BIGINT_DISCRIMINANT,
+        SmallBigInt, SmallF64, SmallInteger, Value,
     },
-};
-
-use super::{
-    IntoPrimitive, Number, Primitive, Value,
-    bigint::HeapBigInt,
-    number::HeapNumber,
-    value::{
-        BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT,
-        SMALL_BIGINT_DISCRIMINANT,
-    },
+    engine::{HeapRootData, HeapRootRef, Rootable, bindable_handle},
 };
 
 /// ### [6.1.6 Numeric Types](https://tc39.es/ecma262/#sec-numeric-types)
@@ -36,16 +24,33 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Numeric<'a> {
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// f64 on the heap. Accessing the data can only be done through the Agent.
     Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// 54-bit signed integer on the stack.
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+    ///
+    /// f64 with 8 trailing zeroes on the stack that are cut off to produce a
+    /// 56-bit value.
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
+    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    ///
+    /// Unlimited size integer data on the heap. Accessing the data can only be
+    /// done through the Agent.
     BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
+    /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+    ///
+    /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum NumericRootRepr {
+pub(crate) enum NumericRootRepr {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
@@ -53,68 +58,110 @@ pub enum NumericRootRepr {
 }
 
 impl Numeric<'_> {
+    /// Returns `true` if this numeric value is a BigInt.
     pub fn is_bigint(self) -> bool {
         matches!(self, Self::BigInt(_) | Self::SmallBigInt(_))
     }
 
+    /// Returns `true` if this numeric value is a Number.
     pub fn is_number(self) -> bool {
         matches!(self, Self::Number(_) | Self::SmallF64(_) | Self::Integer(_))
     }
 
+    /// Returns `true` if this numeric value is +0 (not -0).
     pub fn is_pos_zero(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_pos_zero(agent))
+            .map(|n| n.is_pos_zero_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this numeric value is -0 (not +0).
     pub fn is_neg_zero(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_neg_zero(agent))
+            .map(|n| n.is_neg_zero_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this numeric value is Infinity.
     pub fn is_pos_infinity(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_pos_infinity(agent))
+            .map(|n| n.is_pos_infinity_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this numeric value is -Infinity.
     pub fn is_neg_infinity(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_neg_infinity(agent))
+            .map(|n| n.is_neg_infinity_(agent))
             .unwrap_or(false)
     }
 
+    /// Returns `true` if this numeric value is NaN.
     pub fn is_nan(self, agent: &mut Agent) -> bool {
         Number::try_from(self)
-            .map(|n| n.is_nan(agent))
+            .map(|n| n.is_nan_(agent))
             .unwrap_or(false)
     }
 }
 
 bindable_handle!(Numeric);
 
-impl<'a> From<Numeric<'a>> for Value<'a> {
-    fn from(num: Numeric<'a>) -> Self {
-        match num {
-            Numeric::Number(data) => Value::Number(data.unbind()),
-            Numeric::Integer(data) => Value::Integer(data),
-            Numeric::SmallF64(data) => Value::SmallF64(data),
-            Numeric::BigInt(data) => Value::BigInt(data.unbind()),
-            Numeric::SmallBigInt(data) => Value::SmallBigInt(data),
+impl Rootable for Numeric<'_> {
+    type RootRepr = NumericRootRepr;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::Number(n) => Err(HeapRootData::from(n)),
+            Self::Integer(n) => Ok(Self::RootRepr::Integer(n)),
+            Self::SmallF64(n) => Ok(Self::RootRepr::SmallF64(n)),
+            Self::BigInt(n) => Err(HeapRootData::from(n)),
+            Self::SmallBigInt(n) => Ok(Self::RootRepr::SmallBigInt(n)),
+        }
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        match *value {
+            Self::RootRepr::Integer(n) => Ok(Self::Integer(n)),
+            Self::RootRepr::SmallF64(n) => Ok(Self::SmallF64(n)),
+            Self::RootRepr::SmallBigInt(n) => Ok(Self::SmallBigInt(n)),
+            Self::RootRepr::HeapRef(n) => Err(n),
+        }
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        Self::RootRepr::HeapRef(heap_ref)
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Number(n) => Some(Self::Number(n)),
+            HeapRootData::BigInt(n) => Some(Self::BigInt(n)),
+            _ => None,
         }
     }
 }
 
-impl<'a> From<Numeric<'a>> for Primitive<'a> {
+// === OUTPUT OF primitive_handle! MACRO ADAPTED FOR Numeric ===
+
+impl<'a> From<Numeric<'a>> for Value<'a> {
+    #[inline(always)]
     fn from(value: Numeric<'a>) -> Self {
-        value.into_primitive()
+        match value {
+            Numeric::Number(n) => Self::Number(n),
+            Numeric::Integer(n) => Self::Integer(n),
+            Numeric::SmallF64(n) => Self::SmallF64(n),
+            Numeric::BigInt(n) => Self::BigInt(n),
+            Numeric::SmallBigInt(n) => Self::SmallBigInt(n),
+        }
     }
 }
-
 impl<'a> TryFrom<Value<'a>> for Numeric<'a> {
     type Error = ();
-
+    #[inline]
     fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Number(data) => Ok(Numeric::Number(data)),
@@ -126,10 +173,21 @@ impl<'a> TryFrom<Value<'a>> for Numeric<'a> {
         }
     }
 }
-
+impl<'a> From<Numeric<'a>> for Primitive<'a> {
+    #[inline(always)]
+    fn from(value: Numeric<'a>) -> Self {
+        match value {
+            Numeric::Number(n) => Self::Number(n),
+            Numeric::Integer(n) => Self::Integer(n),
+            Numeric::SmallF64(n) => Self::SmallF64(n),
+            Numeric::BigInt(n) => Self::BigInt(n),
+            Numeric::SmallBigInt(n) => Self::SmallBigInt(n),
+        }
+    }
+}
 impl<'a> TryFrom<Primitive<'a>> for Numeric<'a> {
     type Error = ();
-
+    #[inline]
     fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
         match value {
             Primitive::Number(data) => Ok(Numeric::Number(data)),
@@ -142,41 +200,60 @@ impl<'a> TryFrom<Primitive<'a>> for Numeric<'a> {
     }
 }
 
-impl Rootable for Numeric<'_> {
-    type RootRepr = NumericRootRepr;
+// === END ===
 
-    #[inline]
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        match value {
-            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number.unbind())),
-            Self::Integer(integer) => Ok(Self::RootRepr::Integer(integer)),
-            Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
-            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int.unbind())),
-            Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
+macro_rules! numeric_value {
+    ($name: tt) => {
+        crate::ecmascript::numeric_value!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::primitive_value!($name, $variant);
+
+        impl From<$name> for crate::ecmascript::Numeric<'static> {
+            #[inline(always)]
+            fn from(value: $name) -> Self {
+                Self::$variant(value)
+            }
         }
-    }
 
-    #[inline]
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        match *value {
-            Self::RootRepr::Integer(small_integer) => Ok(Self::Integer(small_integer)),
-            Self::RootRepr::SmallF64(small_f64) => Ok(Self::SmallF64(small_f64)),
-            Self::RootRepr::SmallBigInt(small_big_int) => Ok(Self::SmallBigInt(small_big_int)),
-            Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
+        impl TryFrom<crate::ecmascript::Numeric<'_>> for $name {
+            type Error = ();
+
+            #[inline]
+            fn try_from(value: crate::ecmascript::Numeric) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::Numeric::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
         }
-    }
-
-    #[inline]
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        Self::RootRepr::HeapRef(heap_ref)
-    }
-
-    #[inline]
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Number(heap_number) => Some(Self::Number(heap_number)),
-            HeapRootData::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
-            _ => None,
-        }
-    }
+    };
 }
+pub(crate) use numeric_value;
+
+macro_rules! numeric_handle {
+    ($name: tt) => {
+        crate::ecmascript::numeric_handle!($name, $name);
+    };
+    ($name: ident, $variant: ident) => {
+        crate::ecmascript::primitive_handle!($name, $variant);
+
+        impl<'a> From<$name<'a>> for crate::ecmascript::Numeric<'a> {
+            fn from(value: $name<'a>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl<'a> TryFrom<crate::ecmascript::Numeric<'a>> for $name<'a> {
+            type Error = ();
+
+            fn try_from(value: crate::ecmascript::Numeric<'a>) -> Result<Self, Self::Error> {
+                match value {
+                    crate::ecmascript::Numeric::$variant(data) => Ok(data),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+pub(crate) use numeric_handle;

@@ -7,7 +7,7 @@
 //! that the eval call defines functions. Those functions will refer to the
 //! SourceCode for their function source text.
 
-use core::{fmt::Debug, ops::Index};
+use core::fmt::Debug;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast;
@@ -17,34 +17,40 @@ use oxc_semantic::{AstNodes, Scoping, SemanticBuilder, SemanticBuilderReturn};
 use oxc_span::SourceType;
 
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        types::{HeapString, String},
-    },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    ecmascript::{HeapString, String, execution::Agent},
+    engine::{Bindable, NoGcScope, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
+        HeapMarkAndSweep, WorkQueues, arena_vec_access, index_handle,
     },
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct SourceCode<'a>(BaseIndex<'a, SourceCodeHeapData<'static>>);
+pub(crate) struct SourceCode<'a>(BaseIndex<'a, SourceCodeHeapData<'static>>);
+index_handle!(SourceCode);
+arena_vec_access!(SourceCode, 'a, SourceCodeHeapData, source_codes);
 
 impl core::fmt::Debug for SourceCode<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "SourceCode({:?})", self.0.into_u32_index())
+        write!(f, "SourceCode({:?})", self.0.get_index_u32())
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SourceCodeType {
-    Script,
-    StrictScript,
+    Eval { direct: bool, strict: bool },
+    Script { strict: bool },
     Module,
+}
+
+impl SourceCodeType {
+    fn is_strict(&self) -> bool {
+        match self {
+            SourceCodeType::Eval { strict, .. } | SourceCodeType::Script { strict } => *strict,
+            SourceCodeType::Module => true,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -56,8 +62,8 @@ pub(crate) struct ParseResult<'a> {
 }
 
 impl<'a> SourceCode<'a> {
-    /// Parses the given source string as JavaScript code and returns the
-    /// parsed result and a SourceCode heap reference.
+    /// Parses the given source string as JavaScript code and returns the parsed
+    /// result and a SourceCode heap reference.
     ///
     /// ### Program lifetime
     ///
@@ -80,18 +86,21 @@ impl<'a> SourceCode<'a> {
         #[cfg(feature = "typescript")] typescript: bool,
         gc: NoGcScope<'a, '_>,
     ) -> Result<ParseResult<'a>, Vec<OxcDiagnostic>> {
+        #[cfg(not(feature = "typescript"))]
+        let typescript = false;
         // If the source code is not a heap string, pad it with whitespace and
         // allocate it on the heap. This makes it safe (for some definition of
-        // "safe") for the any functions created referring to this source code to
-        // keep references to the string buffer.
+        // "safe") for the any functions created referring to this source code
+        // to keep references to the string buffer.
         let (source, source_text) = match source {
             String::String(source) => {
                 match source.to_string_lossy(agent) {
                     std::borrow::Cow::Borrowed(source_text) => {
                         // Source text is a valid heap-allocated UTF-8 string.
-                        // SAFETY: Caller guarantees to keep SourceCode from being
-                        // garbage collected until the parsed Program is dropped.
-                        // Thus the source text is kept from garbage collection.
+                        // SAFETY: Caller guarantees to keep SourceCode from
+                        // being garbage collected until the parsed Program is
+                        // dropped. Thus the source text is kept from garbage
+                        // collection.
                         (source.unbind(), unsafe {
                             core::mem::transmute::<&str, &'static str>(source_text)
                         })
@@ -101,12 +110,13 @@ impl<'a> SourceCode<'a> {
                         let String::String(source) = String::from_string(agent, string, gc) else {
                             unreachable!()
                         };
-                        // SAFETY: Allocating a String into the heap cannot
-                        // turn it into non-UTF-8.
+                        // SAFETY: Allocating a String into the heap cannot turn
+                        // it into non-UTF-8.
                         let source_text = unsafe { source.as_str(agent).unwrap_unchecked() };
-                        // SAFETY: Caller guarantees to keep SourceCode from being
-                        // garbage collected until the parsed Program is dropped.
-                        // Thus the source text is kept from garbage collection.
+                        // SAFETY: Caller guarantees to keep SourceCode from
+                        // being garbage collected until the parsed Program is
+                        // dropped. Thus the source text is kept from garbage
+                        // collection.
                         (source.unbind(), unsafe {
                             core::mem::transmute::<&str, &'static str>(source_text)
                         })
@@ -122,17 +132,17 @@ impl<'a> SourceCode<'a> {
                 let String::String(source) = source else {
                     unreachable!()
                 };
-                // SAFETY: Allocating a String into the heap cannot turn it
-                // into non-UTF-8.
+                // SAFETY: Allocating a String into the heap cannot turn it into
+                // non-UTF-8.
                 let source_text = unsafe { source.as_str(agent).unwrap_unchecked() };
                 // SAFETY: Caller guarantees to keep SourceCode from being
-                // garbage collected until the parsed Program is dropped.
-                // Thus the source text is kept from garbage collection.
+                // garbage collected until the parsed Program is dropped. Thus
+                // the source text is kept from garbage collection.
                 let source_text =
                     unsafe { core::mem::transmute::<&str, &'static str>(source_text) };
                 // Slice the source text back to the original length so that the
-                // whitespace we added doesn't get fed to the parser: It shouldn't
-                // need it.
+                // whitespace we added doesn't get fed to the parser: It
+                // shouldn't need it.
                 let source_text = &source_text[..original_length];
                 (source, source_text)
             }
@@ -141,81 +151,63 @@ impl<'a> SourceCode<'a> {
         let mut allocator = Allocator::new();
 
         let parser_result = match source_type {
-            SourceCodeType::Script => {
-                #[allow(unused_mut)]
-                let mut source_type = SourceType::cjs();
-                #[cfg(feature = "typescript")]
-                if typescript {
-                    source_type = source_type.with_typescript(true);
-                }
-                Parser::new(&allocator, source_text, source_type).parse()
-            }
-            SourceCodeType::StrictScript => {
-                // Strict script! We first parse and syntax check this as a
-                // normal script, which checks that the code contains no module
-                // declarations or TLA. If that passes, then we parse the
-                // script as a module, which sets strict mode on.
-                #[allow(unused_mut)]
-                let mut source_type = SourceType::cjs();
-                #[cfg(feature = "typescript")]
-                if typescript {
-                    source_type = source_type.with_typescript(true);
-                }
-                let sloppy_parser = Parser::new(&allocator, source_text, source_type);
-                let ParserReturn {
-                    errors: sloppy_errors,
-                    program: sloppy_program,
-                    panicked,
-                    ..
-                } = sloppy_parser.parse();
-                if panicked {
-                    return Err(sloppy_errors);
-                }
-                let SemanticBuilderReturn {
-                    errors: sloppy_errors,
-                    ..
-                } = SemanticBuilder::new()
-                    .with_check_syntax_error(true)
-                    .build(&sloppy_program);
+            SourceCodeType::Script { strict } | SourceCodeType::Eval { strict, .. } => {
+                // Potentially strict script! We first parse and syntax check
+                // this as a normal script, which checks that the code contains
+                // no module declarations or TLA. If that passes and we're
+                // strict, then we parse the script as a module which sets
+                // strict mode on.
+                let source_type = SourceType::script().with_typescript(typescript);
+                let sloppy_result = Parser::new(&allocator, source_text, source_type).parse();
+                if strict {
+                    let ParserReturn {
+                        errors: sloppy_errors,
+                        program: sloppy_program,
+                        panicked,
+                        ..
+                    } = sloppy_result;
+                    if panicked {
+                        return Err(sloppy_errors);
+                    }
+                    let SemanticBuilderReturn {
+                        errors: sloppy_errors,
+                        ..
+                    } = SemanticBuilder::new()
+                        .with_check_syntax_error(true)
+                        .build(&sloppy_program);
 
-                if !sloppy_errors.is_empty() {
-                    return Err(sloppy_errors);
-                }
+                    if !sloppy_errors.is_empty() {
+                        return Err(sloppy_errors);
+                    }
 
-                let old_capacity = allocator.capacity();
-                // Reset the allocator; we don't need the sloppy program
-                // anymore.
-                allocator.reset();
-                if (old_capacity / 2) > allocator.capacity() {
-                    // If we more than halved the capacity of the allocator by
-                    // resetting it, we'll reallocate the whole thing to
-                    // old capacity.
-                    let _ =
-                        core::mem::replace(&mut allocator, Allocator::with_capacity(old_capacity));
-                }
+                    let old_capacity = allocator.capacity();
+                    // Reset the allocator; we don't need the sloppy program
+                    // anymore.
+                    allocator.reset();
+                    if (old_capacity / 2) > allocator.capacity() {
+                        // If we more than halved the capacity of the allocator
+                        // by resetting it, we'll reallocate the whole thing to
+                        // old capacity.
+                        let _ = core::mem::replace(
+                            &mut allocator,
+                            Allocator::with_capacity(old_capacity),
+                        );
+                    }
 
-                #[allow(unused_mut)]
-                let mut source_type = SourceType::mjs();
-                #[cfg(feature = "typescript")]
-                if typescript {
-                    source_type = source_type.with_typescript(true);
-                }
+                    let source_type = SourceType::mjs().with_typescript(typescript);
+                    let strict_result = Parser::new(&allocator, source_text, source_type).parse();
+                    if strict_result.panicked {
+                        let errors = strict_result.errors;
+                        return Err(errors);
+                    }
 
-                let parser_result = Parser::new(&allocator, source_text, source_type).parse();
-                if parser_result.panicked {
-                    let errors = parser_result.errors;
-                    return Err(errors);
+                    strict_result
+                } else {
+                    sloppy_result
                 }
-
-                parser_result
             }
             SourceCodeType::Module => {
-                #[allow(unused_mut)]
-                let mut source_type = SourceType::mjs();
-                #[cfg(feature = "typescript")]
-                if typescript {
-                    source_type = source_type.with_typescript(true);
-                }
+                let source_type = SourceType::mjs().with_typescript(typescript);
                 Parser::new(&allocator, source_text, source_type).parse()
             }
         };
@@ -236,7 +228,8 @@ impl<'a> SourceCode<'a> {
             return Err(errors);
         }
         let (scoping, nodes) = semantic.into_scoping_and_nodes();
-        let is_strict = source_type != SourceCodeType::Script || program.has_use_strict_directive();
+        let is_strict = source_type.is_strict() || program.has_use_strict_directive();
+
         // SAFETY: Caller guarantees that they will drop the Program before
         // SourceCode can be garbage collected.
         let (body, directives) = unsafe {
@@ -249,11 +242,11 @@ impl<'a> SourceCode<'a> {
                 ),
             )
         };
-        // SAFETY: AstNodes refers to the bump heap allocations of allocator.
-        // We move allocator onto the heap together with nodes, making this
-        // self-referential. The bump allocations are never moved or
-        // deallocated until dropping the entire struct, at which point the
-        // "allocator" field is dropped last.
+        // SAFETY: AstNodes refers to the bump heap allocations of allocator. We
+        // move allocator onto the heap together with nodes, making this
+        // self-referential. The bump allocations are never moved or deallocated
+        // until dropping the entire struct, at which point the "allocator"
+        // field is dropped last.
         let nodes = unsafe { core::mem::transmute::<AstNodes, AstNodes<'static>>(nodes) };
         let source_code = agent.heap.create(SourceCodeHeapData {
             source: source.unbind(),
@@ -292,26 +285,30 @@ impl<'a> SourceCode<'a> {
     pub(crate) fn get_source_text(self, agent: &Agent) -> &str {
         // SAFETY: parse_source will always copy non-UTF-8 source texts into
         // well-formed UTF-8.
-        unsafe { agent[agent[self].source].as_str().unwrap_unchecked() }
+        unsafe {
+            self.get(agent)
+                .source
+                .get(agent)
+                .as_str()
+                .unwrap_unchecked()
+        }
     }
 
     /// Access the Scoping information of the SourceCode.
-    pub(crate) fn get_scoping(self, agent: &Agent) -> &Scoping {
-        &agent[self].scoping
+    pub(crate) fn get_scoping<'agent>(self, agent: &'agent Agent) -> &'agent Scoping
+    where
+        'a: 'agent,
+    {
+        &self.get(agent).scoping
     }
 
     /// Access the AstNodes information of the SourceCode.
-    #[expect(dead_code)]
-    pub(crate) fn get_nodes(self, agent: &Agent) -> &AstNodes<'a> {
-        &agent[self].nodes
-    }
-
-    pub(crate) fn get_index(self) -> usize {
-        self.0.into_index()
+    pub(crate) fn get_nodes<'agent>(self, agent: &'agent Agent) -> &'agent AstNodes<'a> {
+        &self.get(agent).nodes
     }
 }
 
-pub struct SourceCodeHeapData<'a> {
+pub(crate) struct SourceCodeHeapData<'a> {
     /// The source JavaScript string data the eval was called with. The string
     /// is known and required to be a HeapString because functions created
     /// in the eval call may keep references to the string data. If the eval
@@ -333,42 +330,6 @@ impl Debug for SourceCodeHeapData<'_> {
             .field("source", &self.source)
             .field("allocator", &"[binary data]")
             .finish()
-    }
-}
-
-impl Index<SourceCode<'_>> for Agent {
-    type Output = SourceCodeHeapData<'static>;
-
-    fn index(&self, index: SourceCode) -> &Self::Output {
-        self.heap
-            .source_codes
-            .get(index.get_index())
-            .expect("SourceCode out of bounds")
-    }
-}
-
-bindable_handle!(SourceCode);
-
-impl Rootable for SourceCode<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::SourceCode(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::SourceCode(object) => Some(object),
-            _ => None,
-        }
     }
 }
 
@@ -418,18 +379,17 @@ impl HeapMarkAndSweep for SourceCode<'static> {
 mod test {
     use crate::{
         ecmascript::{
-            execution::{Agent, DefaultHostHooks, agent::Options, initialize_default_realm},
-            scripts_and_modules::source_code::{ParseResult, SourceCode, SourceCodeType},
-            types::String,
+            Agent, AgentOptions, DefaultHostHooks, ParseResult, SourceCode, SourceCodeType, String,
+            initialize_default_realm,
         },
-        engine::context::GcScope,
+        engine::GcScope,
     };
 
     #[test]
     fn script_with_imports() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "import 'foo';", gc.nogc());
@@ -438,7 +398,7 @@ mod test {
             SourceCode::parse_source(
                 &mut agent,
                 source_text,
-                SourceCodeType::Script,
+                SourceCodeType::Script { strict: false },
                 #[cfg(feature = "typescript")]
                 false,
                 gc.nogc(),
@@ -453,7 +413,7 @@ mod test {
     fn strict_script_with_imports() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "import 'foo';", gc.nogc());
@@ -462,7 +422,7 @@ mod test {
             SourceCode::parse_source(
                 &mut agent,
                 source_text,
-                SourceCodeType::StrictScript,
+                SourceCodeType::Script { strict: true },
                 #[cfg(feature = "typescript")]
                 false,
                 gc.nogc(),
@@ -477,7 +437,7 @@ mod test {
     fn parse_and_realloc_source_codes_with_program() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "const foo = 3;", gc.nogc());
@@ -486,7 +446,7 @@ mod test {
             SourceCode::parse_source(
                 &mut agent,
                 source_text,
-                SourceCodeType::StrictScript,
+                SourceCodeType::Script { strict: true },
                 #[cfg(feature = "typescript")]
                 false,
                 gc.nogc(),

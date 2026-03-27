@@ -2,33 +2,32 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::{
-    marker::PhantomData,
-    ops::{Deref, Index, IndexMut},
-};
-use std::{borrow::Cow, hint::unreachable_unchecked, ptr::NonNull};
+use core::{marker::PhantomData, ops::Deref};
+use std::{borrow::Cow, ptr::NonNull};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, ExecutionContext, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
-            InternalSlots, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyKey, ScopedValuesIterator, String, Value,
-        },
+        Agent, BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, ExceptionType, ExecutionContext,
+        Function, FunctionInternalProperties, InternalSlots, JsResult, Object, OrdinaryObject,
+        PropertyKey, Realm, ScopedValuesIterator, String, Value, function_handle,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, GcScope, HeapRootCollection, NoGcScope, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicConstructorIndexes,
+        IntrinsicFunctionIndexes, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        arena_vec_access,
     },
     ndt,
 };
 
+/// A list of [ECMAScript language values](Value).
+///
+/// Garbage collection invalidates the [`Value`](Value)s in the list but does
+/// not automatically make it impossible to extract them from it. Thus, when
+/// received as a parameter the list should immediately be [bound](Bindable) to
+/// the [`GcScope`](GcScope)'s GC lifetime to ensure that it is not used after
+/// garbage collection.
 #[derive(Default)]
 #[repr(transparent)]
 pub struct ArgumentsList<'slice, 'value> {
@@ -44,7 +43,7 @@ impl core::fmt::Debug for ArgumentsList<'_, '_> {
 
 impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     /// Create an ArgumentsList from a single Value.
-    pub fn from_mut_value(value: &'slice mut Value<'value>) -> Self {
+    pub(crate) fn from_mut_value(value: &'slice mut Value<'value>) -> Self {
         Self {
             // SAFETY: The Value lifetime is moved over to the PhantomData.
             slice: core::slice::from_mut(unsafe {
@@ -55,7 +54,7 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     }
 
     /// Create an ArgumentsList from a Value slice.
-    pub fn from_mut_slice(slice: &'slice mut [Value<'value>]) -> Self {
+    pub(crate) fn from_mut_slice(slice: &'slice mut [Value<'value>]) -> Self {
         Self {
             // SAFETY: The Value lifetime is moved over to the PhantomData.
             slice: unsafe {
@@ -67,6 +66,12 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
         }
     }
 
+    /// Temporarily store the list on the [`Agent`](Agent) heap for the duration
+    /// of a callback, ensuring that garbage collection does not invalidate any
+    /// of the [`Value`](Value)s within.
+    ///
+    /// See [`ScopedArgumentsList`](ScopedArgumentsList) for accessing the
+    /// [`Value`](Value)s within the callback.
     pub fn with_scoped<'a, R>(
         &mut self,
         agent: &mut Agent,
@@ -101,7 +106,7 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
                 .expect("Stack references overflowed");
             let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
             let len = stack_ref_collections.len();
-            stack_ref_collections.push(HeapRootCollectionData::ArgumentsList(slice.into()));
+            stack_ref_collections.push(HeapRootCollection::ArgumentsList(slice.into()));
             // Elsewhere we make assumptions about the size of the stack.
             // Thus check it here as well.
             (
@@ -128,17 +133,13 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
             let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
             debug_assert!(stack_ref_collections.len() >= len as usize);
             let stack_slot = &mut stack_ref_collections[len as usize];
-            if !matches!(stack_slot, HeapRootCollectionData::ArgumentsList(_)) {
-                unreachable!()
-            }
             // We take the slice back from the heap by replacing the data
             // with an empty collection, and then truncate the heap stack
             // to its previous size.
-            let HeapRootCollectionData::ArgumentsList(slice) =
-                core::mem::replace(stack_slot, HeapRootCollectionData::Empty)
+            let HeapRootCollection::ArgumentsList(slice) =
+                core::mem::replace(stack_slot, HeapRootCollection::Empty)
             else {
-                // SAFETY: Checked above against the stack_slot.
-                unsafe { unreachable_unchecked() }
+                unreachable!()
             };
             stack_ref_collections.truncate(len as usize);
             slice
@@ -199,6 +200,9 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     /// Get a Value by index from an ArgumentsList.
     ///
     /// If a Value with that index isn't present, `undefined` is returned.
+    ///
+    /// If the list itself has not been [bound](Bindable) then the returned
+    /// Value should immediately be bound.
     #[inline]
     pub fn get(&self, index: usize) -> Value<'value> {
         *self.slice.get(index).unwrap_or(&Value::Undefined)
@@ -207,6 +211,9 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     /// Get a Value by index from an ArgumentsList if present.
     ///
     /// If a Value with that index isn't present, None.
+    ///
+    /// If the list itself has not been [bound](Bindable) then the returned
+    /// Value should immediately be bound.
     #[inline]
     pub fn get_if_present(&self, index: usize) -> Option<Value<'value>> {
         self.slice.get(index).copied()
@@ -257,8 +264,14 @@ impl<'scope> ScopedArgumentsList<'scope> {
         }
     }
 
+    /// Get a Value by index from an ArgumentsList.
+    ///
+    /// If a Value with that index isn't present, `undefined` is returned.
+    ///
+    /// If the list itself has not been [bound](Bindable) then the returned
+    /// Value should immediately be bound.
     pub fn get<'gc>(&self, agent: &Agent, index: u32, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
-        if let HeapRootCollectionData::ArgumentsList(args) = agent
+        if let HeapRootCollection::ArgumentsList(args) = agent
             .stack_ref_collections
             .borrow()
             .get(self.index as usize)
@@ -281,8 +294,9 @@ impl<'scope> ScopedArgumentsList<'scope> {
         }
     }
 
+    /// Get the number of provided arguments.
     pub fn len(&self, agent: &Agent) -> usize {
-        if let HeapRootCollectionData::ArgumentsList(args) = agent
+        if let HeapRootCollection::ArgumentsList(args) = agent
             .stack_ref_collections
             .borrow()
             .get(self.index as usize)
@@ -296,9 +310,9 @@ impl<'scope> ScopedArgumentsList<'scope> {
 
     pub(crate) fn unshift<'gc>(&self, agent: &Agent, gc: NoGcScope<'gc, '_>) -> Option<Value<'gc>> {
         let mut collections = agent.stack_ref_collections.borrow_mut();
-        let collection_data: &mut HeapRootCollectionData =
+        let collection_data: &mut HeapRootCollection =
             collections.get_mut(self.index as usize).unwrap();
-        if let HeapRootCollectionData::ArgumentsList(args_ref) = collection_data {
+        if let HeapRootCollection::ArgumentsList(args_ref) = collection_data {
             // SAFETY: args_ref points to a valid exclusively held slice in an
             // above call frame.
             let args: &mut [Value<'static>] = unsafe { args_ref.as_mut() };
@@ -316,7 +330,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
     }
 
     pub(crate) fn iter(&self, agent: &mut Agent) -> ScopedValuesIterator<'_> {
-        if let HeapRootCollectionData::ArgumentsList(args) = agent
+        if let HeapRootCollection::ArgumentsList(args) = agent
             .stack_ref_collections
             .borrow()
             .get(self.index as usize)
@@ -338,7 +352,7 @@ impl<'scope> ScopedArgumentsList<'scope> {
     ///
     /// Stack values must not be accessed while this slice is exposed.
     pub(crate) unsafe fn as_non_null_slice(&self, agent: &Agent) -> NonNull<[Value<'static>]> {
-        if let HeapRootCollectionData::ArgumentsList(args) = agent
+        if let HeapRootCollection::ArgumentsList(args) = agent
             .stack_ref_collections
             .borrow()
             .get(self.index as usize)
@@ -357,8 +371,10 @@ impl core::fmt::Debug for ScopedArgumentsList<'_> {
     }
 }
 
+/// Calling convention of a builtin method.
 pub type RegularFn =
     for<'gc> fn(&mut Agent, Value, ArgumentsList, GcScope<'gc, '_>) -> JsResult<'gc, Value<'gc>>;
+/// Calling convention of a builtin constructor.
 pub type ConstructorFn = for<'gc> fn(
     &mut Agent,
     Value,
@@ -367,10 +383,14 @@ pub type ConstructorFn = for<'gc> fn(
     GcScope<'gc, '_>,
 ) -> JsResult<'gc, Value<'gc>>;
 
+/// Calling convention of a builtin function.
 #[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
+    /// Regular JavaScript function not callable with the `new` keyword.
     Regular(RegularFn),
+    /// JavaScript function callable with the `new` keyword, and possibly
+    /// without it.
     Constructor(ConstructorFn),
 }
 
@@ -380,12 +400,33 @@ impl Behaviour {
     }
 }
 
+/// Helper trait for defining builtin functions using the
+/// [`BuiltinFunctionBuilder`].
+///
+/// [`BuiltinFunctionBuilder`]: crate::ecmascript::builders::BuiltinFunctionBuilder
 pub trait Builtin {
+    /// Name of the function
+    ///
+    /// This currently has to be a statically knowable name, which makes this
+    /// trait mostly useless for embedders. This name also controls the property
+    /// key that this function is assigned to if used to create a property.
     const NAME: String<'static>;
+    /// Length of the function
+    ///
+    /// This is reported into JavaScript when the function object's `length`
+    /// property is read.
     const LENGTH: u8;
+    /// Behaviour of the function
+    ///
+    /// A builtin function can either be a normal function (not callable using
+    /// `new ff`) or a constructor function (callable using `new f`). The enum
+    /// choice here dictates which one it is, and the function pointer dictates
+    /// the Rust code to run when JavaScript calls the function.
     const BEHAVIOUR: Behaviour;
 
-    /// Set to Some if this builtin's property key is different from `NAME`.
+    /// If the builtin function is created as a property then setting this to
+    /// Some can be used to override the property key is this is assigned to. By
+    /// default the `NAME` value is used.
     const KEY: Option<PropertyKey<'static>> = None;
 
     /// If the builtin function is created as a property then this controls the
@@ -406,25 +447,39 @@ pub(crate) trait BuiltinIntrinsicConstructor: Builtin {
 pub(crate) trait BuiltinIntrinsic: Builtin {
     const INDEX: IntrinsicFunctionIndexes;
 }
+/// Helper trait for defining builtin getter function properties.
 pub trait BuiltinGetter: Builtin {
+    /// Accessor property's getter function's `name` property value.
     const GETTER_NAME: String<'static> = Self::NAME;
+    /// Accessor property's getter function's call behaviour.
     const GETTER_BEHAVIOUR: Behaviour = Self::BEHAVIOUR;
 }
+/// Helper trait for defining builtin setter function properties.
 pub trait BuiltinSetter: Builtin {
+    /// Accessor property's setter function's `name` property value.
     const SETTER_NAME: String<'static> = Self::NAME;
+    /// Accessor property's setter function's call behaviour.
     const SETTER_BEHAVIOUR: Behaviour = Self::BEHAVIOUR;
 }
 
+/// Builtin function creation arguments.
 #[derive(Debug, Default)]
 pub struct BuiltinFunctionArgs<'a> {
+    /// The builtin function's `length` property initial value.
     pub length: u32,
+    /// The builtin function's `name` property initial value.
     pub name: &'static str,
+    /// The builtin function's Realm. Defaults to the current Realm.
     pub realm: Option<Realm<'a>>,
+    /// The builtin function's prototype. Defaults to the current Realm's
+    /// `Function.prototype`
     pub prototype: Option<Object<'a>>,
+    /// An optional prefix for the builtin function's name.
     pub prefix: Option<&'static str>,
 }
 
 impl<'a> BuiltinFunctionArgs<'a> {
+    /// Create new builtin function creation arguments with length and name.
     pub fn new(length: u32, name: &'static str) -> Self {
         Self {
             length,
@@ -433,6 +488,7 @@ impl<'a> BuiltinFunctionArgs<'a> {
         }
     }
 
+    /// Create new builtin function creation arguments with length, name, and a realm.
     pub fn new_with_realm(length: u32, name: &'static str, realm: Realm<'a>) -> Self {
         Self {
             length,
@@ -443,11 +499,35 @@ impl<'a> BuiltinFunctionArgs<'a> {
     }
 }
 
+/// ## [10.3 Built-in Function Objects](https://tc39.es/ecma262/#sec-built-in-function-objects)
+///
+/// A built-in function object is an ordinary object; it must satisfy the
+/// requirements for ordinary objects set out in [10.1].
+///
+/// In addition to the internal slots required of every ordinary object (see
+/// [10.1]), a built-in function object must also have the following internal
+/// slots:
+///
+/// * \[\[Realm]], a Realm Record that represents the realm in which the
+///   function was created.
+/// * \[\[InitialName]], a String that is the initial name of the function. It
+///   is used by [20.2.3.5].
+/// * \[\[Async]], a Boolean that indicates whether the function has async
+///   function call and construct behaviour in BuiltinCallOrConstruct.
+///
+/// [10.1]: https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots
+/// [20.2.3.5]: https://tc39.es/ecma262/#sec-function.prototype.tostring
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct BuiltinFunction<'a>(BaseIndex<'a, BuiltinFunctionHeapData<'static>>);
+arena_vec_access!(
+    BuiltinFunction,
+    'a,
+    BuiltinFunctionHeapData,
+    builtin_functions
+);
 
-impl BuiltinFunction<'_> {
+impl<'f> BuiltinFunction<'f> {
     /// Allocate a a new uninitialised (None) BuiltinFunction and return its reference.
     pub(crate) fn new_uninitialised(agent: &mut Agent) -> Self {
         agent
@@ -457,30 +537,28 @@ impl BuiltinFunction<'_> {
         BuiltinFunction(BaseIndex::last(&agent.heap.builtin_functions))
     }
 
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
+    /// Returns `true` if the builtin function is also callable as a constructor
+    /// function.
     pub fn is_constructor(self, agent: &Agent) -> bool {
         // A builtin function has the [[Construct]] method if its behaviour is
         // a constructor behaviour.
-        agent[self].behaviour.is_constructor()
+        self.get(agent).behaviour.is_constructor()
+    }
+
+    /// ### \[\[Realm]]
+    pub fn realm(self, agent: &Agent) -> Realm<'f> {
+        self.get(agent).realm
     }
 }
-
-bindable_handle!(BuiltinFunction);
+function_handle!(BuiltinFunction);
 
 impl IntrinsicFunctionIndexes {
     pub(crate) const fn get_builtin_function<'a>(
         self,
         base: BaseIndex<'a, BuiltinFunctionHeapData<'static>>,
     ) -> BuiltinFunction<'a> {
-        BuiltinFunction(BaseIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
+        BuiltinFunction(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
         ))
     }
 }
@@ -490,86 +568,27 @@ impl IntrinsicConstructorIndexes {
         self,
         base: BaseIndex<'a, BuiltinFunctionHeapData<'static>>,
     ) -> BuiltinFunction<'a> {
-        BuiltinFunction(BaseIndex::from_u32_index(
-            self as u32 + base.into_u32_index() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
+        BuiltinFunction(BaseIndex::from_index_u32_const(
+            self as u32 + base.get_index_u32_const() + Self::BUILTIN_FUNCTION_INDEX_OFFSET,
         ))
-    }
-}
-
-impl<'a> From<BuiltinFunction<'a>> for Value<'a> {
-    fn from(value: BuiltinFunction<'a>) -> Self {
-        Value::BuiltinFunction(value)
-    }
-}
-
-impl<'a> From<BuiltinFunction<'a>> for Object<'a> {
-    fn from(value: BuiltinFunction) -> Self {
-        Object::BuiltinFunction(value.unbind())
-    }
-}
-
-impl<'a> From<BuiltinFunction<'a>> for Function<'a> {
-    fn from(value: BuiltinFunction<'a>) -> Self {
-        Function::BuiltinFunction(value)
-    }
-}
-
-impl<'a> TryFrom<Function<'a>> for BuiltinFunction<'a> {
-    type Error = ();
-
-    fn try_from(value: Function<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Function::BuiltinFunction(f) => Ok(f),
-            _ => Err(()),
-        }
-    }
-}
-
-impl Index<BuiltinFunction<'_>> for Agent {
-    type Output = BuiltinFunctionHeapData<'static>;
-
-    fn index(&self, index: BuiltinFunction) -> &Self::Output {
-        &self.heap.builtin_functions[index]
-    }
-}
-
-impl IndexMut<BuiltinFunction<'_>> for Agent {
-    fn index_mut(&mut self, index: BuiltinFunction) -> &mut Self::Output {
-        &mut self.heap.builtin_functions[index]
-    }
-}
-
-impl Index<BuiltinFunction<'_>> for Vec<BuiltinFunctionHeapData<'static>> {
-    type Output = BuiltinFunctionHeapData<'static>;
-
-    fn index(&self, index: BuiltinFunction) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("BuiltinFunction out of bounds")
-    }
-}
-
-impl IndexMut<BuiltinFunction<'_>> for Vec<BuiltinFunctionHeapData<'static>> {
-    fn index_mut(&mut self, index: BuiltinFunction) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("BuiltinFunction out of bounds")
     }
 }
 
 impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
     fn get_name(self, agent: &Agent) -> &String<'a> {
-        agent[self]
+        self.get(agent)
             .initial_name
             .as_ref()
             .unwrap_or(&String::EMPTY_STRING)
     }
 
     fn get_length(self, agent: &Agent) -> u8 {
-        agent[self].length
+        self.get(agent).length
     }
 
     #[inline(always)]
     fn get_function_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_function_backing_object(
@@ -578,7 +597,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         backing_object: OrdinaryObject<'static>,
     ) {
         assert!(
-            agent[self]
+            self.get_mut(agent)
                 .object_index
                 .replace(backing_object.unbind())
                 .is_none()
@@ -642,11 +661,11 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
 
 #[inline(never)]
 fn create_name_and_id<'a>(agent: &'a Agent, f: BuiltinFunction<'a>) -> (Cow<'a, str>, u64) {
-    let id = match agent[f].behaviour {
+    let id = match f.get(agent).behaviour {
         Behaviour::Regular(f) => f as usize as u64,
         Behaviour::Constructor(f) => f as usize as u64,
     };
-    let name = f.get_name(agent).to_string_lossy(agent);
+    let name = f.get_name(agent).to_string_lossy_(agent);
     (name, id)
 }
 
@@ -676,7 +695,7 @@ fn builtin_call_or_construct<'gc>(
     // 2. If callerContext is not already suspended, suspend callerContext.
     caller_context.suspend();
     // 5. Let calleeRealm be F.[[Realm]].
-    let heap_data = &agent[f];
+    let heap_data = &f.get(agent);
     let callee_realm = heap_data.realm;
     let func = heap_data.behaviour;
     // 3. Let calleeContext be a new execution context.
@@ -684,9 +703,9 @@ fn builtin_call_or_construct<'gc>(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.into_function().unbind()),
+        function: Some(f.unbind().into()),
         // 6. Set the Realm of calleeContext to calleeRealm.
-        realm: callee_realm,
+        realm: callee_realm.unbind(),
         // 7. Set the ScriptOrModule of calleeContext to null.
         script_or_module: None,
     };
@@ -716,7 +735,7 @@ fn builtin_call_or_construct<'gc>(
             agent,
             this_argument.unwrap_or(Value::Undefined).unbind(),
             arguments_list.unbind(),
-            new_target.map(|target| target.into_object().unbind()),
+            new_target.map(|target| target.unbind().into()),
             gc,
         ),
     };
@@ -808,7 +827,7 @@ pub fn create_builtin_function<'a>(
             let name_entry = ObjectEntry {
                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
                 value: ObjectEntryPropertyDescriptor::Data {
-                    value: initial_name.into_value(),
+                    value: initial_name.into(),
                     writable: false,
                     enumerable: false,
                     configurable: true,
@@ -843,29 +862,6 @@ impl<'a> CreateHeapData<BuiltinFunctionHeapData<'a>, BuiltinFunction<'a>> for He
         self.builtin_functions.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<BuiltinFunctionHeapData<'static>>();
         BuiltinFunction(BaseIndex::last(&self.builtin_functions))
-    }
-}
-
-impl Rootable for BuiltinFunction<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::BuiltinFunction(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::BuiltinFunction(d) => Some(d),
-            _ => None,
-        }
     }
 }
 

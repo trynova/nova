@@ -6,41 +6,18 @@ use ecmascript_atomics::Ordering;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{get_iterator_from_method, iterator_to_list},
-            operations_on_objects::{get_method, throw_not_callable},
-            type_conversion::{to_index, try_to_index},
-        },
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
-        builtins::{
-            ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            array_buffer::AnyArrayBuffer,
-            indexed_collections::typed_array_objects::abstract_operations::{
-                TypedArrayAbstractOperations, allocate_typed_array,
-                initialize_typed_array_from_array_buffer, initialize_typed_array_from_array_like,
-                initialize_typed_array_from_list, make_typed_array_with_buffer_witness_record,
-                typed_array_create,
-            },
-            ordinary::{get_prototype_from_constructor, try_get_prototype_from_constructor},
-            typed_array::AnyTypedArray,
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{ExceptionType, try_result_into_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
-            U8Clamped, Value, Viewable,
-        },
+        Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, ArrayBuffer, BUILTIN_STRING_MEMORY,
+        Behaviour, Builtin, BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object,
+        PropertyKey, Realm, String, TypedArrayAbstractOperations, U8Clamped, Value, Viewable,
+        allocate_typed_array, builders::BuiltinFunctionBuilder, builders::OrdinaryObjectBuilder,
+        get_iterator_from_method, get_method, get_prototype_from_constructor,
+        initialize_typed_array_from_array_buffer, initialize_typed_array_from_array_like,
+        initialize_typed_array_from_list, iterator_to_list,
+        make_typed_array_with_buffer_witness_record, throw_not_callable, to_index,
+        try_get_prototype_from_constructor, try_result_into_js, try_to_index, typed_array_create,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope, Scopable},
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct TypedArrayConstructors;
@@ -317,7 +294,7 @@ impl TypedArrayConstructors {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let typed_array_constructor = intrinsics.typed_array().into_object();
+        let typed_array_constructor = intrinsics.typed_array();
 
         let int8_array_prototype = intrinsics.int8_array_prototype();
         let uint8_array_prototype = intrinsics.uint8_array_prototype();
@@ -344,7 +321,7 @@ impl TypedArrayConstructors {
                     .with_configurable(false)
                     .build()
             })
-            .with_prototype_property(int8_array_prototype.into_object())
+            .with_prototype_property(int8_array_prototype.into())
             .build();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<Uint8ArrayConstructor>(agent, realm)
@@ -358,7 +335,7 @@ impl TypedArrayConstructors {
                     .with_configurable(false)
                     .build()
             })
-            .with_prototype_property(uint8_array_prototype.into_object())
+            .with_prototype_property(uint8_array_prototype.into())
             .build();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<Uint8ClampedArrayConstructor>(
@@ -374,7 +351,7 @@ impl TypedArrayConstructors {
                 .with_configurable(false)
                 .build()
         })
-        .with_prototype_property(uint8_clamped_array_prototype.into_object())
+        .with_prototype_property(uint8_clamped_array_prototype.into())
         .build();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<Int16ArrayConstructor>(agent, realm)
@@ -388,7 +365,7 @@ impl TypedArrayConstructors {
                     .with_configurable(false)
                     .build()
             })
-            .with_prototype_property(int16_array_prototype.into_object())
+            .with_prototype_property(int16_array_prototype.into())
             .build();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<Uint16ArrayConstructor>(agent, realm)
@@ -402,7 +379,7 @@ impl TypedArrayConstructors {
                     .with_configurable(false)
                     .build()
             })
-            .with_prototype_property(uint16_array_prototype.into_object())
+            .with_prototype_property(uint16_array_prototype.into())
             .build();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<Int32ArrayConstructor>(agent, realm)
@@ -416,7 +393,7 @@ impl TypedArrayConstructors {
                     .with_configurable(false)
                     .build()
             })
-            .with_prototype_property(int32_array_prototype.into_object())
+            .with_prototype_property(int32_array_prototype.into())
             .build();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<Uint32ArrayConstructor>(agent, realm)
@@ -430,7 +407,7 @@ impl TypedArrayConstructors {
                     .with_configurable(false)
                     .build()
             })
-            .with_prototype_property(uint32_array_prototype.into_object())
+            .with_prototype_property(uint32_array_prototype.into())
             .build();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<BigInt64ArrayConstructor>(agent, realm)
@@ -444,7 +421,7 @@ impl TypedArrayConstructors {
                     .with_configurable(false)
                     .build()
             })
-            .with_prototype_property(big_int64_array_prototype.into_object())
+            .with_prototype_property(big_int64_array_prototype.into())
             .build();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<BigUint64ArrayConstructor>(
@@ -460,7 +437,7 @@ impl TypedArrayConstructors {
                 .with_configurable(false)
                 .build()
         })
-        .with_prototype_property(big_uint64_array_prototype.into_object())
+        .with_prototype_property(big_uint64_array_prototype.into())
         .build();
 
         #[cfg(feature = "proposal-float16array")]
@@ -475,7 +452,7 @@ impl TypedArrayConstructors {
                     .with_configurable(false)
                     .build()
             })
-            .with_prototype_property(float16_array_prototype.into_object())
+            .with_prototype_property(float16_array_prototype.into())
             .build();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<Float32ArrayConstructor>(agent, realm)
@@ -489,7 +466,7 @@ impl TypedArrayConstructors {
                     .with_configurable(false)
                     .build()
             })
-            .with_prototype_property(float32_array_prototype.into_object())
+            .with_prototype_property(float32_array_prototype.into())
             .build();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<Float64ArrayConstructor>(agent, realm)
@@ -503,7 +480,7 @@ impl TypedArrayConstructors {
                     .with_configurable(false)
                     .build()
             })
-            .with_prototype_property(float64_array_prototype.into_object())
+            .with_prototype_property(float64_array_prototype.into())
             .build();
     }
 }
@@ -754,7 +731,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
     if arguments.is_empty() {
         // a. Return ? AllocateTypedArray(constructorName, NewTarget, proto, 0).
         return allocate_typed_array::<T>(agent, new_target.unbind(), Some(0), gc)
-            .map(|ta| ta.into_value());
+            .map(|ta| ta.into());
     }
 
     // 6. Else,
@@ -839,7 +816,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
             unsafe { obj.initialise_data(agent, buffer, 0, Some((byte_length, element_length))) };
             obj.set_from_typed_array(agent, 0, source, 0, element_length, gc.nogc())
                 .unbind()?;
-            return Ok(obj.into_value().unbind());
+            return Ok(obj.unbind().into());
         } else if let Ok(source_buffer) = AnyArrayBuffer::try_from(first_argument) {
             // iii. Else if firstArgument has an [[ArrayBufferData]] internal
             //      slot, then
@@ -859,7 +836,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
                 length.unbind(),
                 gc,
             )?
-            .into_value());
+            .into());
         } else {
             // iv. Else,
             let first_argument = first_argument.scope(agent, gc.nogc());
@@ -872,7 +849,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
             let using_iterator = get_method(
                 agent,
                 first_argument.get(agent),
-                PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                PropertyKey::Symbol(WellKnownSymbols::Iterator.into()),
                 gc.reborrow(),
             )
             .unbind()?
@@ -910,7 +887,7 @@ fn typed_array_constructor<'gc, T: Viewable>(
                     gc,
                 )?;
             }
-            return Ok(scoped_o.get(agent).into_value());
+            return Ok(scoped_o.get(agent).into());
         };
         // v. Return O.
     }
@@ -938,5 +915,5 @@ fn typed_array_constructor<'gc, T: Viewable>(
         Some(element_length as usize),
         gc,
     )
-    .map(|typed_array| typed_array.into_value())
+    .map(|typed_array| typed_array.into())
 }

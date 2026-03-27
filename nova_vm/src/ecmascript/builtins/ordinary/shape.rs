@@ -11,24 +11,37 @@ use hashbrown::{HashTable, hash_table::Entry};
 
 use crate::{
     ecmascript::{
-        execution::{Agent, PrivateField, Realm},
-        types::{
-            InternalMethods, IntoObject, Object, Primitive, PropertyKey, Symbol, TryGetResult,
-            Value,
-        },
+        Agent, InternalMethods, Object, Primitive, PrivateField, PropertyKey, Realm, Symbol,
+        TryGetResult, Value,
     },
-    engine::context::{Bindable, GcToken, NoGcScope, bindable_handle},
+    engine::{Bindable, GcToken, NoGcScope, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, DirectArenaAccess,
+        DirectArenaAccessMut, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         IntrinsicObjectShapes, PropertyKeyHeap, WeakReference, WorkQueues,
-        element_array::{ElementArrayKey, ElementArrays},
-        indexes::PropertyKeyIndex,
+        {ElementArrayKey, ElementArrays}, {HeapIndexHandle, PropertyKeyIndex},
     },
 };
 
 use super::caches::PropertyLookupCache;
 
 /// Data structure describing the shape of an object.
+///
+/// In the Nova JavaScript engine, JavaScript objects are split into two
+/// categories: specialised objects, and ordinary objects. Ordinary objects are
+/// created eg. by object literals `{}` and contain an object shape and a
+/// property data reference. Specialised objects are all other objects, such as
+/// Arrays, ArrayBuffers, and primitive objects, and they contain any
+/// specialised data needed by the object, and an optional ordinary object
+/// reference called the "backing object".
+///
+/// The object shape describes what the prototype of the object is, how many
+/// properties it has, what are they property keys, and in which order they
+/// appear. The object's property data defines what the property values and
+/// descriptors are. Specialised objects do not have an object shape nor
+/// property data, and thus are mostly not objects at all. When required to act
+/// as objects by eg. prototype changes or property assignments, they act merely
+/// as a front to their backing object.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ObjectShape<'a>(
@@ -37,6 +50,7 @@ pub struct ObjectShape<'a>(
     NonZeroU32,
     PhantomData<&'a GcToken>,
 );
+bindable_handle!(ObjectShape);
 
 impl<'a> ObjectShape<'a> {
     /// Object Shape for `{ __proto__: null }`.
@@ -53,35 +67,6 @@ impl<'a> ObjectShape<'a> {
     pub(crate) fn is_intrinsic(self, agent: &Agent) -> bool {
         self.get(agent).keys_cap != ElementArrayKey::Empty
             && self.get_transitions(agent).parent.is_none()
-    }
-
-    /// Get the Object Shape record.
-    fn get(self, agent: &Agent) -> &ObjectShapeRecord<'a> {
-        self.get_direct(&agent.heap.object_shapes)
-    }
-
-    /// Get the Object Shape record as mutable.
-    #[inline(always)]
-    fn get_mut(self, agent: &mut Agent) -> &mut ObjectShapeRecord<'static> {
-        self.get_direct_mut(&mut agent.heap.object_shapes)
-    }
-
-    /// Get the Object Shape record as mutable.
-    #[inline(always)]
-    fn get_direct<'r>(
-        self,
-        object_shapes: &'r [ObjectShapeRecord<'a>],
-    ) -> &'r ObjectShapeRecord<'a> {
-        &object_shapes[self.get_index()]
-    }
-
-    /// Get the Object Shape record as mutable.
-    #[inline(always)]
-    fn get_direct_mut<'r>(
-        self,
-        object_shapes: &'r mut [ObjectShapeRecord<'static>],
-    ) -> &'r mut ObjectShapeRecord<'static> {
-        &mut object_shapes[self.get_index()]
     }
 
     /// Get the Object Shape transitions.
@@ -112,12 +97,12 @@ impl<'a> ObjectShape<'a> {
         }
     }
 
-    /// Get the implied usize index of the ObjectShape reference.
+    /// Get the implied u32 index of the ObjectShape reference.
     #[inline(always)]
-    pub(crate) const fn get_index(self) -> usize {
+    pub(crate) const fn get_index_u32_const(self) -> u32 {
         let raw_value = self.0.get();
         // Extract the raw value by masking out the extensible bit.
-        (raw_value & 0x7FFF_FFFF) as usize - 1
+        (raw_value & 0x7FFF_FFFF) - 1
     }
 
     /// Get the PropertyKeys of the Object Shape as a slice.
@@ -134,7 +119,7 @@ impl<'a> ObjectShape<'a> {
     /// Get the PropertyKeyIndex of the Object Shape.
     pub(crate) fn keys_index(
         self,
-        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+        agent: &impl AsRef<Vec<ObjectShapeRecord<'static>>>,
     ) -> PropertyKeyIndex<'a> {
         self.get_direct(agent.as_ref()).keys
     }
@@ -142,7 +127,7 @@ impl<'a> ObjectShape<'a> {
     /// Get capacity of the keys storage referred to by this Object Shape.
     pub(crate) fn keys_capacity(
         self,
-        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+        agent: &impl AsRef<Vec<ObjectShapeRecord<'static>>>,
     ) -> ElementArrayKey {
         self.get_direct(agent.as_ref()).keys_cap
     }
@@ -150,13 +135,13 @@ impl<'a> ObjectShape<'a> {
     /// Get the Object property values capacity implied by this Object Shape.
     pub(crate) fn values_capacity(
         self,
-        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+        agent: &impl AsRef<Vec<ObjectShapeRecord<'static>>>,
     ) -> ElementArrayKey {
         self.get_direct(agent.as_ref()).values_cap
     }
 
     /// Get the length of the Object Shape keys.
-    pub(crate) fn len(self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> u32 {
+    pub(crate) fn len(self, agent: &impl AsRef<Vec<ObjectShapeRecord<'static>>>) -> u32 {
         self.get_direct(agent.as_ref()).len
     }
 
@@ -179,14 +164,14 @@ impl<'a> ObjectShape<'a> {
     }
 
     /// Get the length of the Object Shape keys.
-    pub(crate) fn is_empty(self, agent: &impl AsRef<[ObjectShapeRecord<'static>]>) -> bool {
+    pub(crate) fn is_empty(self, agent: &impl AsRef<Vec<ObjectShapeRecord<'static>>>) -> bool {
         self.get_direct(agent.as_ref()).is_empty()
     }
 
     /// Get the prototype of the Object Shape.
     pub(crate) fn get_prototype(
         self,
-        agent: &impl AsRef<[ObjectShapeRecord<'static>]>,
+        agent: &impl AsRef<Vec<ObjectShapeRecord<'static>>>,
     ) -> Option<Object<'a>> {
         self.get_direct(agent.as_ref()).prototype
     }
@@ -292,7 +277,7 @@ impl<'a> ObjectShape<'a> {
         self_transitions.insert(
             key,
             child,
-            &PropertyKeyHeap::new(&agent.heap.strings, &agent.heap.symbols),
+            &PropertyKeyHeap::new(&mut agent.heap.strings, &mut agent.heap.symbols),
         );
     }
 
@@ -810,8 +795,6 @@ impl<'a> ObjectShape<'a> {
     }
 }
 
-bindable_handle!(ObjectShape);
-
 #[inline(never)]
 #[cold]
 const fn handle_object_shape_count_overflow() -> ! {
@@ -849,7 +832,7 @@ const fn handle_object_shape_count_overflow() -> ! {
 /// repeated, the code can check if the object shape matches and skip the
 /// property search entirely if a match is found.
 #[derive(Debug)]
-pub struct ObjectShapeRecord<'a> {
+pub(crate) struct ObjectShapeRecord<'a> {
     /// Prototype of the object shape.
     ///
     /// This takes the place of the \[\[Prototype]] internal slot for (most)
@@ -885,7 +868,7 @@ impl<'a> ObjectShapeRecord<'a> {
     /// This record has a `null` prototype and no keys.
     pub(crate) const NULL: Self = Self {
         prototype: None,
-        keys: PropertyKeyIndex::from_index(0),
+        keys: PropertyKeyIndex::ZERO,
         keys_cap: ElementArrayKey::Empty,
         len: 0,
         values_cap: ElementArrayKey::Empty,
@@ -896,7 +879,7 @@ impl<'a> ObjectShapeRecord<'a> {
     pub(crate) fn create_root(prototype: Object<'a>) -> Self {
         Self {
             prototype: Some(prototype),
-            keys: PropertyKeyIndex::from_index(0),
+            keys: PropertyKeyIndex::ZERO,
             keys_cap: ElementArrayKey::Empty,
             len: 0,
             values_cap: ElementArrayKey::Empty,
@@ -1042,7 +1025,7 @@ impl PrototypeShapeTable {
 impl Symbol<'_> {
     pub(crate) fn object_shape(self, agent: &mut Agent) -> ObjectShape<'static> {
         let prototype = agent.current_realm_record().intrinsics().symbol_prototype();
-        ObjectShape::get_shape_for_prototype(agent, Some(prototype.into_object()))
+        ObjectShape::get_shape_for_prototype(agent, Some(prototype.into()))
     }
 }
 
@@ -1056,7 +1039,7 @@ impl Primitive<'_> {
                 let prototype = intrinsics.boolean_prototype();
                 Some(ObjectShape::get_shape_for_prototype(
                     agent,
-                    Some(prototype.into_object()),
+                    Some(prototype.into()),
                 ))
             }
             Self::String(_) | Self::SmallString(_) => Some(intrinsics.string_shape()),
@@ -1068,10 +1051,61 @@ impl Primitive<'_> {
                 let prototype = intrinsics.big_int_prototype();
                 Some(ObjectShape::get_shape_for_prototype(
                     agent,
-                    Some(prototype.into_object()),
+                    Some(prototype.into()),
                 ))
             }
         }
+    }
+}
+
+impl HeapIndexHandle for ObjectShape<'_> {
+    const _DEF: Self = Self::from_non_zero(NonZeroU32::new(u32::MAX).unwrap());
+
+    fn from_index_u32(index: u32) -> Self {
+        Self::from_non_zero(NonZeroU32::new(index + 1).unwrap())
+    }
+
+    // Get the implied u32 index of the ObjectShape reference.
+    fn get_index_u32(self) -> u32 {
+        let raw_value = self.0.get();
+        // Extract the raw value by masking out the extensible bit.
+        (raw_value & 0x7FFF_FFFF) - 1
+    }
+}
+
+impl<'a> DirectArenaAccess for ObjectShape<'a> {
+    type Data = ObjectShapeRecord<'static>;
+    type Output = ObjectShapeRecord<'a>;
+
+    /// Get the Object Shape record as mutable.
+    #[inline(always)]
+    fn get_direct(self, object_shapes: &Vec<Self::Data>) -> &Self::Output {
+        &object_shapes[self.get_index()]
+    }
+}
+
+impl<'a> DirectArenaAccessMut for ObjectShape<'a> {
+    /// Get the Object Shape record as mutable.
+    #[inline(always)]
+    fn get_direct_mut(self, object_shapes: &mut Vec<Self::Data>) -> &mut Self::Output {
+        // SAFETY: we can transmute the GC lifetime from 'static to a local bound lifetime.
+        unsafe { core::mem::transmute(&mut object_shapes[self.get_index()]) }
+    }
+}
+
+#[doc(hidden)]
+impl AsRef<Vec<ObjectShapeRecord<'static>>> for Agent {
+    #[inline(always)]
+    fn as_ref(&self) -> &Vec<ObjectShapeRecord<'static>> {
+        &self.heap.object_shapes
+    }
+}
+
+#[doc(hidden)]
+impl AsMut<Vec<ObjectShapeRecord<'static>>> for Agent {
+    #[inline(always)]
+    fn as_mut(&mut self) -> &mut Vec<ObjectShapeRecord<'static>> {
+        &mut self.heap.object_shapes
     }
 }
 
@@ -1101,7 +1135,7 @@ impl<'a> CreateHeapData<(ObjectShapeRecord<'a>, ObjectShapeTransitionMap<'a>), O
                 "Object Shape has zero capacity but non-zero length"
             );
             debug_assert_eq!(
-                record.keys.into_index(),
+                record.keys.get_index(),
                 0,
                 "Object Shape has zero capacity but non-zero keys index"
             );
@@ -1251,24 +1285,14 @@ impl HeapMarkAndSweep for PrototypeShapeTable {
     }
 }
 
-impl AsRef<[ObjectShapeRecord<'static>]> for Agent {
-    fn as_ref(&self) -> &[ObjectShapeRecord<'static>] {
-        &self.heap.object_shapes
-    }
-}
-
-impl AsMut<[ObjectShapeRecord<'static>]> for Agent {
-    fn as_mut(&mut self) -> &mut [ObjectShapeRecord<'static>] {
-        &mut self.heap.object_shapes
-    }
-}
-
+#[doc(hidden)]
 impl AsRef<[ObjectShapeTransitionMap<'static>]> for Agent {
     fn as_ref(&self) -> &[ObjectShapeTransitionMap<'static>] {
         &self.heap.object_shape_transitions
     }
 }
 
+#[doc(hidden)]
 impl AsMut<[ObjectShapeTransitionMap<'static>]> for Agent {
     fn as_mut(&mut self) -> &mut [ObjectShapeTransitionMap<'static>] {
         &mut self.heap.object_shape_transitions

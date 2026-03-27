@@ -6,31 +6,14 @@ use ecmascript_atomics::Ordering;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{construct, species_constructor},
-            type_conversion::{
-                to_index, to_integer_or_infinity, try_to_index, try_to_integer_or_infinity,
-            },
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
-            shared_array_buffer::SharedArrayBuffer,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, GrowSharedArrayBufferResult, try_result_into_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, PropertyKey, String, Value,
-            copy_shared_data_block_bytes,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        ExceptionType, GrowSharedArrayBufferResult, JsResult, Number, PropertyKey, ProtoIntrinsics,
+        Realm, SharedArrayBuffer, String, Value, builders::OrdinaryObjectBuilder, construct,
+        copy_shared_data_block_bytes, species_constructor, to_index, to_integer_or_infinity,
+        try_result_into_js, try_to_index, try_to_integer_or_infinity,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
-    heap::WellKnownSymbolIndexes,
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct SharedArrayBufferPrototype;
@@ -96,7 +79,7 @@ impl SharedArrayBufferPrototype {
         // 4. Let length be ArrayBufferByteLength(O, seq-cst).
         let length = o.byte_length(agent, Ordering::SeqCst);
         // 5. Return 𝔽(length).
-        Ok(Number::from_i64(agent, length as i64, gc).into_value())
+        Ok(Number::from_i64(agent, length as i64, gc).into())
     }
 
     /// ### [25.2.5.3 SharedArrayBuffer.prototype.grow ( newLength )](https://tc39.es/ecma262/#sec-sharedarraybuffer.prototype.grow)
@@ -178,7 +161,7 @@ impl SharedArrayBufferPrototype {
         let o = require_internal_slot_shared_array_buffer(agent, o, gc)?;
         // 4. If IsFixedLengthArrayBuffer(O) is false, return true; otherwise
         //    return false.
-        Ok(o.is_growable(agent).into_value())
+        Ok(o.is_growable(agent).into())
     }
 
     /// ### [25.2.5.5 get SharedArrayBuffer.prototype.maxByteLength](https://tc39.es/ecma262/#sec-get-sharedarraybuffer.prototype.maxbytelength)
@@ -204,7 +187,7 @@ impl SharedArrayBufferPrototype {
         // 6. Return 𝔽(length).
         let length = o.max_byte_length(agent);
         // 5. Return 𝔽(length).
-        Ok(Number::from_i64(agent, length as i64, gc).into_value())
+        Ok(Number::from_i64(agent, length as i64, gc).into())
     }
 
     /// ### [25.2.5.6 SharedArrayBuffer.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-hostgrowsharedarraybuffer)
@@ -273,7 +256,7 @@ impl SharedArrayBufferPrototype {
         // 14. Let ctor be ? SpeciesConstructor(O, %SharedArrayBuffer%).
         let ctor = species_constructor(
             agent,
-            o.get(agent).into_object(),
+            o.get(agent).into(),
             ProtoIntrinsics::SharedArrayBuffer,
             gc.reborrow(),
         )
@@ -282,8 +265,8 @@ impl SharedArrayBufferPrototype {
         // 15. Let new be ? Construct(ctor, « 𝔽(newLen) »).
         let new = {
             let mut new_len = Number::from_i64(agent, new_len as i64, gc.nogc())
-                .into_value()
-                .unbind();
+                .unbind()
+                .into();
             let args = ArgumentsList::from_mut_value(&mut new_len);
             construct(agent, ctor.unbind(), Some(args), None, gc.reborrow())
                 .unbind()?
@@ -296,7 +279,7 @@ impl SharedArrayBufferPrototype {
         let o = unsafe { o.take(agent).bind(gc) };
         // 16. Perform ? RequireInternalSlot(new, [[ArrayBufferData]]).
         // 17. If IsSharedArrayBuffer(new) is false, throw a TypeError exception.
-        let new = require_internal_slot_shared_array_buffer(agent, new.into_value(), gc)?;
+        let new = require_internal_slot_shared_array_buffer(agent, new.into(), gc)?;
         // 18. If new.[[ArrayBufferData]] is O.[[ArrayBufferData]],
         if new.get_data_block(agent) == o.get_data_block(agent) {
             // throw a TypeError exception.
@@ -322,7 +305,7 @@ impl SharedArrayBufferPrototype {
         // 22. Perform CopyDataBlockBytes(toBuf, 0, fromBuf, first, newLen).
         copy_shared_data_block_bytes(to_buf, 0, from_buf, first, new_len);
         // 23. Return new.
-        Ok(new.into_value())
+        Ok(new.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -342,8 +325,8 @@ impl SharedArrayBufferPrototype {
             .with_builtin_function_property::<SharedArrayBufferPrototypeSlice>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.SharedArrayBuffer.into_value())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.SharedArrayBuffer.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

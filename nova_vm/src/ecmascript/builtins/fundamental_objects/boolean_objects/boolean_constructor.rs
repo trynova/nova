@@ -4,18 +4,13 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_boolean,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectData},
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, Function, JsResult, Object, PrimitiveObject,
+        PrimitiveObjectData, ProtoIntrinsics, Realm, String, Value,
+        builders::BuiltinFunctionBuilder, ordinary_create_from_constructor, to_boolean,
     },
-    engine::context::{Bindable, GcScope},
-    heap::IntrinsicConstructorIndexes,
+    engine::{Bindable, GcScope},
+    heap::{ArenaAccessMut, IntrinsicConstructorIndexes},
 };
 
 pub(crate) struct BooleanConstructor;
@@ -52,8 +47,8 @@ impl BooleanConstructor {
             gc,
         )?)
         .unwrap();
-        agent[o].data = PrimitiveObjectData::Boolean(b);
-        Ok(o.into_value())
+        o.get_mut(agent).data = PrimitiveObjectData::Boolean(b);
+        Ok(o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -62,7 +57,7 @@ impl BooleanConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<BooleanConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype_property(boolean_prototype.unbind().into_object())
+            .with_prototype_property(boolean_prototype.unbind().into())
             .build();
     }
 }

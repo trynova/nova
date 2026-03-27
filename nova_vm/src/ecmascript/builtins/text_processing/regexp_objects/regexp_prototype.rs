@@ -7,45 +7,19 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, construct, get, length_of_array_like, set, species_constructor,
-                try_create_data_property_or_throw, try_get,
-            },
-            testing_and_comparison::{is_callable, same_value},
-            type_conversion::{
-                to_boolean, to_integer_or_infinity, to_length, to_object, to_string, to_uint32,
-            },
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
-            array_create,
-            ordinary::caches::PropertyLookupCache,
-            regexp::{
-                advance_string_index, reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec,
-                reg_exp_test, require_internal_slot_reg_exp,
-            },
-            text_processing::string_objects::string_prototype::get_substitution,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, JsError, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Number, Object,
-            PropertyKey, String, TryGetResult, Value,
-        },
+        Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsic, ExceptionType, Function, JsError, JsResult, Number, Object, PropertyKey,
+        PropertyLookupCache, ProtoIntrinsics, Realm, String, TryGetResult, Value,
+        advance_string_index, array_create, builders::OrdinaryObjectBuilder, call_function,
+        construct, create_reg_exp_string_iterator, get, get_substitution, is_callable,
+        length_of_array_like, reg_exp_builtin_exec, reg_exp_builtin_test, reg_exp_exec,
+        reg_exp_test, require_internal_slot_reg_exp, same_value, set, species_constructor,
+        to_boolean, to_integer_or_infinity, to_length, to_object, to_string, to_uint32,
+        try_create_data_property_or_throw, try_get, unwrap_try,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped},
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbols},
 };
-
-use super::regexp_string_iterator_objects::create_reg_exp_string_iterator;
 
 pub(crate) struct RegExpPrototype;
 
@@ -103,15 +77,14 @@ impl BuiltinGetter for RegExpPrototypeGetIgnoreCase {}
 struct RegExpPrototypeMatch;
 impl Builtin for RegExpPrototypeMatch {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_match_;
-    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Match.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Match.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::r#match);
 }
 struct RegExpPrototypeMatchAll;
 impl Builtin for RegExpPrototypeMatchAll {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_matchAll_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::MatchAll.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::MatchAll.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::match_all);
 }
@@ -127,16 +100,14 @@ impl BuiltinGetter for RegExpPrototypeGetMultiline {}
 struct RegExpPrototypeReplace;
 impl Builtin for RegExpPrototypeReplace {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_replace_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Replace.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Replace.to_property_key());
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::replace);
 }
 struct RegExpPrototypeSearch;
 impl Builtin for RegExpPrototypeSearch {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_search_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Search.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Search.to_property_key());
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::search);
 }
@@ -151,7 +122,7 @@ impl BuiltinGetter for RegExpPrototypeGetSource {}
 struct RegExpPrototypeSplit;
 impl Builtin for RegExpPrototypeSplit {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_split_;
-    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbolIndexes::Split.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Split.to_property_key());
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpPrototype::split);
 }
@@ -221,7 +192,7 @@ impl RegExpPrototype {
         let r = unsafe { r.take(agent) }.bind(gc.nogc());
         // 4. Return ? RegExpBuiltinExec(R, S).
         reg_exp_builtin_exec(agent, r.unbind(), s.unbind(), gc)
-            .map(|r| r.map_or(Value::Null, |a| a.into_value()))
+            .map(|r| r.map_or(Value::Null, |a| a.into()))
     }
 
     /// ### [22.2.6.3 get RegExp.prototype.dotAll](https://tc39.es/ecma262/#sec-get-regexp.prototype.dotAll)
@@ -493,7 +464,7 @@ impl RegExpPrototype {
             .unbind()?
             .bind(gc.nogc());
         // 5. If flags does not contain "g", then
-        if !flags.to_string_lossy(agent).contains("g") {
+        if !flags.to_string_lossy_(agent).contains("g") {
             // a. Return ? RegExpExec(rx, S).
             reg_exp_exec(
                 agent,
@@ -503,19 +474,19 @@ impl RegExpPrototype {
                 unsafe { s.take(agent) },
                 gc,
             )
-            .map(|o| o.map_or(Value::Null, |o| o.into_value()))
+            .map(|o| o.map_or(Value::Null, |o| o.into()))
         } else {
             // 6. Else,
             // a. If flags contains "u" or flags contains "v", let fullUnicode
             //    be true. Otherwise, let fullUnicode be false.
-            let full_unicode = flags.to_string_lossy(agent).contains("u")
-                || flags.to_string_lossy(agent).contains("v");
+            let full_unicode = flags.to_string_lossy_(agent).contains("u")
+                || flags.to_string_lossy_(agent).contains("v");
             // b. Perform ? Set(rx, "lastIndex", +0𝔽, true).
             set(
                 agent,
                 rx.get(agent),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                0.into_value(),
+                0.into(),
                 true,
                 gc.reborrow(),
             )
@@ -540,7 +511,7 @@ impl RegExpPrototype {
                     } else {
                         // 2. Return A.
                         // SAFETY: not shared.
-                        return Ok(unsafe { a.take(agent) }.into_value());
+                        return Ok(unsafe { a.take(agent) }.into());
                     }
                 };
                 // iii. Else,
@@ -556,7 +527,7 @@ impl RegExpPrototype {
                     agent,
                     a.get(agent),
                     n.into(),
-                    match_str.into_value(),
+                    match_str.into(),
                     None,
                     gc.nogc(),
                 ));
@@ -586,7 +557,7 @@ impl RegExpPrototype {
                         agent,
                         rx.get(agent),
                         BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                        Number::try_from(next_index).unwrap().into_value(),
+                        Number::try_from(next_index).unwrap().into(),
                         true,
                         gc.reborrow(),
                     )
@@ -633,13 +604,7 @@ impl RegExpPrototype {
         )
         .unbind()?
         .bind(gc.nogc());
-        let c = if c
-            == agent
-                .current_realm_record()
-                .intrinsics()
-                .reg_exp()
-                .into_function()
-        {
+        let c = if c == agent.current_realm_record().intrinsics().reg_exp().into() {
             None
         } else {
             Some(c.scope(agent, gc.nogc()))
@@ -664,16 +629,16 @@ impl RegExpPrototype {
                 .current_realm_record()
                 .intrinsics()
                 .reg_exp()
-                .into_function()
                 .bind(gc.nogc())
+                .into()
         };
         // 6. Let matcher be ? Construct(C, « R, flags »).
         let matcher = construct(
             agent,
             c.unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                scoped_r.get(agent).into_value(),
-                flags.into_value().unbind(),
+                scoped_r.get(agent).into(),
+                flags.unbind().into(),
             ])),
             None,
             gc.reborrow(),
@@ -704,7 +669,7 @@ impl RegExpPrototype {
         .unbind()?
         .bind(gc.nogc());
         let flags = scoped_flags.get(agent).bind(gc.nogc());
-        let flags = flags.as_bytes(agent);
+        let flags = flags.as_bytes_(agent);
         // 9. If flags contains "g", let global be true.
         // 10. Else, let global be false.
         let global = flags.contains(&b'g');
@@ -720,7 +685,7 @@ impl RegExpPrototype {
             full_unicode,
             gc.into_nogc(),
         )
-        .into_value())
+        .into())
     }
 
     /// ### [22.2.6.10 get RegExp.prototype.multiline](https://tc39.es/ecma262/#sec-get-regexp.prototype.multiline)
@@ -768,7 +733,7 @@ impl RegExpPrototype {
             .unbind()?
             .scope(agent, gc.nogc());
         // 4. Let lengthS be the length of S.
-        let length_s = s.get(agent).utf16_len(agent);
+        let length_s = s.get(agent).utf16_len_(agent);
         #[derive(Clone)]
         enum ReplaceValue<'a> {
             Functional(Scoped<'a, Function<'static>>),
@@ -810,7 +775,7 @@ impl RegExpPrototype {
             .unbind()?
             .bind(gc.nogc());
         // 8. If flags contains "g", let global be true; otherwise let global be false.
-        let flags = flags.as_bytes(agent);
+        let flags = flags.as_bytes_(agent);
         let global = flags.contains(&b'g');
         // b. If flags contains "u" or flags contains "v", let fullUnicode be
         //    true; otherwise let fullUnicode be false.
@@ -884,7 +849,7 @@ impl RegExpPrototype {
                     agent,
                     rx.get(agent),
                     BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                    Number::try_from(next_index).unwrap().into_value(),
+                    Number::try_from(next_index).unwrap().into(),
                     true,
                     gc.reborrow(),
                 )
@@ -912,7 +877,7 @@ impl RegExpPrototype {
                 .unbind()?
                 .bind(gc.nogc());
             // d. Let matchLength be the length of matched.
-            let match_length = matched.utf16_len(agent);
+            let match_length = matched.utf16_len_(agent);
             let matched = matched.scope(agent, gc.nogc());
             // e. Let position be ? ToIntegerOrInfinity(? Get(result, "index")).
             let position = get(
@@ -979,13 +944,11 @@ impl RegExpPrototype {
                     let mut replacer_args = captures
                         .into_iter()
                         .map(|s| {
-                            s.map_or(Value::Undefined, |s| {
-                                s.get(agent).into_value().bind(gc.nogc())
-                            })
+                            s.map_or(Value::Undefined, |s| s.get(agent).bind(gc.nogc()).into())
                         })
                         .collect::<Vec<_>>();
-                    replacer_args.insert(0, matched.get(agent).into_value());
-                    replacer_args.push(Number::try_from(position).unwrap().into_value());
+                    replacer_args.insert(0, matched.get(agent).into());
+                    replacer_args.push(Number::try_from(position).unwrap().into());
                     // ii. If namedCaptures is not undefined, then
                     if !named_captures.is_undefined() {
                         // 1. Append namedCaptures to replacerArgs.
@@ -1053,13 +1016,13 @@ impl RegExpPrototype {
                 //     accumulatedResult, the substring of S from
                 //     nextSourcePosition to position, and replacementString.
                 let s = s.get(agent).bind(gc.nogc());
-                let next_source_position_utf8 = s.utf8_index(agent, next_source_position).unwrap();
-                let position_utf8 = s.utf8_index(agent, position).unwrap();
+                let next_source_position_utf8 = s.utf8_index_(agent, next_source_position).unwrap();
+                let position_utf8 = s.utf8_index_(agent, position).unwrap();
                 accumulated_result.push_wtf8(
-                    s.as_wtf8(agent)
+                    s.as_wtf8_(agent)
                         .slice(next_source_position_utf8, position_utf8),
                 );
-                accumulated_result.push_wtf8(replacement_string.as_wtf8(agent));
+                accumulated_result.push_wtf8(replacement_string.as_wtf8_(agent));
                 // iii. Set nextSourcePosition to position + matchLength.
                 next_source_position = position + match_length;
             }
@@ -1069,10 +1032,10 @@ impl RegExpPrototype {
             // 17. Return the string-concatenation of accumulatedResult and the
             // substring of S from nextSourcePosition.
             let s = s.get(agent).bind(gc.nogc());
-            let next_source_position_utf8 = s.utf8_index(agent, next_source_position).unwrap();
-            accumulated_result.push_wtf8(s.as_wtf8(agent).slice_from(next_source_position_utf8));
+            let next_source_position_utf8 = s.utf8_index_(agent, next_source_position).unwrap();
+            accumulated_result.push_wtf8(s.as_wtf8_(agent).slice_from(next_source_position_utf8));
         }
-        Ok(String::from_wtf8_buf(agent, accumulated_result, gc.into_nogc()).into_value())
+        Ok(String::from_wtf8_buf(agent, accumulated_result, gc.into_nogc()).into())
     }
 
     /// ### [22.2.6.12 RegExp.prototype \[ %Symbol.search% \] ( string )](https://tc39.es/ecma262/#sec-regexp.prototype-%symbol.search%)
@@ -1111,13 +1074,13 @@ impl RegExpPrototype {
         .bind(gc.nogc());
         let scoped_previous_last_index = previous_last_index.scope(agent, gc.nogc());
         // 5. If previousLastIndex is not +0𝔽, then
-        if previous_last_index != Number::pos_zero().into_value() {
+        if previous_last_index != Number::pos_zero().into() {
             // a. Perform ? Set(rx, "lastIndex", +0𝔽, true).
             set(
                 agent,
                 rx.get(agent),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                Number::pos_zero().into_value(),
+                Number::pos_zero().into(),
                 true,
                 gc.reborrow(),
             )
@@ -1160,7 +1123,7 @@ impl RegExpPrototype {
             )
         } else {
             // 9. If result is null, return -1𝔽.
-            Ok(Number::from(-1).into_value())
+            Ok(Number::from(-1).into())
         }
     }
 
@@ -1187,9 +1150,9 @@ impl RegExpPrototype {
                 .current_realm_record()
                 .intrinsics()
                 .reg_exp_prototype()
-                .into_object()
+                .into()
             {
-                return Ok(String::from_small_string("(?:)").into_value());
+                return Ok(String::from_small_string("(?:)").into());
             }
             // b. Otherwise, throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
@@ -1204,10 +1167,10 @@ impl RegExpPrototype {
         // 6. Let flags be R.[[OriginalFlags]].
         let flags = r.original_flags(agent);
         if src.is_empty_string() {
-            Ok(String::from_small_string("(?:)").into_value())
+            Ok(String::from_small_string("(?:)").into())
         } else {
             // 7. Return EscapeRegExpPattern(src, flags).
-            Ok(escape_reg_exp_pattern(agent, src.unbind(), flags, gc.into_nogc()).into_value())
+            Ok(escape_reg_exp_pattern(agent, src.unbind(), flags, gc.into_nogc()).into())
         }
     }
 
@@ -1297,7 +1260,7 @@ impl RegExpPrototype {
         let flags = to_string(agent, flags.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
-        let flag_bytes = flags.as_bytes(agent);
+        let flag_bytes = flags.as_bytes_(agent);
         // 6. If flags contains "u" or flags contains "v", let unicodeMatching be true.
         // 7. Else, let unicodeMatching be false.
         let unicode_matching = flag_bytes.contains(&b'u') | flag_bytes.contains(&b'v');
@@ -1307,7 +1270,7 @@ impl RegExpPrototype {
         } else {
             // 9. Else, let newFlags be the string-concatenation of flags and "y".
             let mut buf = Wtf8Buf::with_capacity(flag_bytes.len() + 1);
-            buf.push_wtf8(flags.as_wtf8(agent));
+            buf.push_wtf8(flags.as_wtf8_(agent));
             buf.push_char('y');
             String::from_wtf8_buf(agent, buf, gc.nogc())
         };
@@ -1318,8 +1281,8 @@ impl RegExpPrototype {
             agent,
             c.unbind(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                rx.get(agent).into_value(),
-                new_flags.into_value().unbind(),
+                rx.get(agent).into(),
+                new_flags.unbind().into(),
             ])),
             None,
             gc.reborrow(),
@@ -1345,7 +1308,7 @@ impl RegExpPrototype {
         // 14. If lim = 0, return A.
         if lim == 0 {
             // SAFETY: not shared.
-            return Ok(unsafe { a.take(agent) }.into_value());
+            return Ok(unsafe { a.take(agent) }.into());
         }
         // 15. If S is the empty String, then
         if s.is_empty_string() {
@@ -1356,20 +1319,20 @@ impl RegExpPrototype {
             // b. If z is not null, return A.
             if z.is_some() {
                 // SAFETY: not shared.
-                return Ok(unsafe { a.take(agent) }.into_value());
+                return Ok(unsafe { a.take(agent) }.into());
             }
             let gc = gc.into_nogc();
             let a = unsafe { a.take(agent) }.bind(gc);
             let s = unsafe { s.take(agent) }.bind(gc);
             // c. Perform ! CreateDataPropertyOrThrow(A, "0", S).
-            if let Err(err) = a.push(agent, s.into_value()) {
+            if let Err(err) = a.push(agent, s.into()) {
                 return Err(agent.throw_allocation_exception(err, gc));
             }
             // d. Return A.
-            return Ok(a.into_value());
+            return Ok(a.into());
         }
         // 16. Let size be the length of S.
-        let size = s.get(agent).utf16_len(agent);
+        let size = s.get(agent).utf16_len_(agent);
         // 17. Let p be 0.
         let mut p = 0;
         // 18. Let q be p.
@@ -1382,7 +1345,7 @@ impl RegExpPrototype {
                 agent,
                 splitter.get(agent),
                 BUILTIN_STRING_MEMORY.lastIndex.to_property_key(),
-                f_q.into_value(),
+                f_q.into(),
                 true,
                 gc.reborrow(),
             )
@@ -1420,18 +1383,18 @@ impl RegExpPrototype {
                     let s_local = s.get(agent).bind(gc.nogc());
                     let a_local = a.get(agent).bind(gc.nogc());
                     let p_utf8 = s_local
-                        .utf8_index(agent, p)
+                        .utf8_index_(agent, p)
                         .expect("p splits two surrogates into unmatched pairs");
                     let q_utf8 = s_local
-                        .utf8_index(agent, q)
+                        .utf8_index_(agent, q)
                         .expect("q splits two surrogates into unmatched pairs");
                     // 1. Let T be the substring of S from p to q.
-                    let t = s_local.as_wtf8(agent).slice(p_utf8, q_utf8);
+                    let t = s_local.as_wtf8_(agent).slice(p_utf8, q_utf8);
                     let mut t_buf = Wtf8Buf::with_capacity(t.len());
                     t_buf.push_wtf8(t);
                     let t = String::from_wtf8_buf(agent, t_buf, gc.nogc());
                     // 2. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(lengthA)), T).
-                    if let Err(err) = a_local.push(agent, t.into_value()) {
+                    if let Err(err) = a_local.push(agent, t.into()) {
                         return Err(agent.throw_allocation_exception(err, gc.into_nogc()));
                     };
                     // 3. Set lengthA to lengthA + 1.
@@ -1439,7 +1402,7 @@ impl RegExpPrototype {
                     // 4. If lengthA = lim,
                     if length_a == lim {
                         // return A.
-                        return Ok(a_local.into_value().unbind());
+                        return Ok(a_local.unbind().into());
                     }
                     // 5. Set p to e.
                     p = e;
@@ -1474,7 +1437,7 @@ impl RegExpPrototype {
                         // e. If lengthA = lim, return A.
                         if length_a == lim {
                             // SAFETY: not shared.
-                            return Ok(unsafe { a.take(agent) }.into_value());
+                            return Ok(unsafe { a.take(agent) }.into());
                         }
                     }
                     // 10. Set q to p.
@@ -1488,26 +1451,26 @@ impl RegExpPrototype {
         let gc = gc.into_nogc();
         let a = unsafe { a.take(agent) }.bind(gc);
         let result = if p == size {
-            a.push(agent, String::EMPTY_STRING.into_value())
+            a.push(agent, String::EMPTY_STRING.into())
         } else {
             let s = unsafe { s.take(agent) }.bind(gc);
             let p_utf8 = s
-                .utf8_index(agent, p)
+                .utf8_index_(agent, p)
                 .expect("p splits two surrogates into unmatched pairs");
             // 20. Let T be the substring of S from p to size.
-            let t = s.as_wtf8(agent).slice(p_utf8, size);
+            let t = s.as_wtf8_(agent).slice(p_utf8, size);
             let mut t_buf = Wtf8Buf::with_capacity(t.len());
             t_buf.push_wtf8(t);
             let t = String::from_wtf8_buf(agent, t_buf, gc);
             // 21. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(lengthA)), T).
-            a.push(agent, t.into_value())
+            a.push(agent, t.into())
         };
         if let Err(err) = result {
             return Err(agent.throw_allocation_exception(err, gc));
         };
 
         // 22. Return A.
-        Ok(a.into_value())
+        Ok(a.into())
     }
 
     /// ### [22.2.6.15 get RegExp.prototype.sticky](https://tc39.es/ecma262/#sec-get-regexp.prototype.sticky)
@@ -1553,11 +1516,11 @@ impl RegExpPrototype {
                         .current_realm_record()
                         .intrinsics()
                         .reg_exp_prototype_exec()
-                        .into_value(),
+                        .into(),
                 )
                 .into()
             {
-                return Ok(reg_exp_builtin_test(agent, r.unbind(), s.unbind(), gc)?.into_value());
+                return Ok(reg_exp_builtin_test(agent, r.unbind(), s.unbind(), gc)?.into());
             }
         }
         // 2. If R is not an Object, throw a TypeError exception.
@@ -1575,7 +1538,7 @@ impl RegExpPrototype {
             .unbind()?
             .bind(gc.nogc());
         // 5. If match is not null, return true; else return false.
-        Ok(r#match.into_value())
+        Ok(r#match.into())
     }
 
     /// ### [22.2.6.17 RegExp.prototype.toString ( )](https://tc39.es/ecma262/#sec-regexp.prototype.tostring)
@@ -1601,7 +1564,7 @@ impl RegExpPrototype {
                 this_value
                     .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1614,8 +1577,8 @@ impl RegExpPrototype {
             // does not take into account prototype mutations.
             let regexp_string = r.create_regexp_string(agent);
             return Ok(String::from_wtf8_buf(agent, regexp_string, nogc)
-                .into_value()
-                .unbind());
+                .unbind()
+                .into());
         }
         let scoped_r = r.scope(agent, nogc);
         // 3. Let pattern be ? ToString(? Get(R, "source")).
@@ -1645,12 +1608,12 @@ impl RegExpPrototype {
         // 5. Let result be the string-concatenation of "/", pattern, "/", and flags.
         let result = format!(
             "/{}/{}",
-            pattern.get(agent).bind(gc.nogc()).to_string_lossy(agent),
-            flags.to_string_lossy(agent)
+            pattern.get(agent).bind(gc.nogc()).to_string_lossy_(agent),
+            flags.to_string_lossy_(agent)
         );
         let result = String::from_string(agent, result, gc.into_nogc());
         // 6. Return result.
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     /// ### [22.2.6.18 get RegExp.prototype.unicode](https://tc39.es/ecma262/#sec-get-regexp.prototype.unicode)
@@ -1743,7 +1706,7 @@ fn reg_exp_has_flag<'a>(
             .current_realm_record()
             .intrinsics()
             .reg_exp_prototype()
-            .into_object()
+            .into()
         {
             return Ok(None);
         }
@@ -1812,7 +1775,7 @@ fn escape_reg_exp_pattern<'a>(
     //    is the empty String, this specification can be met by letting S be
     //    "(?:)".
 
-    let p_wtf8 = p.as_wtf8(agent);
+    let p_wtf8 = p.as_wtf8_(agent);
     let byte_length = p_wtf8.len();
     let mut s = Wtf8Buf::with_capacity(byte_length + (byte_length >> 4));
     for cp in p_wtf8.code_points() {

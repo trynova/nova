@@ -4,19 +4,16 @@
 
 use crate::{
     ecmascript::{
-        builders::ordinary_object_builder::create_intrinsic_backing_object,
-        builtins::{
-            Behaviour, Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic,
-            BuiltinIntrinsicConstructor, BuiltinSetter,
-        },
-        execution::{Agent, Realm},
-        types::{
-            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue,
-            Object, OrdinaryObject, PropertyKey, String, Value,
+        Agent, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinFunction, BuiltinFunctionHeapData,
+        BuiltinGetter, BuiltinIntrinsic, BuiltinIntrinsicConstructor, BuiltinSetter, Object,
+        OrdinaryObject, PropertyKey, Realm, String, Value,
+        builders::{
+            CreatorProperties, CreatorPrototype, NoProperties, NoPrototype,
+            create_intrinsic_backing_object,
         },
     },
-    engine::context::Bindable,
-    heap::element_array::ElementDescriptor,
+    engine::Bindable,
+    heap::{ElementDescriptor, HeapIndexHandle},
 };
 
 use super::{
@@ -24,36 +21,31 @@ use super::{
     property_builder::{self, PropertyBuilder},
 };
 
-#[derive(Default, Clone, Copy)]
-pub struct NoPrototype;
-
-#[derive(Clone, Copy)]
-pub struct CreatorPrototype(Option<Object<'static>>);
-
+#[doc(hidden)]
 #[derive(Default, Clone, Copy)]
 pub struct NoLength;
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct CreatorLength(u8);
 
+#[doc(hidden)]
 #[derive(Default, Clone, Copy)]
 pub struct NoName;
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct CreatorName(String<'static>);
 
+#[doc(hidden)]
 #[derive(Default, Clone, Copy)]
 pub struct NoBehaviour;
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct CreatorBehaviour(Behaviour);
 
-#[derive(Default, Clone, Copy)]
-pub struct NoProperties;
-
-#[derive(Clone)]
-pub struct CreatorProperties(Vec<PropertyDefinition>);
-
+/// Builder struct for creating builtin functions in embedders.
 pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: BuiltinFunction<'static>,
@@ -69,6 +61,7 @@ pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
 impl<'agent>
     BuiltinFunctionBuilder<'agent, NoPrototype, NoLength, NoName, NoBehaviour, NoProperties>
 {
+    /// Create a new builtin function builder.
     #[must_use]
     pub fn new<T: Builtin>(
         agent: &'agent mut Agent,
@@ -95,6 +88,7 @@ impl<'agent>
         }
     }
 
+    /// Create a new builtin getter function builder.
     #[must_use]
     pub fn new_getter<T: BuiltinGetter>(
         agent: &'agent mut Agent,
@@ -121,6 +115,7 @@ impl<'agent>
         }
     }
 
+    /// Create a new builtin setter function builder.
     #[must_use]
     pub fn new_setter<T: BuiltinSetter>(
         agent: &'agent mut Agent,
@@ -207,39 +202,20 @@ impl<'agent>
     }
 }
 
-impl<'agent, P, L, N, Pr> BuiltinFunctionBuilder<'agent, P, L, N, NoBehaviour, Pr> {
-    #[must_use]
-    pub fn with_behaviour(
-        self,
-        behaviour: Behaviour,
-    ) -> BuiltinFunctionBuilder<'agent, P, L, N, CreatorBehaviour, Pr> {
-        BuiltinFunctionBuilder {
-            agent: self.agent,
-            this: self.this,
-            backing_object: self.backing_object,
-            realm: self.realm,
-            prototype: self.prototype,
-            length: self.length,
-            name: self.name,
-            behaviour: CreatorBehaviour(behaviour),
-            properties: self.properties,
-        }
-    }
-}
-
 impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, Pr> {
+    /// Set the function's prototype.
     #[must_use]
-    pub fn with_prototype(
+    pub fn with_prototype<T: Copy + Into<Object<'static>>>(
         self,
-        prototype: Object<'static>,
-    ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
-        let backing_object = if prototype
+        prototype: T,
+    ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype<T>, L, N, B, Pr> {
+        let backing_object = if prototype.into()
             != self
                 .agent
                 .get_realm_record_by_id(self.realm)
                 .intrinsics()
                 .function_prototype()
-                .into_object()
+                .into()
             && self.backing_object.is_none()
         {
             Some(OrdinaryObject::new_uninitialised(self.agent))
@@ -251,7 +227,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
             this: self.this,
             backing_object,
             realm: self.realm,
-            prototype: CreatorPrototype(Some(prototype)),
+            prototype: CreatorPrototype(prototype),
             length: self.length,
             name: self.name,
             behaviour: self.behaviour,
@@ -259,10 +235,9 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
         }
     }
 
+    /// Set the function's prototype into `null`.
     #[must_use]
-    pub fn with_null_prototype(
-        self,
-    ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
+    pub fn with_null_prototype(self) -> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, Pr> {
         let backing_object = if self.backing_object.is_none() {
             Some(OrdinaryObject::new_uninitialised(self.agent))
         } else {
@@ -273,49 +248,9 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
             this: self.this,
             backing_object,
             realm: self.realm,
-            prototype: CreatorPrototype(None),
+            prototype: NoPrototype,
             length: self.length,
             name: self.name,
-            behaviour: self.behaviour,
-            properties: self.properties,
-        }
-    }
-}
-
-impl<'agent, P, N, B, Pr> BuiltinFunctionBuilder<'agent, P, NoLength, N, B, Pr> {
-    #[must_use]
-    pub fn with_length(
-        self,
-        length: u8,
-    ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, N, B, Pr> {
-        BuiltinFunctionBuilder {
-            agent: self.agent,
-            this: self.this,
-            backing_object: self.backing_object,
-            realm: self.realm,
-            prototype: self.prototype,
-            length: CreatorLength(length),
-            name: self.name,
-            behaviour: self.behaviour,
-            properties: self.properties,
-        }
-    }
-}
-
-impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
-    #[must_use]
-    pub fn with_name(
-        self,
-        name: String<'static>,
-    ) -> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
-        BuiltinFunctionBuilder {
-            agent: self.agent,
-            this: self.this,
-            backing_object: self.backing_object,
-            realm: self.realm,
-            prototype: self.prototype,
-            length: self.length,
-            name: CreatorName(name),
             behaviour: self.behaviour,
             properties: self.properties,
         }
@@ -329,6 +264,12 @@ impl<P, L, B, Pr> BuiltinFunctionBuilder<'_, P, L, CreatorName, B, Pr> {
 }
 
 impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, NoProperties> {
+    /// Set the property capacity of the builder.
+    ///
+    /// # Panics
+    ///
+    /// The builder panics if the number of properties set is less or more than
+    /// the set capacity.
     #[must_use]
     pub fn with_property_capacity(
         self,
@@ -338,7 +279,8 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
             self.backing_object
                 .unwrap_or_else(|| OrdinaryObject::new_uninitialised(self.agent)),
         );
-        let mut property_vector = Vec::with_capacity(cap + 2);
+        let mut property_vector = vec![];
+        property_vector.reserve_exact(cap + 2);
         property_vector.push((
             PropertyKey::from(BUILTIN_STRING_MEMORY.length),
             Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
@@ -361,96 +303,25 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
             properties: CreatorProperties(property_vector),
         }
     }
-
-    #[must_use]
-    pub fn with_data_property(
-        self,
-        key: PropertyKey<'static>,
-        value: Value<'static>,
-    ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
-        let backing_object = Some(
-            self.backing_object
-                .unwrap_or_else(|| OrdinaryObject::new_uninitialised(self.agent)),
-        );
-        let property_vector = vec![
-            (
-                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
-                Some(self.length.0.into()),
-            ),
-            (
-                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
-                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
-                Some(self.name.0.unbind().into()),
-            ),
-            (key.unbind(), None, Some(value.unbind())),
-        ];
-        BuiltinFunctionBuilder {
-            agent: self.agent,
-            this: self.this,
-            backing_object,
-            realm: self.realm,
-            prototype: self.prototype,
-            length: self.length,
-            name: self.name,
-            behaviour: self.behaviour,
-            properties: CreatorProperties(property_vector),
-        }
-    }
-
-    #[must_use]
-    pub fn with_property(
-        self,
-        creator: impl FnOnce(
-            PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
-        ) -> (
-            PropertyKey<'static>,
-            Option<ElementDescriptor<'static>>,
-            Option<Value<'static>>,
-        ),
-    ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
-        let backing_object = Some(
-            self.backing_object
-                .unwrap_or_else(|| OrdinaryObject::new_uninitialised(self.agent)),
-        );
-        let property = {
-            let builder = PropertyBuilder::new(self.agent);
-            creator(builder)
-        };
-        let property_vector = vec![
-            (
-                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
-                Some(self.length.0.into()),
-            ),
-            (
-                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
-                Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
-                Some(self.name.0.unbind().into()),
-            ),
-            property,
-        ];
-        BuiltinFunctionBuilder {
-            agent: self.agent,
-            this: self.this,
-            backing_object,
-            realm: self.realm,
-            prototype: self.prototype,
-            length: self.length,
-            name: self.name,
-            behaviour: self.behaviour,
-            properties: CreatorProperties(property_vector),
-        }
-    }
 }
 
 impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+    /// Adds a [data property] to the builtin function.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of properties set is more than the set capacity.
+    ///
+    /// [data property]: https://tc39.es/ecma262/#sec-object-type
     #[must_use]
     pub fn with_data_property(
         mut self,
         key: PropertyKey<'static>,
         value: Value<'static>,
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+        if self.properties.0.spare_capacity_mut().is_empty() {
+            panic!("BuiltinFunctionBuilder::with_property_capacity value exceeded");
+        }
         self.properties.0.push((key, None, Some(value.unbind())));
         BuiltinFunctionBuilder {
             agent: self.agent,
@@ -465,6 +336,11 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         }
     }
 
+    /// Builds a property to the builtin function.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of properties set is more than the set capacity.
     #[must_use]
     pub fn with_property(
         mut self,
@@ -476,6 +352,9 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
             Option<Value<'static>>,
         ),
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
+        if self.properties.0.spare_capacity_mut().is_empty() {
+            panic!("BuiltinFunctionBuilder::with_property_capacity value exceeded");
+        }
         let builder = PropertyBuilder::new(self.agent);
         let property = creator(builder);
         self.properties.0.push(property);
@@ -492,12 +371,21 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         }
     }
 
+    /// Adds an unconfigurable, unenumerable, read-only `prototype` property on
+    /// the builtin function.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of properties set is more than the set capacity.
     #[must_use]
     pub fn with_prototype_property(mut self, prototype: Object<'static>) -> Self {
+        if self.properties.0.spare_capacity_mut().is_empty() {
+            panic!("BuiltinFunctionBuilder::with_property_capacity value exceeded");
+        }
         let property = PropertyBuilder::new(self.agent)
             .with_configurable(false)
             .with_enumerable(false)
-            .with_value_readonly(prototype.into_value())
+            .with_value_readonly(prototype.into())
             .with_key(BUILTIN_STRING_MEMORY.prototype.into())
             .build();
         self.properties.0.push(property);
@@ -514,12 +402,20 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         }
     }
 
+    /// Adds a builtin function as a property on this builtin function.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of properties set is more than the set capacity.
     #[must_use]
     pub fn with_builtin_function_property<T: Builtin>(mut self) -> Self {
+        if self.properties.0.spare_capacity_mut().is_empty() {
+            panic!("BuiltinFunctionBuilder::with_property_capacity value exceeded");
+        }
         let (value, key) = {
             let mut builder = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm);
             let name = T::KEY.unwrap_or_else(|| PropertyKey::from(builder.get_name()));
-            (builder.build().into_value(), name)
+            (builder.build().into(), name)
         };
         let builder = PropertyBuilder::new(self.agent)
             .with_key(key)
@@ -544,11 +440,19 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         }
     }
 
+    /// Adds a builtin getter function as a property on this builtin function.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of properties set is more than the set capacity.
     #[must_use]
     pub fn with_builtin_function_getter_property<T: BuiltinGetter>(mut self) -> Self {
+        if self.properties.0.spare_capacity_mut().is_empty() {
+            panic!("BuiltinFunctionBuilder::with_property_capacity value exceeded");
+        }
         let getter_function = BuiltinFunctionBuilder::new::<T>(self.agent, self.realm)
             .build()
-            .into_function();
+            .into();
         let property = PropertyBuilder::new(self.agent)
             .with_key(T::KEY.unwrap())
             .with_configurable(T::CONFIGURABLE)
@@ -580,6 +484,7 @@ impl
         NoProperties,
     >
 {
+    /// Builds the builtin function.
     pub fn build(&mut self) -> BuiltinFunction<'static> {
         let data = BuiltinFunctionHeapData {
             object_index: None,
@@ -610,6 +515,7 @@ impl
         CreatorProperties,
     >
 {
+    /// Builds the builtin function.
     pub fn build(self) -> BuiltinFunction<'static> {
         let Self {
             agent,
@@ -626,7 +532,7 @@ impl
             .get_realm_record_by_id(realm)
             .intrinsics()
             .function_prototype()
-            .into_object();
+            .into();
         create_function_intrinsic_backing_object(
             agent,
             backing_object,
@@ -652,16 +558,17 @@ impl
     }
 }
 
-impl
+impl<T: Into<Object<'static>>>
     BuiltinFunctionBuilder<
         '_,
-        CreatorPrototype,
+        CreatorPrototype<T>,
         CreatorLength,
         CreatorName,
         CreatorBehaviour,
         CreatorProperties,
     >
 {
+    /// Builds the builtin function.
     pub fn build(self) -> BuiltinFunction<'static> {
         let Self {
             agent,
@@ -675,7 +582,12 @@ impl
             ..
         } = self;
 
-        create_function_intrinsic_backing_object(agent, backing_object, prototype, properties);
+        create_function_intrinsic_backing_object(
+            agent,
+            backing_object,
+            Some(prototype.into()),
+            properties,
+        );
 
         let data = BuiltinFunctionHeapData {
             object_index: backing_object,

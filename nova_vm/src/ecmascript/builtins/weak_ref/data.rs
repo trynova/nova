@@ -4,12 +4,12 @@
 
 use crate::{
     ecmascript::{execution::WeakKey, types::OrdinaryObject},
-    engine::context::bindable_handle,
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Default, Debug, Clone)]
-pub struct WeakRefHeapData<'a> {
+pub(crate) struct WeakRefHeapData<'a> {
     pub(super) object_index: Option<OrdinaryObject<'a>>,
     /// ### \[\[WeakRefTarget]]
     pub(super) weak_ref_target: Option<WeakKey<'a>>,

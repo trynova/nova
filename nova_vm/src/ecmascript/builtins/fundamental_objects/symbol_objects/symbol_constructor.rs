@@ -4,17 +4,12 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, String, Symbol, SymbolHeapData,
-            Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, ExceptionType, JsResult, Object, Realm, String, Symbol,
+        SymbolHeapData, Value, builders::BuiltinFunctionBuilder, to_string,
     },
-    engine::context::{Bindable, GcScope},
-    heap::{CreateHeapData, IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope},
+    heap::{CreateHeapData, IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct SymbolConstructor;
@@ -69,21 +64,16 @@ impl SymbolConstructor {
             ));
         }
         // 2. If description is undefined,
-        let desc_string = if description.is_undefined() {
+        let data = if description.is_undefined() {
             // let descString be undefined.
-            None
+            SymbolHeapData::default()
         } else {
             // 3. Else, let descString be ? ToString(description).
-            Some(to_string(agent, description.unbind(), gc)?.unbind())
+            SymbolHeapData::new(to_string(agent, description.unbind(), gc)?)
         };
 
         // 4. Return a new Symbol whose [[Description]] is descString.
-        Ok(agent
-            .heap
-            .create(SymbolHeapData {
-                descriptor: desc_string,
-            })
-            .into_value())
+        Ok(agent.heap.create(data).into())
     }
 
     /// ### [20.4.2.2 Symbol.for ( key )](https://tc39.es/ecma262/#sec-symbol.for)
@@ -91,33 +81,29 @@ impl SymbolConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         let key = arguments.get(0).bind(gc.nogc());
         // 1. Let stringKey be ? ToString(key).
-        let string_key = to_string(agent, key.unbind(), gc.reborrow())
-            .unbind()?
-            .bind(gc.nogc());
+        let string_key = to_string(agent, key.unbind(), gc)?;
 
         // 2. For each element e of the GlobalSymbolRegistry List, do
         //        a. If e.[[Key]] is stringKey, return e.[[Symbol]].
         if let Some(&symbol) = agent.global_symbol_registry.get(&string_key.unbind()) {
-            return Ok(symbol.into_value());
+            return Ok(symbol.into());
         }
 
         // 3. Assert: The GlobalSymbolRegistry List does not currently contain an entry for stringKey.
         // 4. Let newSymbol be a new Symbol whose [[Description]] is stringKey.
-        let new_symbol = agent.heap.create(SymbolHeapData {
-            descriptor: Some(string_key.unbind()),
-        });
+        let new_symbol = agent.heap.create(SymbolHeapData::new(string_key));
 
         // 5. Append the GlobalSymbolRegistry Record { [[Key]]: stringKey, [[Symbol]]: newSymbol } to the GlobalSymbolRegistry List.
         agent
             .global_symbol_registry
-            .insert(string_key.unbind(), new_symbol);
+            .insert(string_key.unbind(), new_symbol.unbind());
 
         // 6. Return newSymbol.
-        Ok(new_symbol.into_value())
+        Ok(new_symbol.into())
     }
 
     /// ### [20.4.2.6 Symbol.keyFor ( sym )](https://tc39.es/ecma262/#sec-symbol.keyfor)
@@ -142,7 +128,7 @@ impl SymbolConstructor {
         };
 
         // 2. Return KeyForSymbol(sym).
-        Ok(key_for_symbol(agent, symbol).map_or(Value::Undefined, |key| key.into_value()))
+        Ok(key_for_symbol(agent, symbol).map_or(Value::Undefined, |key| key.into()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -155,7 +141,7 @@ impl SymbolConstructor {
                 .with_property(|builder| {
                     builder
                         .with_key(BUILTIN_STRING_MEMORY.asyncIterator.into())
-                        .with_value_readonly(WellKnownSymbolIndexes::AsyncIterator.into())
+                        .with_value_readonly(WellKnownSymbols::AsyncIterator.into())
                         .with_enumerable(false)
                         .with_configurable(false)
                         .build()
@@ -164,7 +150,7 @@ impl SymbolConstructor {
                 .with_property(|builder| {
                     builder
                         .with_key(BUILTIN_STRING_MEMORY.hasInstance.into())
-                        .with_value_readonly(WellKnownSymbolIndexes::HasInstance.into())
+                        .with_value_readonly(WellKnownSymbols::HasInstance.into())
                         .with_enumerable(false)
                         .with_configurable(false)
                         .build()
@@ -172,7 +158,7 @@ impl SymbolConstructor {
                 .with_property(|builder| {
                     builder
                         .with_key(BUILTIN_STRING_MEMORY.isConcatSpreadable.into())
-                        .with_value_readonly(WellKnownSymbolIndexes::IsConcatSpreadable.into())
+                        .with_value_readonly(WellKnownSymbols::IsConcatSpreadable.into())
                         .with_enumerable(false)
                         .with_configurable(false)
                         .build()
@@ -180,7 +166,7 @@ impl SymbolConstructor {
                 .with_property(|builder| {
                     builder
                         .with_key(BUILTIN_STRING_MEMORY.iterator.into())
-                        .with_value_readonly(WellKnownSymbolIndexes::Iterator.into())
+                        .with_value_readonly(WellKnownSymbols::Iterator.into())
                         .with_enumerable(false)
                         .with_configurable(false)
                         .build()
@@ -191,7 +177,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.r#match.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Match.into())
+                    .with_value_readonly(WellKnownSymbols::Match.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -199,18 +185,18 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.matchAll.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::MatchAll.into())
+                    .with_value_readonly(WellKnownSymbols::MatchAll.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
             });
-        let builder = builder.with_prototype_property(symbol_prototype.into_object());
+        let builder = builder.with_prototype_property(symbol_prototype.into());
         #[cfg(feature = "regexp")]
         let builder = builder
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.replace.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Replace.into())
+                    .with_value_readonly(WellKnownSymbols::Replace.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -218,7 +204,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.search.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Search.into())
+                    .with_value_readonly(WellKnownSymbols::Search.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -226,7 +212,7 @@ impl SymbolConstructor {
         let builder = builder.with_property(|builder| {
             builder
                 .with_key(BUILTIN_STRING_MEMORY.species.into())
-                .with_value_readonly(WellKnownSymbolIndexes::Species.into())
+                .with_value_readonly(WellKnownSymbols::Species.into())
                 .with_enumerable(false)
                 .with_configurable(false)
                 .build()
@@ -235,7 +221,7 @@ impl SymbolConstructor {
         let builder = builder.with_property(|builder| {
             builder
                 .with_key(BUILTIN_STRING_MEMORY.split.into())
-                .with_value_readonly(WellKnownSymbolIndexes::Split.into())
+                .with_value_readonly(WellKnownSymbols::Split.into())
                 .with_enumerable(false)
                 .with_configurable(false)
                 .build()
@@ -244,7 +230,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.toPrimitive.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::ToPrimitive.into())
+                    .with_value_readonly(WellKnownSymbols::ToPrimitive.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -252,7 +238,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.toStringTag.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_value_readonly(WellKnownSymbols::ToStringTag.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()
@@ -260,7 +246,7 @@ impl SymbolConstructor {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.unscopables.into())
-                    .with_value_readonly(WellKnownSymbolIndexes::Unscopables.into())
+                    .with_value_readonly(WellKnownSymbols::Unscopables.into())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()

@@ -15,7 +15,7 @@
 
 use oxc_ast::ast::LabelIdentifier;
 
-use crate::{ecmascript::types::Value, engine::Instruction};
+use crate::{ecmascript::Value, engine::Instruction};
 
 use super::{JumpIndex, executable_context::ExecutableContext};
 
@@ -50,6 +50,10 @@ pub(super) enum ControlFlowStackEntry<'a> {
     VariableScope,
     /// A private environment was scoped.
     PrivateScope,
+    /// A variable was pushed onto the stack.
+    StackValue,
+    /// A result variable was pushed onto the stack.
+    StackResultValue,
     /// A try-catch block was entered.
     CatchBlock,
     /// An if-statement was entered.
@@ -226,6 +230,8 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
+            | ControlFlowStackEntry::StackValue
+            | ControlFlowStackEntry::StackResultValue
             | ControlFlowStackEntry::CatchBlock
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::FinallyBlock
@@ -260,6 +266,8 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::LexicalScope
             | ControlFlowStackEntry::VariableScope
             | ControlFlowStackEntry::PrivateScope
+            | ControlFlowStackEntry::StackValue
+            | ControlFlowStackEntry::StackResultValue
             | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::CatchBlock { .. }
@@ -306,7 +314,9 @@ impl<'a> ControlFlowStackEntry<'a> {
             // If-statements, finally-blocks results, user-controlled
             // try-finally-blocks, and iterator closes must be called on
             // return.
-            ControlFlowStackEntry::IfStatement
+            ControlFlowStackEntry::StackValue
+            | ControlFlowStackEntry::StackResultValue
+            | ControlFlowStackEntry::IfStatement
             | ControlFlowStackEntry::FinallyBlock
             | ControlFlowStackEntry::ArrayDestructuring
             | ControlFlowStackEntry::Iterator { .. }
@@ -347,6 +357,10 @@ impl<'a> ControlFlowStackEntry<'a> {
             ControlFlowStackEntry::PrivateScope => {
                 executable.add_instruction(Instruction::ExitPrivateEnvironment);
             }
+            ControlFlowStackEntry::StackValue => {
+                compile_stack_variable_exit(executable);
+            }
+            ControlFlowStackEntry::StackResultValue => {}
             ControlFlowStackEntry::IfStatement => {
                 if has_result {
                     // OPTIMISATION: if we statically know we have a result,
@@ -380,7 +394,7 @@ impl<'a> ControlFlowStackEntry<'a> {
                 unreachable!()
             }
             ControlFlowStackEntry::Switch { .. } => {
-                // Switches don't need finalisation.
+                executable.add_instruction(Instruction::UpdateEmpty);
             }
             ControlFlowStackEntry::IteratorStackEntry => {
                 // Enumerator loops need to pop the iterator stack.
@@ -405,6 +419,11 @@ impl<'a> ControlFlowStackEntry<'a> {
 pub(super) fn compile_iterator_pop(executable: &mut ExecutableContext) {
     executable.add_instruction(Instruction::PopExceptionJumpTarget);
     executable.add_instruction(Instruction::IteratorPop);
+}
+
+/// Helper method to compile stack variable exit handling.
+pub(super) fn compile_stack_variable_exit(executable: &mut ExecutableContext) {
+    executable.add_instruction(Instruction::PopStack);
 }
 
 /// Helper method to compile if-statement exit handling.

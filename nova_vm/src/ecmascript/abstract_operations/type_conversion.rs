@@ -20,26 +20,16 @@ use num_bigint::Sign;
 use wtf8::Wtf8;
 
 use crate::{
-    SmallInteger,
     ecmascript::{
-        builtins::{
-            ArgumentsList,
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectRecord},
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult, js_result_into_try},
-        },
+        Agent, ArgumentsList, ExceptionType, JsResult, PrimitiveObjectData, PrimitiveObjectRecord,
+        SmallInteger, TryError, TryResult, js_result_into_try,
         types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoPrimitive, IntoValue,
-            Number, Numeric, Object, Primitive, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY, BigInt, Number, Numeric, Object, Primitive, PropertyKey, String,
+            Value,
         },
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, trivially_bindable},
-        rootable::Scopable,
-    },
-    heap::{CreateHeapData, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope, NoGcScope, Scopable, trivially_bindable},
+    heap::{ArenaAccess, CreateHeapData, WellKnownSymbols},
 };
 
 use super::{
@@ -48,7 +38,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub enum PreferredType {
+pub(crate) enum PreferredType {
     String = 1,
     Number,
 }
@@ -70,11 +60,11 @@ pub enum PreferredType {
 /// > absence of a hint as if the hint were STRING.
 pub(crate) fn to_primitive<'a, 'gc>(
     agent: &mut Agent,
-    input: impl IntoValue<'a>,
+    input: impl Into<Value<'a>>,
     preferred_type: Option<PreferredType>,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Primitive<'gc>> {
-    let input = input.into_value().bind(gc.nogc());
+    let input = input.into().bind(gc.nogc());
     // 1. If input is an Object, then
     if let Ok(input) = Object::try_from(input) {
         to_primitive_object(agent, input.unbind(), preferred_type, gc)
@@ -86,17 +76,17 @@ pub(crate) fn to_primitive<'a, 'gc>(
 
 pub(crate) fn to_primitive_object<'a, 'gc>(
     agent: &mut Agent,
-    input: impl IntoObject<'a>,
+    input: impl Into<Object<'a>>,
     preferred_type: Option<PreferredType>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Primitive<'gc>> {
-    let input = input.into_object().bind(gc.nogc());
+    let input = input.into().bind(gc.nogc());
     // a. Let exoticToPrim be ? GetMethod(input, @@toPrimitive).
     let scoped_input = input.scope(agent, gc.nogc());
     let exotic_to_prim = get_method(
         agent,
-        input.into_value().unbind(),
-        PropertyKey::Symbol(WellKnownSymbolIndexes::ToPrimitive.into()),
+        input.unbind().into(),
+        PropertyKey::Symbol(WellKnownSymbols::ToPrimitive.into()),
         gc.reborrow(),
     )
     .unbind()?
@@ -119,7 +109,7 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
         let result = call_function(
             agent,
             exotic_to_prim.unbind(),
-            scoped_input.get(agent).into_value().unbind(),
+            scoped_input.get(agent).unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [hint.into()])),
             gc.reborrow(),
         )
@@ -186,7 +176,7 @@ pub(crate) fn ordinary_to_primitive<'gc>(
             let result: Value = call_function(
                 agent,
                 method.unbind(),
-                scoped_o.get(agent).into_value(),
+                scoped_o.get(agent).into(),
                 None,
                 gc.reborrow(),
             )
@@ -235,7 +225,7 @@ pub(crate) fn to_boolean(agent: &Agent, argument: Value) -> bool {
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
 pub(crate) fn to_numeric<'a, 'gc>(
     agent: &mut Agent,
-    value: impl IntoValue<'a>,
+    value: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Numeric<'gc>> {
     // 1. Let primValue be ? ToPrimitive(value, number).
@@ -249,26 +239,26 @@ pub(crate) fn to_numeric<'a, 'gc>(
 
 pub(crate) fn to_numeric_primitive<'a>(
     agent: &mut Agent,
-    prim_value: impl IntoPrimitive<'a>,
+    prim_value: impl Into<Primitive<'a>>,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, Numeric<'a>> {
-    let prim_value = prim_value.into_primitive();
+    let prim_value = prim_value.into();
     // 2. If primValue is a BigInt, return primValue.
     if let Ok(prim_value) = BigInt::try_from(prim_value) {
-        return Ok(prim_value.into_numeric());
+        return Ok(prim_value.into());
     }
 
     // 3. Return ? ToNumber(primValue).
-    to_number_primitive(agent, prim_value, gc).map(|n| n.into_numeric())
+    to_number_primitive(agent, prim_value, gc).map(|n| n.into())
 }
 
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
 pub(crate) fn to_number<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, Number<'gc>> {
-    let argument = argument.into_value().unbind().bind(gc.nogc());
+    let argument = argument.into().bind(gc.nogc());
     if let Ok(argument) = Primitive::try_from(argument) {
         to_number_primitive(agent, argument.unbind(), gc.into_nogc())
     } else {
@@ -341,7 +331,7 @@ pub(crate) fn string_to_number<'gc>(
     // 1. Let literal be ParseText(str, StringNumericLiteral).
     // 2. If literal is a List of errors, return NaN.
     // 3. Return the StringNumericValue of literal.
-    let str = str.to_string_lossy(agent);
+    let str = str.to_string_lossy_(agent);
     let str = str.trim_matches(is_trimmable_whitespace);
     match str {
         "+Infinity" | "Infinity" => {
@@ -541,22 +531,22 @@ pub(crate) fn to_integer_or_infinity_number(agent: &Agent, number: Number) -> In
     }
 
     // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
-    if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if number.is_nan_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return IntegerOrInfinity(0);
     }
 
     // 3. If number is +∞𝔽, return +∞.
-    if number.is_pos_infinity(agent) {
+    if number.is_pos_infinity_(agent) {
         return IntegerOrInfinity::POS_INFINITY;
     }
 
     // 4. If number is -∞𝔽, return -∞.
-    if number.is_neg_infinity(agent) {
+    if number.is_neg_infinity_(agent) {
         return IntegerOrInfinity::NEG_INFINITY;
     }
 
     // 5. Return truncate(ℝ(number)).
-    let number = number.into_f64(agent).trunc() as i64;
+    let number = number.into_f64_(agent).trunc() as i64;
     // Note: Make sure converting the f64 didn't take us to our sentinel
     // values.
     let number = if number == i64::MAX {
@@ -617,17 +607,17 @@ pub(crate) fn to_integer_number_or_infinity<'a>(
     }
 
     // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
-    if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if number.is_nan_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return Ok(Number::from(0));
     }
 
     // 3. If number is +∞𝔽, return +∞.
-    if number.is_pos_infinity(agent) {
+    if number.is_pos_infinity_(agent) {
         return Ok(Number::pos_inf());
     }
 
     // 4. If number is -∞𝔽, return -∞.
-    if number.is_neg_infinity(agent) {
+    if number.is_neg_infinity_(agent) {
         return Ok(Number::neg_inf());
     }
 
@@ -648,17 +638,17 @@ pub(crate) fn number_convert_to_integer_or_infinity<'a>(
     }
 
     // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
-    if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if number.is_nan_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return Number::from(0);
     }
 
     // 3. If number is +∞𝔽, return +∞.
-    if number.is_pos_infinity(agent) {
+    if number.is_pos_infinity_(agent) {
         return Number::pos_inf();
     }
 
     // 4. If number is -∞𝔽, return -∞.
-    if number.is_neg_infinity(agent) {
+    if number.is_neg_infinity_(agent) {
         return Number::neg_inf();
     }
 
@@ -694,14 +684,14 @@ pub(crate) fn to_int32_number(agent: &Agent, number: Number) -> i32 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int32bit be int modulo 2^32.
     // 5. If int32bit ≥ 2^31, return 𝔽(int32bit - 2^32); otherwise return 𝔽(int32bit).
-    number.into_f64(agent).trunc() as i64 as i32
+    number.into_f64_(agent).trunc() as i64 as i32
 }
 
 /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
@@ -733,14 +723,14 @@ pub(crate) fn to_uint32_number(agent: &Agent, number: Number) -> u32 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int32bit be int modulo 2^32.
     // 5. Return 𝔽(int32bit).
-    number.into_f64(agent).trunc() as i64 as u32
+    number.into_f64_(agent).trunc() as i64 as u32
 }
 
 /// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
@@ -769,14 +759,14 @@ pub(crate) fn to_int16_number(agent: &Agent, number: Number) -> i16 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int16bit be int modulo 2^16.
     // 5. If int16bit ≥ 2^15, return 𝔽(int16bit - 2^16); otherwise return 𝔽(int16bit).
-    number.into_f64(agent).trunc() as i64 as i16
+    number.into_f64_(agent).trunc() as i64 as i16
 }
 
 /// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
@@ -805,14 +795,14 @@ pub(crate) fn to_uint16_number(agent: &Agent, number: Number) -> u16 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int16bit be int modulo 2^16.
     // Return 𝔽(int16bit).
-    number.into_f64(agent).trunc() as i64 as u16
+    number.into_f64_(agent).trunc() as i64 as u16
 }
 
 /// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
@@ -841,14 +831,14 @@ pub(crate) fn to_int8_number(agent: &Agent, number: Number) -> i8 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int8bit be int modulo 2^8.
     // 5. If int8bit ≥ 2^7, return 𝔽(int8bit - 2^8); otherwise return 𝔽(int8bit).
-    number.into_f64(agent).trunc() as i64 as i8
+    number.into_f64_(agent).trunc() as i64 as i8
 }
 
 /// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
@@ -877,14 +867,14 @@ pub(crate) fn to_uint8_number(agent: &Agent, number: Number) -> u8 {
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
-    if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
+    if !number.is_finite_(agent) || number.is_pos_zero_(agent) || number.is_neg_zero_(agent) {
         return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int8bit be int modulo 2^8.
     // 5. Return 𝔽(int8bit).
-    number.into_f64(agent).trunc() as i64 as u8
+    number.into_f64_(agent).trunc() as i64 as u8
 }
 
 /// ### [7.1.12 ToUint8Clamp ( argument )](https://tc39.es/ecma262/#sec-touint8clamp)
@@ -912,12 +902,12 @@ pub(crate) fn to_uint8_clamp_number(agent: &Agent, number: Number) -> u8 {
     }
 
     // 2. If number is NaN, return +0𝔽.
-    if number.is_nan(agent) {
+    if number.is_nan_(agent) {
         return 0;
     }
 
     // 3. Let mv be the extended mathematical value of number.
-    let mv = number.into_f64(agent);
+    let mv = number.into_f64_(agent);
 
     // 4. Let clamped be the result of clamping mv between 0 and 255.
     // 5. Let f be floor(clamped).
@@ -1000,7 +990,7 @@ pub(crate) fn string_to_big_int<'a>(
     // StringIntegerLiteral is either whitespace only or a StrIntegerLiteral surrounded by
     // optional whitespace.
 
-    let literal = argument.to_string_lossy(agent); // Extra line literally just for displaying error
+    let literal = argument.to_string_lossy_(agent); // Extra line literally just for displaying error
 
     // 4. Let mv be the MV of literal.
     // 5. Assert: mv is an integer.
@@ -1065,7 +1055,7 @@ pub(crate) fn to_big_int64_big_int(agent: &Agent, n: BigInt) -> i64 {
     match n {
         BigInt::BigInt(heap_big_int) => {
             // 3. If int64bit ≥ 2**63, return ℤ(int64bit - 2**64); otherwise return ℤ(int64bit).
-            let big_int = &agent[heap_big_int].data;
+            let big_int = heap_big_int.get(agent);
             let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
             let int64bit = if big_int.sign() == Sign::Minus {
                 u64::MAX - int64bit + 1
@@ -1099,7 +1089,7 @@ pub(crate) fn to_big_uint64_big_int(agent: &Agent, n: BigInt) -> u64 {
     match n {
         BigInt::BigInt(heap_big_int) => {
             // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=7d82adfe85f7d0ed44ab37a7b2cdf092
-            let big_int = &agent[heap_big_int].data;
+            let big_int = &heap_big_int.get(agent).data;
             let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
             if big_int.sign() == Sign::Minus {
                 u64::MAX - int64bit + 1
@@ -1116,10 +1106,10 @@ pub(crate) fn to_big_uint64_big_int(agent: &Agent, n: BigInt) -> u64 {
 
 pub(crate) fn try_to_string<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, String<'gc>> {
-    let argument = argument.into_value().unbind().bind(gc);
+    let argument = argument.into().bind(gc);
     if let Ok(argument) = Primitive::try_from(argument) {
         js_result_into_try(to_string_primitive(agent, argument, gc))
     } else {
@@ -1130,10 +1120,10 @@ pub(crate) fn try_to_string<'a, 'gc>(
 /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
 pub(crate) fn to_string<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, String<'gc>> {
-    let argument = argument.into_value().unbind().bind(gc.nogc());
+    let argument = argument.into().bind(gc.nogc());
     // 1. If argument is a String, return argument.
     if let Ok(argument) = Primitive::try_from(argument) {
         to_string_primitive(agent, argument.unbind(), gc.into_nogc())
@@ -1218,7 +1208,7 @@ pub(crate) fn to_object<'a>(
                 object_index: None,
                 data: PrimitiveObjectData::Boolean(bool),
             })
-            .into_object()),
+            .into()),
         // Return a new String object whose [[StringData]] internal slot is set to argument.
         Value::String(str) => Ok(agent
             .heap
@@ -1226,14 +1216,14 @@ pub(crate) fn to_object<'a>(
                 object_index: None,
                 data: PrimitiveObjectData::String(str.unbind()),
             })
-            .into_object()),
+            .into()),
         Value::SmallString(str) => Ok(agent
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::SmallString(str),
             })
-            .into_object()),
+            .into()),
         // Return a new Symbol object whose [[SymbolnData]] internal slot is set to argument.
         Value::Symbol(symbol) => Ok(agent
             .heap
@@ -1241,7 +1231,7 @@ pub(crate) fn to_object<'a>(
                 object_index: None,
                 data: PrimitiveObjectData::Symbol(symbol.unbind()),
             })
-            .into_object()),
+            .into()),
         // Return a new Number object whose [[NumberData]] internal slot is set to argument.
         Value::Number(number) => Ok(agent
             .heap
@@ -1249,21 +1239,21 @@ pub(crate) fn to_object<'a>(
                 object_index: None,
                 data: PrimitiveObjectData::Number(number.unbind()),
             })
-            .into_object()),
+            .into()),
         Value::Integer(integer) => Ok(agent
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::Integer(integer),
             })
-            .into_object()),
+            .into()),
         Value::SmallF64(float) => Ok(agent
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::SmallF64(float),
             })
-            .into_object()),
+            .into()),
         // Return a new BigInt object whose [[BigIntData]] internal slot is set to argument.
         Value::BigInt(bigint) => Ok(agent
             .heap
@@ -1271,14 +1261,14 @@ pub(crate) fn to_object<'a>(
                 object_index: None,
                 data: PrimitiveObjectData::BigInt(bigint.unbind()),
             })
-            .into_object()),
+            .into()),
         Value::SmallBigInt(bigint) => Ok(agent
             .heap
             .create(PrimitiveObjectRecord {
                 object_index: None,
                 data: PrimitiveObjectData::SmallBigInt(bigint),
             })
-            .into_object()),
+            .into()),
         _ => Ok(Object::try_from(argument).unwrap()),
     }
 }
@@ -1286,7 +1276,7 @@ pub(crate) fn to_object<'a>(
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
 pub(crate) fn to_property_key<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Copy + Into<Value<'a>>,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, PropertyKey<'gc>> {
     // Note: Fast path and non-standard special case combined. Usually the
@@ -1324,14 +1314,14 @@ pub(crate) fn to_property_key<'a, 'gc>(
 /// caller should handle the uncommon case.
 pub(crate) fn to_property_key_simple<'a, 'gc>(
     agent: &Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     gc: NoGcScope<'gc, '_>,
 ) -> Option<PropertyKey<'gc>> {
-    let argument = argument.into_value().unbind().bind(gc);
+    let argument = argument.into().bind(gc);
     match argument {
         Value::String(_) | Value::SmallString(_) => {
             let (str, string_key) = match &argument {
-                Value::String(x) => (agent[*x].as_wtf8(), PropertyKey::String(*x)),
+                Value::String(x) => (x.get(agent).as_wtf8(), PropertyKey::String(*x)),
                 Value::SmallString(x) => (x.as_wtf8(), PropertyKey::SmallString(*x)),
                 _ => unreachable!(),
             };
@@ -1367,7 +1357,7 @@ pub(crate) fn to_property_key_simple<'a, 'gc>(
 
 pub(crate) fn to_property_key_complex<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue<'a>,
+    argument: impl Into<Value<'a>>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, PropertyKey<'gc>> {
     // 1. Let key be ? ToPrimitive(argument, hint String).
@@ -1482,10 +1472,10 @@ pub(crate) fn canonical_numeric_index_string<'gc>(
     }
 
     // 2. Let n be ! ToNumber(argument).
-    let n = to_number_primitive(agent, argument.into_primitive(), gc).unwrap();
+    let n = to_number_primitive(agent, argument.into(), gc).unwrap();
 
     // 3. If ! ToString(n) is argument, return n.
-    if to_string_primitive(agent, n.into_primitive(), gc).unwrap() == argument {
+    if to_string_primitive(agent, n.into(), gc).unwrap() == argument {
         return Some(n);
     }
 
@@ -1563,12 +1553,46 @@ pub(crate) fn try_to_index<'a>(
     js_result_into_try(validate_index(agent, integer, gc))
 }
 
+/// [14.5.1.1 ToIntegerIfIntegral ( argument )](https://tc39.es/proposal-temporal/#sec-tointegerifintegral)
+/// The abstract operation ToIntegerIfIntegral takes argument argument
+/// (an ECMAScript language value) and returns either a normal completion containing
+/// an integer or a throw completion.
+/// It converts argument to an integer representing its Number value,
+/// or throws a RangeError when that value is not integral.
+#[cfg(feature = "temporal")]
+pub(crate) fn to_integer_if_integral<'gc>(
+    agent: &mut Agent,
+    argument: Value,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, i128> {
+    let argument = argument.bind(gc.nogc());
+    // 1. Let number be ? ToNumber(argument).
+    let number = to_number(agent, argument.unbind(), gc.reborrow())
+        .unbind()?
+        .bind(gc.nogc());
+    // 2. If number is not an integral Number, throw a RangeError exception.
+    if !number.is_integer(agent) {
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "Number must be integral",
+            gc.into_nogc(),
+        ))
+    } else {
+        // 3. Return ℝ(number).
+        Ok(match number {
+            Number::Number(n) => *n.get(agent) as i128,
+            Number::Integer(n) => n.into_i64() as i128,
+            Number::SmallF64(n) => n.into_f64() as i128,
+        })
+    }
+}
+
 /// Helper function to check if a `char` is trimmable.
 ///
 /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/183e763c32710e4e3ea83ba762cf815b7a89cd1f/core/string/src/lib.rs#L51
 ///
 /// Copyright (c) 2019 Jason Williams
-pub const fn is_trimmable_whitespace(c: char) -> bool {
+pub(crate) const fn is_trimmable_whitespace(c: char) -> bool {
     // The rust implementation of `trim` does not regard the same characters whitespace as ecma standard does
     //
     // Rust uses \p{White_Space} by default, which also includes:

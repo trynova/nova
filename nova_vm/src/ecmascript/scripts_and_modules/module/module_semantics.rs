@@ -4,50 +4,38 @@
 
 //! ### [16.2.1 Module Semantics](https://tc39.es/ecma262/#sec-module-semantics)
 
-use std::{
-    hash::{Hash, Hasher},
-    marker::PhantomData,
-};
+mod abstract_module_records;
+mod cyclic_module_records;
+mod source_text_module_records;
 
-use abstract_module_records::{
-    AbstractModule, AbstractModuleMethods, AbstractModuleSlots, ResolvedBinding,
-};
+pub use abstract_module_records::*;
+pub use cyclic_module_records::*;
+pub use source_text_module_records::*;
+
+use super::continue_dynamic_import;
 use ahash::AHasher;
-use cyclic_module_records::{
-    CyclicModuleRecordStatus, CyclicModuleSlots, GraphLoadingStateRecord, continue_module_loading,
-};
 use hashbrown::{HashTable, hash_table::Entry};
 use oxc_ast::ast;
-use source_text_module_records::SourceTextModule;
+use std::hash::{Hash, Hasher};
 
 use crate::{
     ecmascript::{
-        builtins::module::{Module, module_namespace_create},
-        execution::{Agent, JsResult, Realm},
-        scripts_and_modules::{
-            ScriptOrModule,
-            script::{HostDefined, Script},
-        },
-        types::String,
+        Agent, HostDefined, JsResult, Module, Realm, Script, ScriptOrModule,
+        module_namespace_create, types::String,
     },
-    engine::{
-        context::{Bindable, GcToken, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
+    heap::{
+        ArenaAccess, BaseIndex, CompactionLists, HeapIndexHandle, HeapMarkAndSweep, WorkQueues,
+        arena_vec_access,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
-
-use super::continue_dynamic_import;
-pub mod abstract_module_records;
-pub mod cyclic_module_records;
-pub mod source_text_module_records;
 
 /// ### [16.2.1.3 ModuleRequest Records](https://tc39.es/ecma262/#sec-modulerequest-record)
 ///
 /// A ModuleRequest Record represents the request to import a module with given
 /// import attributes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModuleRequestRecord<'a> {
+pub(crate) struct ModuleRequestRecord<'a> {
     /// ### \[\[Specifier]]
     ///
     /// a String
@@ -74,12 +62,14 @@ impl<'a> ModuleRequestRecord<'a> {
     }
 }
 
+#[doc(hidden)]
 impl AsRef<[ModuleRequestRecord<'static>]> for Agent {
     fn as_ref(&self) -> &[ModuleRequestRecord<'static>] {
         &self.heap.module_request_records
     }
 }
 
+#[doc(hidden)]
 impl AsMut<[ModuleRequestRecord<'static>]> for Agent {
     fn as_mut(&mut self) -> &mut [ModuleRequestRecord<'static>] {
         &mut self.heap.module_request_records
@@ -92,7 +82,9 @@ impl AsMut<[ModuleRequestRecord<'static>]> for Agent {
 /// import attributes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct ModuleRequest<'a>(u32, PhantomData<&'a GcToken>);
+pub struct ModuleRequest<'a>(BaseIndex<'a, ModuleRequestRecord<'static>>);
+bindable_handle!(ModuleRequest);
+arena_vec_access!(ModuleRequest, 'a, ModuleRequestRecord, module_request_records);
 
 impl<'r> ModuleRequest<'r> {
     /// Create a new ModuleRequest from a specifier string and a `with`
@@ -141,7 +133,7 @@ impl<'r> ModuleRequest<'r> {
             attributes,
             hash,
         });
-        Self(index, PhantomData)
+        Self::from_index_u32(index)
     }
 
     /// Create a new ModuleRequest from a specifier String and a list of
@@ -149,15 +141,14 @@ impl<'r> ModuleRequest<'r> {
     pub(super) fn new_dynamic(
         agent: &mut Agent,
         specifier: String,
-        attributes: Vec<ImportAttributeRecord>,
+        attributes: Box<[ImportAttributeRecord]>,
         gc: NoGcScope<'r, '_>,
     ) -> Self {
         let mut state = AHasher::default();
-        let attributes = attributes.into_boxed_slice();
-        specifier.to_string_lossy(agent).hash(&mut state);
+        specifier.to_string_lossy_(agent).hash(&mut state);
         for attribute in attributes.iter() {
-            attribute.key.to_string_lossy(agent).hash(&mut state);
-            attribute.value.to_string_lossy(agent).hash(&mut state);
+            attribute.key.to_string_lossy_(agent).hash(&mut state);
+            attribute.value.to_string_lossy_(agent).hash(&mut state);
         }
         let hash = state.finish();
         let index = agent.heap.module_request_records.len() as u32;
@@ -169,33 +160,33 @@ impl<'r> ModuleRequest<'r> {
             }
             .unbind(),
         );
-        Self(index, PhantomData).bind(gc)
-    }
-
-    pub(crate) fn get_index(self) -> usize {
-        self.0 as usize
-    }
-
-    pub(crate) fn get<'a>(
-        self,
-        agent: &'a [ModuleRequestRecord<'static>],
-    ) -> &'a ModuleRequestRecord<'static> {
-        &agent[self.get_index()]
+        Self::from_index_u32(index).bind(gc)
     }
 
     /// Get the ModuleRequest's \[\[Specifier]] string.
     pub fn specifier(self, agent: &Agent) -> String<'r> {
-        self.get(agent.as_ref()).specifier
+        self.get(agent).specifier
     }
 
+    /// Get the ModuleRequest's \[\[Attributes]] list.
     pub fn attributes(self, agent: &Agent) -> &[ImportAttributeRecord<'r>] {
-        self.get(agent.as_ref()).attributes()
+        self.get(agent).attributes()
+    }
+}
+
+impl HeapIndexHandle for ModuleRequest<'_> {
+    const _DEF: Self = Self(BaseIndex::MAX);
+    #[inline]
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+    #[inline]
+    fn get_index_u32(self) -> u32 {
+        self.0.get_index_u32()
     }
 }
 
 bindable_handle!(ModuleRequestRecord);
-
-bindable_handle!(ModuleRequest);
 
 /// # [LoadedModuleRequest Records](https://tc39.es/ecma262/#table-loadedmodulerequest-fields)
 #[derive(Debug)]
@@ -210,6 +201,16 @@ pub(crate) struct LoadedModuleRequestRecord<'a> {
 }
 
 /// # [ImportAttribute Records](https://tc39.es/ecma262/#table-importattribute-fields)
+///
+/// Import attribute records are used by the ECMAScript module import code to
+/// express import attributes. Each attribute consists of a key and value string
+/// pair.
+///
+/// # Example
+///
+/// ```javascript
+/// import {} from "" with { "key": "value" };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportAttributeRecord<'a> {
     /// ### \[\[Key]]
@@ -217,15 +218,14 @@ pub struct ImportAttributeRecord<'a> {
     /// a String
     ///
     /// The attribute key
-    key: String<'a>,
+    pub(crate) key: String<'a>,
     /// ### \[\[Value]]
     ///
     /// a String
     ///
     /// The attribute value
-    value: String<'a>,
+    pub(crate) value: String<'a>,
 }
-
 bindable_handle!(ImportAttributeRecord);
 
 /// ### \[\[LoadedModules]]
@@ -245,7 +245,7 @@ impl<'a> LoadedModules<'a> {
     /// Get a loaded module for a module request, if present.
     pub(crate) fn get_loaded_module(
         &self,
-        requests: &[ModuleRequestRecord<'static>],
+        requests: &Vec<ModuleRequestRecord<'static>>,
         module_request: ModuleRequest<'a>,
     ) -> Option<AbstractModule<'a>> {
         let hash = module_request.get(requests).hash;
@@ -262,7 +262,7 @@ impl<'a> LoadedModules<'a> {
     /// Add a loaded module for a module request.
     pub(crate) fn insert_loaded_module<'gc>(
         &mut self,
-        requests: &[ModuleRequestRecord<'static>],
+        requests: &Vec<ModuleRequestRecord<'static>>,
         module_request: ModuleRequest<'gc>,
         module: AbstractModule<'gc>,
     ) {
@@ -344,7 +344,7 @@ fn module_requests_equal(left: &ModuleRequestRecord, right: &ModuleRequestRecord
 /// The abstract operation GetImportedModule takes arguments referrer (a Cyclic
 /// Module Record) and request (a ModuleRequest Record) and returns a Module
 /// Record.
-fn get_imported_module<'a>(
+pub(crate) fn get_imported_module<'a>(
     agent: &Agent,
     referrer: SourceTextModule<'a>,
     request: ModuleRequest,
@@ -452,9 +452,9 @@ impl Rootable for InnerReferrer<'_> {
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Script(s) => Err(HeapRootData::Script(s.unbind())),
-            Self::SourceTextModule(m) => Err(HeapRootData::SourceTextModule(m.unbind())),
-            Self::Realm(r) => Err(HeapRootData::Realm(r.unbind())),
+            Self::Script(s) => Err(HeapRootData::from(s)),
+            Self::SourceTextModule(m) => Err(HeapRootData::from(m)),
+            Self::Realm(r) => Err(HeapRootData::from(r)),
         }
     }
 
@@ -535,6 +535,28 @@ pub fn finish_loading_imported_module<'a>(
     // 4. Return unused.
 }
 
+/// ### [16.2.1.12 AllImportAttributesSupported ( attributes )](https://tc39.es/ecma262/#sec-AllImportAttributesSupported)
+///
+/// The abstract operation AllImportAttributesSupported takes argument
+/// _attributes_ (a List of ImportAttribute Records) and returns a Boolean.
+pub(crate) fn all_import_attributes_supported(
+    agent: &Agent,
+    attributes: &[ImportAttributeRecord],
+) -> bool {
+    // 1. Let supported be HostGetSupportedImportAttributes().
+    let supported = agent.host_hooks.get_supported_import_attributes();
+    // 2. For each ImportAttribute Record attribute of attributes, do
+    for attribute in attributes {
+        let key = attribute.key.to_string_lossy_(agent);
+        // a. If supported does not contain attribute.[[Key]], return false.
+        if !supported.contains(&key.as_ref()) {
+            return false;
+        }
+    }
+    // 3. Return true.
+    true
+}
+
 /// ### [16.2.1.13 GetModuleNamespace ( module )](https://tc39.es/ecma262/#sec-getmodulenamespace)
 ///
 /// The abstract operation GetModuleNamespace takes argument module (an
@@ -592,9 +614,7 @@ impl HeapMarkAndSweep for ModuleRequest<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .module_request_records
-            .shift_u32_index(&mut self.0);
+        compactions.module_request_records.shift_index(&mut self.0);
     }
 }
 

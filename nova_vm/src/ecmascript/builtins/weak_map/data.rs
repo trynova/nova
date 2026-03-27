@@ -5,16 +5,13 @@
 use ahash::AHashMap;
 
 use crate::{
-    ecmascript::{
-        execution::WeakKey,
-        types::{OrdinaryObject, Value},
-    },
-    engine::context::bindable_handle,
+    ecmascript::{OrdinaryObject, Value, execution::WeakKey},
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues},
 };
 
 #[derive(Debug, Default)]
-pub struct WeakMapRecord<'a> {
+pub(crate) struct WeakMapRecord<'a> {
     pub(crate) weak_map_data: AHashMap<WeakKey<'a>, Value<'a>>,
     pub(super) object_index: Option<OrdinaryObject<'a>>,
 }

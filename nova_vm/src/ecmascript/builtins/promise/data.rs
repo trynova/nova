@@ -3,22 +3,17 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{
-        builtins::control_abstraction_objects::promise_objects::promise_abstract_operations::{
-            promise_jobs::new_promise_reaction_job, promise_reaction_records::PromiseReaction,
-        },
-        execution::Agent,
-        types::{OrdinaryObject, Value},
-    },
-    engine::context::NoGcScope,
+    ecmascript::{Agent, OrdinaryObject, PromiseReaction, Value, new_promise_reaction_job},
+    engine::{NoGcScope, bindable_handle},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct PromiseHeapData<'a> {
+pub(crate) struct PromiseHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) promise_state: PromiseState<'a>,
 }
+bindable_handle!(PromiseHeapData);
 
 #[derive(Debug, Clone)]
 pub(crate) enum PromiseState<'a> {

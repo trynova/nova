@@ -4,26 +4,14 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{construct, species_constructor},
-            type_conversion::{to_index, to_integer_or_infinity, try_to_index},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinGetter,
-            array_buffer::{AnyArrayBuffer, is_detached_buffer, is_fixed_length_array_buffer},
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, try_result_into_js},
-        },
-        types::{BUILTIN_STRING_MEMORY, IntoObject, IntoValue, PropertyKey, String, Value},
+        Agent, AnyArrayBuffer, ArgumentsList, ArrayBuffer, BUILTIN_STRING_MEMORY, Behaviour,
+        Builtin, BuiltinGetter, ExceptionType, JsResult, PropertyKey, ProtoIntrinsics, Realm,
+        String, Value, builders::OrdinaryObjectBuilder, construct, is_detached_buffer,
+        is_fixed_length_array_buffer, species_constructor, to_index, to_integer_or_infinity,
+        try_result_into_js, try_to_index,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
-    heap::WellKnownSymbolIndexes,
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct ArrayBufferPrototype;
@@ -307,7 +295,7 @@ impl ArrayBufferPrototype {
         // 15. Let ctor be ? SpeciesConstructor(O, %ArrayBuffer%).
         let ctor = species_constructor(
             agent,
-            scoped_o.get(agent).into_object(),
+            scoped_o.get(agent).into(),
             ProtoIntrinsics::ArrayBuffer,
             gc.reborrow(),
         )
@@ -327,7 +315,7 @@ impl ArrayBufferPrototype {
         let gc = gc.into_nogc();
         let new = new.bind(gc);
         // 17. Perform ? RequireInternalSlot(new, [[ArrayBufferData]]).
-        let new = require_internal_slot_array_buffer(agent, new.into_value(), gc)?;
+        let new = require_internal_slot_array_buffer(agent, new.into(), gc)?;
         // 18. If IsSharedArrayBuffer(new) is true, throw a TypeError exception.
         // 19. If IsDetachedBuffer(new) is true, throw a TypeError exception.
         if is_detached_buffer(agent, new) {
@@ -375,7 +363,7 @@ impl ArrayBufferPrototype {
             new.copy_array_buffer_data(agent, o, first, count);
         }
         // 28. Return new.
-        Ok(new.into_value())
+        Ok(new.into())
     }
 
     /// ### [25.1.6.8 ArrayBuffer.prototype.transfer ( [ newLength ] )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.transfer)
@@ -425,8 +413,8 @@ impl ArrayBufferPrototype {
             .with_builtin_function_property::<ArrayBufferPrototypeTransferToFixedLength>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.ArrayBuffer.into_value())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.ArrayBuffer.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

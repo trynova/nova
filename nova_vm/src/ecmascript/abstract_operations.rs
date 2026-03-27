@@ -9,8 +9,14 @@
 //! ECMAScript language. Other, more specialized abstract operations are
 //! defined throughout this specification.
 
-pub(crate) mod keyed_group;
-pub(crate) mod operations_on_iterator_objects;
-pub(crate) mod operations_on_objects;
-pub(crate) mod testing_and_comparison;
-pub(crate) mod type_conversion;
+mod keyed_group;
+mod operations_on_iterator_objects;
+mod operations_on_objects;
+mod testing_and_comparison;
+mod type_conversion;
+
+pub(crate) use keyed_group::*;
+pub(crate) use operations_on_iterator_objects::*;
+pub(crate) use operations_on_objects::*;
+pub(crate) use testing_and_comparison::*;
+pub(crate) use type_conversion::*;

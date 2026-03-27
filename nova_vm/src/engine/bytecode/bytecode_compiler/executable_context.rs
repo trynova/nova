@@ -8,17 +8,14 @@ use oxc_ast::ast::RegExpFlags;
 use wtf8::Wtf8Buf;
 
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::regexp::{RegExp, reg_exp_create_literal};
+use crate::ecmascript::{RegExp, reg_exp_create_literal};
 use crate::{
     ecmascript::{
-        builtins::ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-        execution::Agent,
-        types::{BigInt, Number, PropertyKey, String, Value},
+        Agent, BigInt, Number, ObjectShape, PropertyKey, PropertyLookupCache, String, Value,
     },
     engine::{
-        Executable, ExecutableHeapData, FunctionExpression, Instruction,
+        Bindable, Executable, ExecutableHeapData, FunctionExpression, Instruction, NoGcScope,
         bytecode::executable::ArrowFunctionExpression,
-        context::{Bindable, NoGcScope},
     },
     heap::CreateHeapData,
 };
@@ -31,6 +28,8 @@ use super::{IndexType, JumpIndex};
 pub(super) struct ExecutableContext<'agent, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) gc: NoGcScope<'gc, 'scope>,
+    /// Current depth of the Value stack.
+    current_value_stack_depth: u32,
     /// true if the current last instruction is a terminal instruction and no
     /// jumps point past it.
     current_instruction_pointer_is_unreachable: bool,
@@ -54,6 +53,7 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         Self {
             agent,
             gc,
+            current_value_stack_depth: 0,
             current_instruction_pointer_is_unreachable: false,
             instructions: Vec::new(),
             caches: Vec::new(),
@@ -82,6 +82,23 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         identifier: PropertyKey<'gc>,
     ) -> PropertyLookupCache<'gc> {
         PropertyLookupCache::new(self.agent, identifier)
+    }
+
+    /// Push a Value onto the bytecode VM Stack.
+    pub(super) fn push_stack(&mut self) -> u32 {
+        let curr = self.current_value_stack_depth;
+        self.current_value_stack_depth += 1;
+        curr
+    }
+
+    /// Pop a Value from the bytecode VM Stack.
+    pub(super) fn pop_stack(&mut self) {
+        self.current_value_stack_depth -= 1;
+    }
+
+    #[inline(always)]
+    pub(super) fn stack_depth(&self) -> usize {
+        self.current_value_stack_depth as usize
     }
 
     pub(super) fn create_bigint(&mut self, literal: &str, radix: u32) -> BigInt<'gc> {
@@ -340,6 +357,20 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         self.push_instruction(instruction);
         self.add_index(immediate1);
         self.add_index(immediate2)
+    }
+
+    pub(super) fn add_instruction_with_immediate_and_constant(
+        &mut self,
+        instruction: Instruction,
+        immediate: usize,
+        constant: Value<'gc>,
+    ) {
+        debug_assert_eq!(instruction.argument_count(), 2);
+        debug_assert!(instruction.has_constant_index());
+        self.push_instruction(instruction);
+        self.add_index(immediate);
+        let constant = self.add_constant(constant);
+        self.add_index(constant)
     }
 
     pub(super) fn add_instruction_with_function_expression(

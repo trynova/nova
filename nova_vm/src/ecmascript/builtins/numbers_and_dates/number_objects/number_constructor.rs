@@ -3,32 +3,19 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            testing_and_comparison::is_integral_number, type_conversion::to_numeric_primitive,
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectData},
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Number, Numeric, Object,
-            Primitive, String, Value, bigint::BigIntMathematicalValue,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, BigIntMathematicalValue, Builtin,
+        BuiltinIntrinsicConstructor, Function, JsResult, Number, Numeric, Object, Primitive,
+        PrimitiveObject, PrimitiveObjectData, ProtoIntrinsics, Realm, SmallInteger, String, Value,
+        builders::BuiltinFunctionBuilder, is_integral_number, ordinary_create_from_constructor,
+        to_numeric_primitive,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
-    heap::{CreateHeapData, IntrinsicConstructorIndexes},
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    heap::{ArenaAccessMut, CreateHeapData, IntrinsicConstructorIndexes},
 };
 
 /// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
-pub struct NumberConstructor;
+pub(crate) struct NumberConstructor;
 
 impl Builtin for NumberConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
@@ -118,7 +105,7 @@ impl NumberConstructor {
 
         // 3. If NewTarget is undefined, return n.
         let Some(new_target) = new_target else {
-            return Ok(n.into_value().unbind());
+            return Ok(n.unbind().into());
         };
 
         let n = n.scope(agent, gc.nogc());
@@ -139,13 +126,13 @@ impl NumberConstructor {
         .unwrap();
         let n = n.get(agent).unbind();
         // 5. Set O.[[NumberData]] to n.
-        agent[o].data = match n {
+        o.get_mut(agent).data = match n {
             Number::Number(d) => PrimitiveObjectData::Number(d),
             Number::Integer(d) => PrimitiveObjectData::Integer(d),
             Number::SmallF64(d) => PrimitiveObjectData::SmallF64(d),
         };
         // 6. Return O.
-        Ok(o.unbind().into_value())
+        Ok(o.unbind().into())
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
@@ -165,7 +152,7 @@ impl NumberConstructor {
 
         // 2. If number is not finite, return false.
         // 3. Otherwise, return true.
-        Ok(number.is_finite(agent).into())
+        Ok(number.is_finite_(agent).into())
     }
 
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
@@ -199,7 +186,7 @@ impl NumberConstructor {
 
         // 2. If number is NaN, return true.
         // 3. Otherwise, return false.
-        Ok(number.is_nan(agent).into())
+        Ok(number.is_nan_(agent).into())
     }
 
     /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
@@ -223,8 +210,8 @@ impl NumberConstructor {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, gc: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let number_prototype = intrinsics.number_prototype();
-        let parse_float = intrinsics.parse_float().into_value();
-        let parse_int = intrinsics.parse_int().into_value();
+        let parse_float = intrinsics.parse_float().into();
+        let parse_int = intrinsics.parse_int().into();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<NumberConstructor>(agent, realm)
             .with_property_capacity(15)
@@ -252,7 +239,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.max_safe_integer
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MAX_SAFE_INTEGER.into())
-                    .with_value_readonly(Number::try_from(SmallInteger::MAX).unwrap().into_value())
+                    .with_value_readonly(Number::try_from(SmallInteger::MAX).unwrap().into())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
@@ -263,7 +250,7 @@ impl NumberConstructor {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MAX_VALUE.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, f64::MAX, gc).into_value().unbind()
+                        Number::from_f64(agent, f64::MAX, gc).unbind().into()
                     })
                     .with_configurable(false)
                     .with_enumerable(false)
@@ -274,7 +261,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.min_safe_integer
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MIN_SAFE_INTEGER.into())
-                    .with_value_readonly(Number::try_from(SmallInteger::MIN).unwrap().into_value())
+                    .with_value_readonly(Number::try_from(SmallInteger::MIN).unwrap().into())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
@@ -285,7 +272,7 @@ impl NumberConstructor {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.MIN_VALUE.into())
                     .with_value_creator_readonly(|agent| {
-                        agent.heap.create(f64::MIN_POSITIVE).into_value()
+                        agent.heap.create(f64::MIN_POSITIVE).into()
                     })
                     .with_configurable(false)
                     .with_enumerable(false)
@@ -296,7 +283,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.nan
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.NaN.into())
-                    .with_value_readonly(Number::nan().into_value())
+                    .with_value_readonly(Number::nan().into())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
@@ -306,7 +293,7 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.negative_infinity
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.NEGATIVE_INFINITY.into())
-                    .with_value_readonly(Number::neg_inf().into_value())
+                    .with_value_readonly(Number::neg_inf().into())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
@@ -332,14 +319,14 @@ impl NumberConstructor {
                 // https://tc39.es/ecma262/#sec-number.positive_infinity
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.POSITIVE_INFINITY.into())
-                    .with_value_readonly(Number::pos_inf().into_value())
+                    .with_value_readonly(Number::pos_inf().into())
                     .with_configurable(false)
                     .with_enumerable(false)
                     .build()
             })
             // 21.1.2.15 Number.prototype
             // https://tc39.es/ecma262/#sec-number.prototype
-            .with_prototype_property(number_prototype.into_object())
+            .with_prototype_property(number_prototype.into())
             .build();
     }
 }

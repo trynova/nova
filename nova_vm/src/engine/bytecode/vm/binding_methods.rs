@@ -4,20 +4,13 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{get, try_create_data_property_or_throw},
-        execution::{Agent, JsResult, agent::unwrap_try},
-        types::{IntoValue, Object, PropertyKey, PropertyKeySet, Value},
+        Agent, Environment, JsResult, Object, PropertyKey, PropertyKeySet, Value, array_create,
+        copy_data_properties_into_object, get, initialize_referenced_binding, put_value,
+        resolve_binding, to_object, try_create_data_property_or_throw, unwrap_try,
     },
     engine::{
-        ScopableCollection, Scoped,
-        bytecode::vm::{
-            Environment, Executable, Instruction, Vm, VmIteratorRecord, array_create,
-            copy_data_properties_into_object, initialize_referenced_binding, put_value,
-            resolve_binding, to_object,
-        },
-        context::{Bindable, GcScope},
-        iterator::ActiveIterator,
-        rootable::Scopable,
+        ActiveIterator, Bindable, Executable, GcScope, Instruction, Scopable, ScopableCollection,
+        Scoped, Vm, VmIteratorRecord,
     },
 };
 
@@ -47,6 +40,7 @@ pub(super) fn execute_simple_array_binding<'a>(
                 continue;
             }
             Instruction::BindingPatternBind
+            | Instruction::BindingPatternBindToIndex
             | Instruction::BindingPatternGetValue
             | Instruction::BindingPatternSkip => {
                 let result = with_vm_gc(
@@ -63,12 +57,12 @@ pub(super) fn execute_simple_array_binding<'a>(
                     r.unwrap_or(Value::Undefined)
                 })
             }
-            Instruction::BindingPatternBindRest | Instruction::BindingPatternGetRestValue => {
+            Instruction::BindingPatternBindRest
+            | Instruction::BindingPatternGetRestValue
+            | Instruction::BindingPatternBindRestToIndex => {
                 break_after_bind = true;
                 if iterator_is_done {
-                    Ok(array_create(agent, 0, 0, None, gc.nogc())
-                        .unwrap()
-                        .into_value())
+                    Ok(array_create(agent, 0, 0, None, gc.nogc()).unwrap().into())
                 } else {
                     with_vm_gc(
                         agent,
@@ -97,7 +91,8 @@ pub(super) fn execute_simple_array_binding<'a>(
                             }
                             iterator_is_done = true;
                             // SAFETY: rest is not shared
-                            JsResult::Ok(unsafe { rest.take(agent).into_value() })
+                            let rest: Value = unsafe { rest.take(agent).into() };
+                            JsResult::Ok(rest)
                         },
                         gc.reborrow(),
                     )
@@ -175,6 +170,10 @@ pub(super) fn execute_simple_array_binding<'a>(
                     gc.reborrow(),
                 )
                 .unbind()?;
+            }
+            Instruction::BindingPatternBindToIndex | Instruction::BindingPatternBindRestToIndex => {
+                let stack_slot = instr.get_first_index();
+                vm.stack[stack_slot] = value.unbind();
             }
             Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
                 execute_nested_simple_binding(
@@ -298,6 +297,28 @@ pub(super) fn execute_simple_object_binding<'a>(
                 )
                 .unbind()?;
             }
+            Instruction::BindingPatternBindToIndex => {
+                let value = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| {
+                        let key_value =
+                            executable.fetch_constant(agent, instr.get_second_index(), gc.nogc());
+                        // SAFETY: It should be impossible for binding pattern
+                        // names to be integer strings.
+                        let key_value = unsafe { PropertyKey::from_value_unchecked(key_value) };
+
+                        excluded_names.insert(agent, key_value);
+
+                        get(agent, object.get(agent), key_value.unbind(), gc)
+                    },
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                let stack_slot = instr.get_first_index();
+                vm.stack[stack_slot] = value.unbind();
+            }
             Instruction::BindingPatternGetValueNamed => {
                 let v = with_vm_gc(
                     agent,
@@ -356,17 +377,17 @@ pub(super) fn execute_simple_object_binding<'a>(
                             gc.reborrow(),
                         )
                         .unbind()?
-                        .bind(gc.nogc())
-                        .into_value();
+                        .bind(gc.nogc());
                         // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                         // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                         if environment.is_none() {
-                            put_value(agent, &lhs, rest_obj.unbind(), gc.reborrow()).unbind()?;
+                            put_value(agent, &lhs, rest_obj.unbind().into(), gc.reborrow())
+                                .unbind()?;
                         } else {
                             initialize_referenced_binding(
                                 agent,
                                 lhs,
-                                rest_obj.unbind(),
+                                rest_obj.unbind().into(),
                                 gc.reborrow(),
                             )
                             .unbind()?;
@@ -376,6 +397,28 @@ pub(super) fn execute_simple_object_binding<'a>(
                     gc.reborrow(),
                 )
                 .unbind()?;
+                break;
+            }
+            Instruction::BindingPatternBindRestToIndex => {
+                let rest_obj = with_vm_gc(
+                    agent,
+                    vm,
+                    |agent, gc| {
+                        // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
+                        // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
+                        // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
+                        copy_data_properties_into_object(
+                            agent,
+                            object.get(agent),
+                            excluded_names,
+                            gc,
+                        )
+                    },
+                    gc.reborrow(),
+                )
+                .unbind()?;
+                let stack_slot = instr.get_first_index();
+                vm.stack[stack_slot] = rest_obj.unbind().into();
                 break;
             }
             Instruction::FinishBindingPattern => break,

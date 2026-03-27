@@ -12,16 +12,13 @@
 
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, String, Value},
+        Agent, InternalMethods, InternalSlots, Object, OrdinaryObject, ProtoIntrinsics, String,
+        object_handle,
     },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::{Bindable, NoGcScope, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
@@ -55,9 +52,9 @@ pub(crate) fn create_reg_exp_string_iterator<'gc>(
     })
 }
 
-///### [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
+/// ### [22.2.9 RegExp String Iterator Objects](https://tc39.es/ecma262/#sec-regexp-string-iterator-objects)
 ///
-/// A RegExp String Iterator is an object that represents a specific iteration
+/// A _RegExp String Iterator_ is an object that represents a specific iteration
 /// over some specific String instance object, matching against some specific
 /// RegExp instance object. There is not a named constructor for RegExp String
 /// Iterator objects. Instead, RegExp String Iterator objects are created by
@@ -65,7 +62,8 @@ pub(crate) fn create_reg_exp_string_iterator<'gc>(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct RegExpStringIterator<'a>(BaseIndex<'a, RegExpStringIteratorRecord<'static>>);
-bindable_handle!(RegExpStringIterator);
+object_handle!(RegExpStringIterator);
+arena_vec_access!(RegExpStringIterator, 'a, RegExpStringIteratorRecord, regexp_string_iterators);
 
 impl<'r> RegExpStringIterator<'r> {
     /// \[\[IteratingRegExp]]
@@ -96,65 +94,6 @@ impl<'r> RegExpStringIterator<'r> {
     /// Set \[\[Done]] to true.
     pub(crate) fn set_done(self, agent: &mut Agent) {
         self.get_mut(agent).done = true;
-    }
-
-    pub(crate) const fn _def() -> RegExpStringIterator<'static> {
-        RegExpStringIterator(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    fn get(self, agent: &Agent) -> &RegExpStringIteratorRecord<'r> {
-        agent
-            .heap
-            .regexp_string_iterators
-            .get(self.get_index())
-            .expect("Couldn't find RegExp String Iterator")
-    }
-
-    fn get_mut(self, agent: &mut Agent) -> &mut RegExpStringIteratorRecord<'static> {
-        agent
-            .heap
-            .regexp_string_iterators
-            .get_mut(self.get_index())
-            .expect("Couldn't find RegExp String Iterator")
-    }
-}
-
-impl<'a> From<RegExpStringIterator<'a>> for Object<'a> {
-    fn from(value: RegExpStringIterator) -> Self {
-        Self::RegExpStringIterator(value.unbind())
-    }
-}
-
-impl<'a> From<RegExpStringIterator<'a>> for Value<'a> {
-    fn from(value: RegExpStringIterator<'a>) -> Self {
-        Self::RegExpStringIterator(value)
-    }
-}
-
-impl Rootable for RegExpStringIterator<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::RegExpStringIterator(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::RegExpStringIterator(object) => Some(object),
-            _ => None,
-        }
     }
 }
 

@@ -3,42 +3,21 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator_from_method, if_abrupt_close_iterator,
-                iterator_close_with_error, iterator_step_value,
-            },
-            operations_on_objects::{
-                call_function, construct, create_data_property_or_throw, get, get_method,
-                length_of_array_like, set, throw_not_callable, try_create_data_property_or_throw,
-            },
-            testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
-            type_conversion::{to_object, to_uint32_number},
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array_create, ordinary::get_prototype_from_constructor,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, unwrap_try},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Number, Object,
-            PropertyKey, String, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, IteratorRecord, JsResult, Number,
+        Object, PropertyKey, ProtoIntrinsics, Realm, SmallInteger, String, Value, array_create,
+        builders::BuiltinFunctionBuilder, call_function, construct, create_data_property_or_throw,
+        get, get_iterator_from_method, get_method, get_prototype_from_constructor,
+        if_abrupt_close_iterator, is_array, is_callable, is_constructor, iterator_close_with_error,
+        iterator_step_value, length_of_array_like, same_value_zero, set, throw_not_callable,
+        to_object, to_uint32_number, try_create_data_property_or_throw, unwrap_try,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope, Scopable},
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
-pub struct ArrayConstructor;
+pub(crate) struct ArrayConstructor;
 
 impl Builtin for ArrayConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
@@ -72,8 +51,7 @@ impl Builtin for ArrayGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
 }
 impl BuiltinGetter for ArrayGetSpecies {}
 
@@ -120,7 +98,7 @@ impl ArrayConstructor {
         // 4. If numberOfArgs = 0, then
         if arguments.is_empty() {
             // a. Return ! ArrayCreate(0, proto).
-            Ok(array_create(agent, 0, 0, proto, gc).unwrap().into_value())
+            Ok(array_create(agent, 0, 0, proto, gc).unwrap().into())
         } else if arguments.len() == 1 {
             // 5. Else if numberOfArgs = 1, then
             // a. Let len be values[0].
@@ -169,7 +147,7 @@ impl ArrayConstructor {
             };
 
             // f. Return array.
-            Ok(array.into_value())
+            Ok(array.into())
         } else {
             // 6. Else,
             // a. Assert: numberOfArgs ≥ 2.
@@ -207,7 +185,7 @@ impl ArrayConstructor {
             );
 
             // f. Return array.
-            Ok(array.into_value())
+            Ok(array.into())
         }
     }
 
@@ -250,7 +228,7 @@ impl ArrayConstructor {
         let using_iterator = get_method(
             agent,
             items.unbind(),
-            WellKnownSymbolIndexes::Iterator.into(),
+            WellKnownSymbols::Iterator.into(),
             gc.reborrow(),
         )
         .unbind()?
@@ -271,9 +249,7 @@ impl ArrayConstructor {
             } else {
                 // b. Else,
                 // i. Let A be ! ArrayCreate(0).
-                array_create(agent, 0, 0, None, gc.nogc())
-                    .unwrap()
-                    .into_object()
+                array_create(agent, 0, 0, None, gc.nogc()).unwrap().into()
             };
 
             let a = a.scope(agent, gc.nogc());
@@ -324,7 +300,7 @@ impl ArrayConstructor {
 
                 let sk = SmallInteger::from(k as u32);
                 // 𝔽(k)
-                let fk = Number::from(sk).into_value();
+                let fk = Number::from(sk).into();
 
                 // ii. Let Pk be ! ToString(𝔽(k)).
                 let pk = PropertyKey::from(sk);
@@ -353,7 +329,7 @@ impl ArrayConstructor {
                     .unbind()?;
 
                     // 2. Return A.
-                    return Ok(a.get(agent).into_value());
+                    return Ok(a.get(agent).into());
                 };
 
                 // v. If mapping is true, then
@@ -431,7 +407,7 @@ impl ArrayConstructor {
             array_create(agent, len as usize, len as usize, None, gc.nogc())
                 .unbind()?
                 .bind(gc.nogc())
-                .into_object()
+                .into()
         };
 
         let a = a.scope(agent, gc.nogc());
@@ -443,7 +419,7 @@ impl ArrayConstructor {
         while k < len {
             let sk = SmallInteger::from(k as u32);
             // 𝔽(k)
-            let fk = Number::from(sk).into_value();
+            let fk = Number::from(sk).into();
 
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(sk);
@@ -497,7 +473,7 @@ impl ArrayConstructor {
         .unbind()?;
 
         // 14. Return A.
-        Ok(a.get(agent).into_value())
+        Ok(a.get(agent).into())
     }
 
     /// ### [23.1.2.2 Array.isArray ( arg )](https://tc39.es/ecma262/#sec-array.isarray)
@@ -524,12 +500,7 @@ impl ArrayConstructor {
         // 4. If IsConstructor(C) is true, then
         if let Some(c) = is_constructor(agent, this_value) {
             // a. Let A be ? Construct(C, « lenNumber »).
-            if c != agent
-                .current_realm_record()
-                .intrinsics()
-                .array()
-                .into_function()
-            {
+            if c != agent.current_realm_record().intrinsics().array().into() {
                 return array_of_generic(agent, c.unbind(), arguments.unbind(), gc);
             }
             // We're constructring an array with the default constructor.
@@ -570,7 +541,7 @@ impl ArrayConstructor {
         debug_assert!(a.is_dense(agent) && a.is_simple(agent) && a.is_trivial(agent));
 
         // 9. Return A.
-        Ok(a.into_value())
+        Ok(a.into())
     }
 
     fn get_species<'gc>(
@@ -584,7 +555,7 @@ impl ArrayConstructor {
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let function_prototype = intrinsics.function_prototype().into_object();
+        let function_prototype = intrinsics.function_prototype();
         let array_prototype = intrinsics.array_prototype();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<ArrayConstructor>(agent, realm)
@@ -593,7 +564,7 @@ impl ArrayConstructor {
             .with_builtin_function_property::<ArrayFrom>()
             .with_builtin_function_property::<ArrayIsArray>()
             .with_builtin_function_property::<ArrayOf>()
-            .with_prototype_property(array_prototype.into_object())
+            .with_prototype_property(array_prototype.into())
             .with_builtin_function_getter_property::<ArrayGetSpecies>()
             .build();
     }
@@ -615,7 +586,7 @@ fn array_of_generic<'gc>(
                 agent,
                 |agent, args, mut gc| {
                     // a. Let A be ? Construct(C, « lenNumber »).
-                    let mut len_number = Number::try_from(len_number).unwrap().into_value();
+                    let mut len_number = Number::try_from(len_number).unwrap().into();
                     let a = construct(
                         agent,
                         c.unbind(),
@@ -659,11 +630,11 @@ fn array_of_generic<'gc>(
         agent,
         a.unbind(),
         PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-        Number::try_from(len_number).unwrap().into_value(),
+        Number::try_from(len_number).unwrap().into(),
         true,
         gc.reborrow(),
     )
     .unbind()?;
 
-    Ok(scoped_a.get(agent).into_value().unbind())
+    Ok(scoped_a.get(agent).unbind().into())
 }

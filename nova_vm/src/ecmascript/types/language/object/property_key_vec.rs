@@ -5,12 +5,8 @@
 use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
-    ecmascript::execution::Agent,
-    engine::{
-        ScopableCollection, ScopedCollection,
-        context::{Bindable, NoGcScope},
-        rootable::HeapRootCollectionData,
-    },
+    ecmascript::Agent,
+    engine::{Bindable, HeapRootCollection, NoGcScope, ScopableCollection, ScopedCollection},
 };
 
 use super::PropertyKey;
@@ -31,7 +27,7 @@ impl ScopedCollection<'_, Vec<PropertyKey<'static>>> {
         let Some(stack_slot) = stack_ref_collections.get(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::PropertyKeyVec(property_key_vec) = stack_slot else {
+        let HeapRootCollection::PropertyKeyVec(property_key_vec) = stack_slot else {
             unreachable!()
         };
         f(property_key_vec)
@@ -46,7 +42,7 @@ impl ScopedCollection<'_, Vec<PropertyKey<'static>>> {
         let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::PropertyKeyVec(property_key_vec) = stack_slot else {
+        let HeapRootCollection::PropertyKeyVec(property_key_vec) = stack_slot else {
             unreachable!()
         };
         f(property_key_vec)
@@ -73,10 +69,12 @@ impl ScopedCollection<'_, Vec<PropertyKey<'static>>> {
         })
     }
 
+    /// Returns `true` if the scoped vec is empty.
     pub fn is_empty(&self, agent: &Agent) -> bool {
         self.with_cb(agent, |property_key_vec| property_key_vec.is_empty())
     }
 
+    /// Returns the length of the scoped vec.
     pub fn len(&self, agent: &Agent) -> usize {
         self.with_cb(agent, |property_key_vec| property_key_vec.len())
     }
@@ -98,19 +96,20 @@ unsafe impl<'scope> Bindable for ScopedCollection<'scope, Vec<PropertyKey<'stati
 }
 
 #[repr(transparent)]
-pub struct ScopedPropertyKeysIterator<'a> {
+pub(crate) struct ScopedPropertyKeysIterator<'a> {
     slice: NonNull<[PropertyKey<'static>]>,
     collection: PhantomData<&'a mut ScopedCollection<'a, Vec<PropertyKey<'static>>>>,
 }
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
-pub struct ScopedPropertyKey<'a> {
+pub(crate) struct ScopedPropertyKey<'a> {
     key: NonNull<PropertyKey<'static>>,
     collection: PhantomData<&'a mut ScopedCollection<'a, Vec<PropertyKey<'static>>>>,
 }
 
 impl ScopedPropertyKey<'_> {
+    /// Get the referenced PropertyKey.
     pub fn get<'a>(self, gc: NoGcScope<'a, '_>) -> PropertyKey<'a> {
         // SAFETY: We retain exclusive access to ScopedCollection, meaning that
         // no one else can push into the vector while we are iterating over it.

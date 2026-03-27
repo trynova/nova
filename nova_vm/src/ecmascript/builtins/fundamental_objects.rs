@@ -2,8 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod boolean_objects;
-pub(crate) mod error_objects;
-pub(crate) mod function_objects;
-pub(crate) mod object_objects;
-pub(crate) mod symbol_objects;
+mod boolean_objects;
+mod error_objects;
+mod function_objects;
+mod object_objects;
+mod symbol_objects;
+
+pub(crate) use boolean_objects::*;
+pub(crate) use error_objects::*;
+pub(crate) use function_objects::*;
+pub(crate) use object_objects::*;
+pub(crate) use symbol_objects::*;

@@ -5,56 +5,33 @@
 use std::{
     hint::assert_unchecked,
     ops::ControlFlow,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering as StdOrdering},
+    },
     thread::{self, JoinHandle},
     time::Duration,
 };
 
 use ecmascript_atomics::Ordering;
-use ecmascript_futex::{ECMAScriptAtomicWait, FutexError};
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{
-            number_convert_to_integer_or_infinity, to_big_int, to_big_int64, to_big_int64_big_int,
-            to_index, to_int32, to_int32_number, to_integer_number_or_infinity,
-            to_integer_or_infinity, to_number, try_to_index, validate_index,
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            array_buffer::{
-                AnyArrayBuffer, compare_exchange_in_buffer, get_modify_set_value_in_buffer,
-                get_value_from_buffer, set_value_in_buffer,
-            },
-            indexed_collections::typed_array_objects::abstract_operations::{
-                TypedArrayAbstractOperations, TypedArrayWithBufferWitnessRecords,
-                make_typed_array_with_buffer_witness_record, validate_typed_array,
-            },
-            promise::Promise,
-            promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
-            shared_array_buffer::SharedArrayBuffer,
-            typed_array::{AnyTypedArray, SharedTypedArray, for_any_typed_array},
-        },
-        execution::{
-            Agent, JsResult, Realm,
-            agent::{
-                ExceptionType, InnerJob, Job, TryError, TryResult, try_result_into_js, unwrap_try,
-            },
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoValue, Number, Numeric,
-            OrdinaryObject, SharedDataBlock, String, Value,
-        },
+        Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour,
+        BigInt, Builtin, ExceptionType, InnerJob, Job, JsResult, Number, Numeric, OrdinaryObject,
+        Promise, PromiseCapability, Realm, SharedArrayBuffer, SharedDataBlock, SharedTypedArray,
+        String, TryError, TryResult, TypedArrayAbstractOperations,
+        TypedArrayWithBufferWitnessRecords, Value, WaitResult, WaiterRecord,
+        builders::OrdinaryObjectBuilder, compare_exchange_in_buffer, for_any_typed_array,
+        get_modify_set_value_in_buffer, get_value_from_buffer,
+        make_typed_array_with_buffer_witness_record, number_convert_to_integer_or_infinity,
+        set_value_in_buffer, to_big_int, to_big_int64, to_big_int64_big_int, to_index, to_int32,
+        to_int32_number, to_integer_number_or_infinity, to_integer_or_infinity, to_number,
+        try_result_into_js, try_to_index, unwrap_try, validate_index, validate_typed_array,
     },
-    engine::{
-        Global,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
-    heap::{ObjectEntry, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
+    heap::{ObjectEntry, WellKnownSymbols},
 };
-
 pub(crate) struct AtomicsObject;
 
 struct AtomicsObjectAdd;
@@ -189,7 +166,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     fn and<'gc>(
@@ -205,7 +182,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.6 Atomics.compareExchange ( typedArray, index, expectedValue, replacementValue )](https://tc39.es/ecma262/#sec-atomics.compareexchange)
@@ -234,20 +211,18 @@ impl AtomicsObject {
                     // a. Let expected be ? ToBigInt(expectedValue).
                     // b. Let replacement be ? ToBigInt(replacementValue).
                     (
-                        BigInt::try_from(expected_value).map(|value| value.into_numeric()),
-                        BigInt::try_from(replacement_value).map(|value| value.into_numeric()),
+                        BigInt::try_from(expected_value).map(|value| value.into()),
+                        BigInt::try_from(replacement_value).map(|value| value.into()),
                     )
                 } else {
                     // a. Let expected be 𝔽(? ToIntegerOrInfinity(expectedValue)).
                     // b. Let replacement be 𝔽(? ToIntegerOrInfinity(replacementValue)).
                     (
                         Number::try_from(expected_value).map(|value| {
-                            number_convert_to_integer_or_infinity(agent, value, gc.nogc())
-                                .into_numeric()
+                            number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into()
                         }),
                         Number::try_from(replacement_value).map(|value| {
-                            number_convert_to_integer_or_infinity(agent, value, gc.nogc())
-                                .into_numeric()
+                            number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into()
                         }),
                     )
                 },
@@ -301,7 +276,7 @@ impl AtomicsObject {
                     replacement,
                     gc,
                 )
-                .into_value()
+                .into()
             },
             ElementType
         ))
@@ -320,7 +295,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.8 Atomics.isLockFree ( size )](https://tc39.es/ecma262/#sec-atomics.islockfree)
@@ -467,7 +442,7 @@ impl AtomicsObject {
             },
             ElementType
         )
-        .into_value())
+        .into())
     }
 
     fn or<'gc>(
@@ -483,7 +458,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.11 Atomics.store ( typedArray, index, value )](https://tc39.es/ecma262/#sec-atomics.store)
@@ -527,7 +502,7 @@ impl AtomicsObject {
             ElementType
         );
         // 8. Return v.
-        Ok(v.into_value())
+        Ok(v.into())
     }
 
     fn sub<'gc>(
@@ -543,7 +518,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [25.4.13 Atomics.wait ( typedArray, index, value, timeout )](https://tc39.es/ecma262/#sec-atomics.wait)
@@ -693,39 +668,37 @@ impl AtomicsObject {
         };
         // 6. Let block be buffer.[[ArrayBufferData]].
         // 8. Let WL be GetWaiterList(block, byteIndexInBuffer).
-        let is_big_int_64_array = matches!(typed_array, AnyTypedArray::SharedBigInt64Array(_));
-        let slot = buffer.as_slice(agent).slice_from(byte_index_in_buffer);
-        let n = if is_big_int_64_array {
-            // SAFETY: offset was checked.
-            let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-            if c == usize::MAX {
-                // Force the notify count down into a reasonable range: the
-                // ecmascript_futex may return usize::MAX if the OS doesn't
-                // give us a count number.
-                slot.notify_all().min(i32::MAX as usize)
-            } else {
-                slot.notify_many(c)
-            }
-        } else {
-            // SAFETY: offset was checked.
-            let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-            if c == usize::MAX {
-                // Force the notify count down into a reasonable range: the
-                // ecmascript_futex may return usize::MAX if the OS doesn't
-                // give us a count number.
-                slot.notify_all().min(i32::MAX as usize)
-            } else {
-                slot.notify_many(c)
-            }
-        };
+        let data_block = buffer.get_data_block(agent);
         // 9. Perform EnterCriticalSection(WL).
+        // SAFETY: buffer is a valid SharedArrayBuffer and cannot be detached. A 0-sized SAB has a
+        // dangling data block with no backing allocation, but `get_waiters` returns `None` in that case.
+        let mut n = 0;
+        let Some(waiters) = (unsafe { data_block.get_waiters() }) else {
+            return Ok(0.into());
+        };
+
+        let mut guard = waiters.lock().unwrap();
         // 10. Let S be RemoveWaiters(WL, c).
+        let Some(list) = guard.get_list_mut(byte_index_in_buffer) else {
+            return Ok(0.into());
+        };
+
         // 11. For each element W of S, do
-        //         a. Perform NotifyWaiter(WL, W).
+        while n < c {
+            let Some(w) = list.pop() else {
+                break;
+            };
+            // a. Perform NotifyWaiter(WL, W).
+            w.notify_waiters();
+            n += 1;
+        }
+
         // 12. Perform LeaveCriticalSection(WL).
+        drop(guard);
+
         // 13. Let n be the number of elements in S.
         // 14. Return 𝔽(n).
-        Ok(Number::from_usize(agent, n, gc).into_value())
+        Ok(Number::from_usize(agent, n, gc).into())
     }
 
     fn xor<'gc>(
@@ -741,7 +714,7 @@ impl AtomicsObject {
             arguments.get(2),
             gc,
         )
-        .map(|v| v.into_value())
+        .map(|v| v.into())
     }
 
     /// ### [1 Atomics.pause ( [ N ] )](https://tc39.es/proposal-atomics-microwait/#Atomics.pause)
@@ -839,7 +812,7 @@ impl AtomicsObject {
             .with_builtin_function_property::<AtomicsObjectXor>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
                     .with_value_readonly(BUILTIN_STRING_MEMORY.Atomics.into())
                     .with_enumerable(false)
                     .with_configurable(true)
@@ -1130,10 +1103,10 @@ fn handle_typed_array_index_value<'gc>(
         if let (Some(byte_index_in_buffer), Ok(value)) = (
             byte_index_in_buffer,
             if ta_record.object.is_bigint() {
-                BigInt::try_from(value).map(|value| value.into_numeric())
+                BigInt::try_from(value).map(|value| value.into())
             } else {
                 Number::try_from(value).map(|value| {
-                    number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into_numeric()
+                    number_convert_to_integer_or_infinity(agent, value, gc.nogc()).into()
                 })
             },
         ) {
@@ -1181,18 +1154,18 @@ fn handle_typed_array_index_value_slow<'gc>(
     let value = unsafe { value.take(agent) }.bind(gc.nogc());
 
     // 2. If typedArray.[[ContentType]] is bigint,
-    let v = if is_bigint {
+    let v: Numeric = if is_bigint {
         // let v be ? ToBigInt(value).
         to_big_int(agent, value.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
-            .into_numeric()
+            .into()
     } else {
         // 3. Otherwise, let v be 𝔽(? ToIntegerOrInfinity(value)).
         to_integer_number_or_infinity(agent, value.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc())
-            .into_numeric()
+            .into()
     };
     let v = v.unbind();
     let gc = gc.into_nogc();
@@ -1225,7 +1198,7 @@ fn handle_typed_array_index_two_values_slow<'gc>(
             .bind(gc.nogc());
 
     // 4. If typedArray.[[ContentType]] is bigint, then
-    let (expected, replacement) = if is_bigint {
+    let (expected, replacement): (Numeric, Numeric) = if is_bigint {
         // a. Let expected be ? ToBigInt(expectedValue).
         let expected = to_big_int(agent, expected_value.get(agent), gc.reborrow())
             .unbind()?
@@ -1242,10 +1215,8 @@ fn handle_typed_array_index_two_values_slow<'gc>(
         .unbind()?
         .bind(gc.nogc());
         (
-            unsafe { expected.take(agent) }
-                .bind(gc.nogc())
-                .into_numeric(),
-            replacement.into_numeric(),
+            unsafe { expected.take(agent) }.bind(gc.nogc()).into(),
+            replacement.into(),
         )
     } else {
         // 5. Else,
@@ -1266,10 +1237,8 @@ fn handle_typed_array_index_two_values_slow<'gc>(
         .unbind()?
         .bind(gc.nogc());
         (
-            unsafe { expected.take(agent) }
-                .bind(gc.nogc())
-                .into_numeric(),
-            replacement.into_numeric(),
+            unsafe { expected.take(agent) }.bind(gc.nogc()).into(),
+            replacement.into(),
         )
     };
     let expected = expected.unbind();
@@ -1485,9 +1454,9 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
         // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "not-equal").
         let result_object =
-            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.not_equal.into_value());
+            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.not_equal.into());
         // e. Return resultObject.
-        return result_object.into_value();
+        return result_object.into();
     }
     // 21. If t = 0 and mode is async, then
     if t == 0 && IS_ASYNC {
@@ -1498,9 +1467,9 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
         // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "timed-out").
         let result_object =
-            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.timed_out.into_value());
+            create_wait_result_object(agent, false, BUILTIN_STRING_MEMORY.timed_out.into());
         // e. Return resultObject.
-        return result_object.into_value();
+        return result_object.into();
     }
     // 22. Let thisAgent be AgentSignifier().
     // 23. Let now be the time value (UTC) identifying the current time.
@@ -1517,37 +1486,47 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     // 28. Perform AddWaiter(WL, waiterRecord).
     // 29. If mode is sync, then
     if !IS_ASYNC {
-        // a. Perform SuspendThisAgent(WL, waiterRecord).
-        let result = if IS_I64 {
-            let v = v as u64;
-            // SAFETY: buffer is still live and index was checked.
+        let data_block = buffer.get_data_block(agent);
+        // SAFETY: buffer is a valid SharedArrayBuffer and cannot be detached. A 0-sized SAB would
+        // have a dangling data block, but Atomics.wait requires `byteIndex` to be within bounds,
+        // so a 0-sized SAB would have been rejected earlier with a RangeError.
+        let waiters = unsafe { data_block.get_or_init_waiters() };
+        let waiter_record = WaiterRecord::new_shared();
+        let mut guard = waiters.lock().unwrap();
+
+        // Re-read value under critical section to avoid TOCTOU race.
+        let slot = data_block.as_racy_slice().slice_from(byte_index_in_buffer);
+        let v_changed = if IS_I64 {
             let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-            if t == u64::MAX {
-                slot.wait(v)
-            } else {
-                slot.wait_timeout(v, Duration::from_millis(t))
-            }
+            v as u64 != slot.load(Ordering::SeqCst)
         } else {
-            let v = v as u32;
-            // SAFETY: buffer is still live and index was checked.
             let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-            if t == u64::MAX {
-                slot.wait(v)
-            } else {
-                slot.wait_timeout(v, Duration::from_millis(t))
-            }
+            v as i32 as u32 != slot.load(Ordering::SeqCst)
         };
+        if v_changed {
+            return BUILTIN_STRING_MEMORY.not_equal.into();
+        }
+
+        // a. Perform SuspendThisAgent(WL, waiterRecord).
+        guard.push_to_list(byte_index_in_buffer, waiter_record.clone());
+
+        if t == u64::MAX {
+            waiter_record.wait(guard);
+        } else {
+            let dur = Duration::from_millis(t);
+            let (new_guard, timeout) = waiter_record.wait_timeout(guard, dur);
+            guard = new_guard;
+            if timeout.timed_out() {
+                guard.remove_from_list(byte_index_in_buffer, waiter_record);
+
+                // 31. Perform LeaveCriticalSection(WL).
+                // 32. If mode is sync, return waiterRecord.[[Result]].
+                return BUILTIN_STRING_MEMORY.timed_out.into();
+            }
+        }
         // 31. Perform LeaveCriticalSection(WL).
         // 32. If mode is sync, return waiterRecord.[[Result]].
-
-        match result {
-            Ok(_) => BUILTIN_STRING_MEMORY.ok.into_value(),
-            Err(err) => match err {
-                FutexError::Timeout => BUILTIN_STRING_MEMORY.timed_out.into_value(),
-                FutexError::NotEqual => BUILTIN_STRING_MEMORY.not_equal.into_value(),
-                FutexError::Unknown => panic!(),
-            },
-        }
+        BUILTIN_STRING_MEMORY.ok.into()
     } else {
         let promise_capability = PromiseCapability::new(agent, gc);
         let promise = Global::new(agent, promise_capability.promise.unbind());
@@ -1567,9 +1546,9 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // 33. Perform ! CreateDataPropertyOrThrow(resultObject, "async", true).
         // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", promiseCapability.[[Promise]]).
         let result_object =
-            create_wait_result_object(agent, true, promise_capability.promise().into_value());
+            create_wait_result_object(agent, true, promise_capability.promise().into());
         // 35. Return resultObject.
-        result_object.into_value()
+        result_object.into()
     }
 }
 
@@ -1614,15 +1593,15 @@ fn do_wait_slow<'gc>(
     let gc = gc.into_nogc();
     let q = q.bind(gc);
     // 9. If q is either NaN or +∞𝔽,
-    let t = if q.is_nan(agent) || q.is_pos_infinity(agent) {
+    let t = if q.is_nan_(agent) || q.is_pos_infinity_(agent) {
         // let t be +∞;
         u64::MAX
-    } else if q.is_neg_infinity(agent) {
+    } else if q.is_neg_infinity_(agent) {
         // else if q is -∞𝔽, let t be 0;
         0
     } else {
         // else let t be max(ℝ(q), 0).
-        q.into_i64(agent).max(0) as u64
+        q.into_i64_(agent).max(0) as u64
     };
     Ok((unsafe { scoped_typed_array.take(agent) }.bind(gc), i, v, t))
 }
@@ -1639,14 +1618,11 @@ fn create_wait_result_object<'gc>(
                 .current_realm_record()
                 .intrinsics()
                 .object_prototype()
-                .into_object(),
+                .into(),
         ),
         &[
             // 1. Perform ! CreateDataPropertyOrThrow(resultObject, "async", isAsync).
-            ObjectEntry::new_data_entry(
-                BUILTIN_STRING_MEMORY.r#async.into(),
-                is_async.into_value(),
-            ),
+            ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.r#async.into(), is_async.into()),
             // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", value).
             ObjectEntry::new_data_entry(BUILTIN_STRING_MEMORY.value.into(), value),
         ],
@@ -1657,7 +1633,7 @@ fn create_wait_result_object<'gc>(
 #[derive(Debug)]
 struct WaitAsyncJobInner {
     promise_to_resolve: Global<Promise<'static>>,
-    join_handle: JoinHandle<Result<(), FutexError>>,
+    join_handle: JoinHandle<WaitResult>,
     _has_timeout: bool,
 }
 
@@ -1674,6 +1650,11 @@ impl WaitAsyncJob {
         self.0._has_timeout
     }
 
+    // NOTE: The reason for using `GcScope` here even though we could've gotten
+    // away with `NoGcScope` is that this is essentially a trait impl method,
+    // but currently without the trait. The job trait will be added eventually
+    // and we can get rid of this lint exception.
+    #[allow(unknown_lints, can_use_no_gc_scope)]
     pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope) -> JsResult<'gc, ()> {
         let gc = gc.into_nogc();
         let promise = self.0.promise_to_resolve.take(agent).bind(gc);
@@ -1691,18 +1672,8 @@ impl WaitAsyncJob {
         // c. Perform LeaveCriticalSection(WL).
         let promise_capability = PromiseCapability::from_promise(promise, true);
         let result = match result {
-            Ok(_) => BUILTIN_STRING_MEMORY.ok.into_value(),
-            Err(FutexError::NotEqual) => BUILTIN_STRING_MEMORY.ok.into_value(),
-            Err(FutexError::Timeout) => BUILTIN_STRING_MEMORY.timed_out.into_value(),
-            Err(FutexError::Unknown) => {
-                let error = agent.throw_exception_with_static_message(
-                    ExceptionType::Error,
-                    "unknown error occurred",
-                    gc,
-                );
-                promise_capability.reject(agent, error.value(), gc);
-                return Ok(());
-            }
+            WaitResult::Ok | WaitResult::NotEqual => BUILTIN_STRING_MEMORY.ok.into(),
+            WaitResult::TimedOut => BUILTIN_STRING_MEMORY.timed_out.into(),
         };
         unwrap_try(promise_capability.try_resolve(agent, result, gc));
         // d. Return unused.
@@ -1730,38 +1701,55 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     let signal = Arc::new(AtomicBool::new(false));
     let s = signal.clone();
     let handle = thread::spawn(move || {
+        // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
+        let waiters = unsafe { buffer.get_or_init_waiters() };
+        let waiter_record = WaiterRecord::new_shared();
+        let mut guard = waiters.lock().unwrap();
+
+        // Re-check the value under the critical section.
         let slot = buffer.as_racy_slice().slice_from(byte_index_in_buffer);
-        if IS_I64 {
-            let v = v as u64;
-            // SAFETY: buffer is still live and index was checked.
+        let v_not_equal = if IS_I64 {
             let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-            s.store(true, std::sync::atomic::Ordering::Release);
-            if t == u64::MAX {
-                slot.wait(v)
-            } else {
-                slot.wait_timeout(v, Duration::from_millis(t))
-            }
+            v as u64 != slot.load(Ordering::SeqCst)
         } else {
-            let v = v as i32 as u32;
-            // SAFETY: buffer is still live and index was checked.
             let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-            s.store(true, std::sync::atomic::Ordering::Release);
-            if t == u64::MAX {
-                slot.wait(v)
-            } else {
-                slot.wait_timeout(v, Duration::from_millis(t))
+            v as i32 as u32 != slot.load(Ordering::SeqCst)
+        };
+
+        // Signal the main thread that we have the lock and are about to sleep.
+        s.store(true, StdOrdering::Release);
+
+        if v_not_equal {
+            return WaitResult::NotEqual;
+        }
+
+        guard.push_to_list(byte_index_in_buffer, waiter_record.clone());
+
+        if t == u64::MAX {
+            waiter_record.wait(guard);
+        } else {
+            let dur = Duration::from_millis(t);
+            let (new_guard, timeout) = waiter_record.wait_timeout(guard, dur);
+            guard = new_guard;
+            if timeout.timed_out() {
+                guard.remove_from_list(byte_index_in_buffer, waiter_record);
+
+                // 31. Perform LeaveCriticalSection(WL).
+                // 32. If mode is sync, return waiterRecord.[[Result]].
+                return WaitResult::TimedOut;
             }
         }
+        WaitResult::Ok
     });
     let wait_async_job = Job {
-        realm: Some(agent.current_realm(gc).unbind()),
+        realm: Some(Global::new(agent, agent.current_realm(gc).unbind())),
         inner: InnerJob::WaitAsync(WaitAsyncJob(Box::new(WaitAsyncJobInner {
             promise_to_resolve: promise,
             join_handle: handle,
             _has_timeout: t != u64::MAX,
         }))),
     };
-    while !signal.load(std::sync::atomic::Ordering::Acquire) {
+    while !signal.load(StdOrdering::Acquire) {
         // Wait until the thread has started up and is about to go to sleep.
     }
     // 2. Let now be the time value (UTC) identifying the current time.

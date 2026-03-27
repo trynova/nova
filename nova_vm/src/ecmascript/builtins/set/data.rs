@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::types::{OrdinaryObject, Value},
-    engine::context::bindable_handle,
+    ecmascript::{OrdinaryObject, Value},
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use ahash::AHasher;
@@ -17,7 +17,7 @@ use hashbrown::HashTable;
 use soavec_derive::SoAble;
 
 #[derive(Debug, Default, SoAble)]
-pub struct SetHeapData<'a> {
+pub(crate) struct SetHeapData<'a> {
     pub(crate) set_data: RefCell<HashTable<u32>>,
     pub(crate) values: Vec<Option<Value<'a>>>,
     pub(crate) object_index: Option<OrdinaryObject<'a>>,

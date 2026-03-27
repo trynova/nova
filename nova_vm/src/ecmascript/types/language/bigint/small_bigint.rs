@@ -2,13 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::SmallInteger;
+use crate::ecmascript::{SmallInteger, numeric_value};
 
-/// 56-bit signed integer.
+/// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
+///
+/// Primitive BigInt value allocated on the stack.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SmallBigInt {
-    pub(super) data: [u8; 7],
+    pub(crate) data: [u8; 7],
 }
+numeric_value!(SmallBigInt);
 
 impl core::fmt::Debug for SmallBigInt {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -23,10 +26,12 @@ impl core::hash::Hash for SmallBigInt {
 }
 
 impl SmallBigInt {
+    /// Minimum value that can be represented as a SmallBigInt.
     pub const MIN: i64 = -(2i64.pow(55));
+    /// Maximum value that can be represented as a SmallBigInt
     pub const MAX: i64 = 2i64.pow(55) - 1;
 
-    // Returns true if SmallBigInt equals zero.
+    /// Returns true if SmallBigInt equals zero.
     pub const fn is_zero(self) -> bool {
         let Self {
             data: [a, b, c, d, e, f, g],
@@ -34,6 +39,7 @@ impl SmallBigInt {
         a == 0 && b == 0 && c == 0 && d == 0 && e == 0 && f == 0 && g == 0
     }
 
+    /// Returns the contained value as an i64.
     #[inline]
     pub const fn into_i64(self) -> i64 {
         let SmallBigInt { data } = self;
@@ -54,6 +60,7 @@ impl SmallBigInt {
         }
     }
 
+    /// Returns the `0n` value.
     pub const fn zero() -> SmallBigInt {
         Self {
             data: [0, 0, 0, 0, 0, 0, 0],
@@ -65,7 +72,7 @@ impl SmallBigInt {
     /// ## Safety
     ///
     /// If the value is outside the SmallBigInt range, data is lost.
-    pub unsafe fn from_i64_unchecked(value: i64) -> SmallBigInt {
+    pub(crate) unsafe fn from_i64_unchecked(value: i64) -> SmallBigInt {
         debug_assert!((Self::MIN..=Self::MAX).contains(&value));
         let bytes = i64::to_ne_bytes(value);
 

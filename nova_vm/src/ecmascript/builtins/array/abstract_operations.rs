@@ -6,29 +6,13 @@ use std::collections::{TryReserveError, hash_map::Entry};
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{construct, get, get_function_realm},
-            testing_and_comparison::{is_array, is_constructor, same_value},
-            type_conversion::{to_number, to_uint32, to_uint32_number},
-        },
-        builtins::{
-            ArgumentsList,
-            array::{Array, ArrayHeapData},
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, IntoObject, Number, Object, OrdinaryObject, PropertyDescriptor,
-            Value,
-        },
+        Agent, ArgumentsList, Array, ArrayHeapData, BUILTIN_STRING_MEMORY, ExceptionType, JsResult,
+        Number, Object, OrdinaryObject, PropertyDescriptor, TryError, TryResult, Value, construct,
+        get, get_function_realm, is_array, is_constructor, same_value, to_number, to_uint32,
+        to_uint32_number,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
-    heap::{CreateHeapData, Heap, WellKnownSymbolIndexes, element_array::ElementStorageMut},
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    heap::{CreateHeapData, ElementStorageMut, Heap, WellKnownSymbols},
 };
 
 /// ### [10.4.2.2 ArrayCreate ( length \[ , proto \] )](https://tc39.es/ecma262/#sec-arraycreate)
@@ -59,7 +43,7 @@ pub(crate) fn array_create<'a>(
                 .current_realm_record()
                 .intrinsics()
                 .array_prototype()
-                .into_object()
+                .into()
         {
             None
         } else {
@@ -119,7 +103,7 @@ pub(crate) fn array_species_create<'a>(
     // 2. If isArray is false, return ? ArrayCreate(length).
     if !original_is_array {
         let new_array = array_create(agent, length, length, None, gc.into_nogc())?;
-        return Ok(new_array.into_object());
+        return Ok(new_array.into());
     }
     // 3. Let C be ? Get(originalArray, "constructor").
     let mut c = get(
@@ -156,7 +140,7 @@ pub(crate) fn array_species_create<'a>(
         c = get(
             agent,
             c_obj.unbind(),
-            WellKnownSymbolIndexes::Species.into(),
+            WellKnownSymbols::Species.into(),
             gc.reborrow(),
         )
         .unbind()?
@@ -169,7 +153,7 @@ pub(crate) fn array_species_create<'a>(
     // 6. If C is undefined, return ? ArrayCreate(length).
     if c.is_undefined() {
         let new_array = array_create(agent, length, length, None, gc.into_nogc())?;
-        return Ok(new_array.into_object());
+        return Ok(new_array.into());
     }
     // 7. If IsConstructor(C) is false, throw a TypeError exception.
     let Some(c) = is_constructor(agent, c) else {
@@ -228,7 +212,7 @@ pub(crate) fn array_set_length<'a>(
     .unbind()?
     .bind(gc.nogc());
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
-    if !Number::same_value_zero(agent, number_len, new_len.into()) {
+    if !Number::same_value_zero_(agent, number_len, new_len.into()) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "invalid array length",
@@ -269,7 +253,7 @@ pub(crate) fn array_try_set_length<'gc>(
     };
     let new_len = to_uint32_number(agent, number_len);
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
-    if !Number::same_value_zero(agent, number_len, new_len.into()) {
+    if !Number::same_value_zero_(agent, number_len, new_len.into()) {
         return TryError::GcError.into();
     }
     // 6. Set newLenDesc.[[Value]] to newLen.

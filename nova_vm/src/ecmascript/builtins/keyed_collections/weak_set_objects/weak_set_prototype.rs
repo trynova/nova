@@ -4,18 +4,13 @@
 
 use crate::{
     ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, weak_set::WeakSet},
-        execution::{
-            Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly,
-            throw_not_weak_key_error,
-        },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
+        Realm, String, Value, WeakSet, builders::OrdinaryObjectBuilder, can_be_held_weakly,
+        throw_not_weak_key_error,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
-    heap::WellKnownSymbolIndexes,
+    engine::{Bindable, GcScope, NoGcScope},
+    heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbols},
 };
-
 pub(crate) struct WeakSetPrototype;
 
 struct WeakSetPrototypeAdd;
@@ -62,8 +57,8 @@ impl WeakSetPrototype {
         // i. Return S.
         // 5. Append value to S.[[WeakSetData]].
         // 6. Return S.
-        agent[s].add(value);
-        Ok(s.into_value().unbind())
+        s.get_mut(agent).add(value);
+        Ok(s.unbind().into())
     }
 
     /// ### [24.4.3.3 WeakSet.prototype.delete ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.delete)
@@ -88,16 +83,16 @@ impl WeakSetPrototype {
         let s = require_internal_slot_weak_set(agent, s, gc)?;
         // 3. If CanBeHeldWeakly(value) is false, return false.
         let Some(value) = can_be_held_weakly(agent, value) else {
-            return Ok(false.into_value());
+            return Ok(false.into());
         };
         // 4. For each element e of S.[[WeakSetData]], do
         // a. If e is not empty and SameValue(e, value) is true, then
         // i. Replace the element of S.[[WeakSetData]] whose value is e with an
         //    element whose value is empty.
         // ii. Return true.
-        let deleted = agent[s].delete(value);
+        let deleted = s.get_mut(agent).delete(value);
         // 5. Return false.
-        Ok(deleted.into_value())
+        Ok(deleted.into())
     }
 
     /// ### [24.4.3.4 WeakSet.prototype.has ( value )](https://tc39.es/ecma262/#sec-weakset.prototype.has)
@@ -117,13 +112,13 @@ impl WeakSetPrototype {
         let s = require_internal_slot_weak_set(agent, s, gc)?;
         // 3. If CanBeHeldWeakly(value) is false, return false.
         let Some(value) = can_be_held_weakly(agent, value) else {
-            return Ok(false.into_value());
+            return Ok(false.into());
         };
         // 4. For each element e of S.[[WeakSetData]], do
         // a. If e is not empty and SameValue(e, value) is true, return true.
         // 5. Return false.
-        let result = agent[s].has(value);
-        Ok(result.into_value())
+        let result = s.get(agent).has(value);
+        Ok(result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -141,8 +136,8 @@ impl WeakSetPrototype {
             .with_builtin_function_property::<WeakSetPrototypeHas>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.WeakSet.into_value())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.WeakSet.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

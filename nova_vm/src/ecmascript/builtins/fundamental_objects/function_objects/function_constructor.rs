@@ -7,24 +7,14 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_string, to_string_primitive},
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, ECMAScriptFunction,
-            FunctionAstRef, OrdinaryFunctionCreateParams, make_constructor,
-            ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
-        },
-        execution::{Agent, Environment, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        scripts_and_modules::source_code::{ParseResult, SourceCode, SourceCodeType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, Primitive, String,
-            Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, ECMAScriptFunction, Environment, ExceptionType, Function,
+        FunctionAstRef, JsResult, Object, OrdinaryFunctionCreateParams, ParseResult, Primitive,
+        ProtoIntrinsics, Realm, SourceCode, SourceCodeType, String, Value,
+        builders::BuiltinFunctionBuilder, get_prototype_from_constructor, make_constructor,
+        ordinary_function_create, set_function_name, to_string, to_string_primitive,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -51,7 +41,7 @@ impl FunctionConstructor {
     ) -> JsResult<'gc, Value<'gc>> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
-            (&[] as &[Value], String::EMPTY_STRING.into_value())
+            (&[] as &[Value], String::EMPTY_STRING.into())
         } else {
             let (last, others) = arguments.split_last().unwrap();
             (others, *last)
@@ -78,12 +68,12 @@ impl FunctionConstructor {
         //   a. Perform MakeConstructor(F).
         make_constructor(agent, f.unbind(), None, None, gc.nogc());
 
-        Ok(f.into_value().unbind())
+        Ok(f.unbind().into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
-        let function_prototype = intrinsics.function_prototype().into_object();
+        let function_prototype = intrinsics.function_prototype().into();
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<FunctionConstructor>(agent, realm)
             .with_property_capacity(1)
@@ -143,7 +133,7 @@ pub(crate) fn create_dynamic_function<'a>(
     // 11. Perform ? HostEnsureCanCompileStrings(currentRealm, parameterStrings, bodyString, false).
     agent
         .host_hooks
-        .ensure_can_compile_strings(agent.current_realm_record_mut(), gc.nogc())
+        .ensure_can_compile_strings(agent.current_realm(gc.nogc()), gc.nogc())
         .unbind()?;
 
     let source_string = {
@@ -202,12 +192,12 @@ pub(crate) fn create_dynamic_function<'a>(
         // format!("{} anonymous({}\n) {{\n{}\n}}", kind.prefix(), parameters, body_arg)
         let str_len = kind.prefix().len()
             + 18
-            + body_string.len(agent)
+            + body_string.len_(agent)
             + if !parameter_strings_slice.is_empty() {
                 // Separated by a single comma character
                 parameter_strings_slice
                     .iter()
-                    .map(|str| str.len(agent) + 1)
+                    .map(|str| str.len_(agent) + 1)
                     .sum::<usize>()
                     - 1
             } else {
@@ -220,10 +210,10 @@ pub(crate) fn create_dynamic_function<'a>(
             if i != 0 {
                 string.push_char(',');
             }
-            string.push_wtf8(parameter.as_wtf8(agent));
+            string.push_wtf8(parameter.as_wtf8_(agent));
         }
         string.push_str("\n) {\n");
-        string.push_wtf8(body_string.as_wtf8(agent));
+        string.push_wtf8(body_string.as_wtf8_(agent));
         string.push_str("\n}");
 
         debug_assert_eq!(string.len(), str_len);
@@ -244,7 +234,7 @@ pub(crate) fn create_dynamic_function<'a>(
         SourceCode::parse_source(
             agent,
             source_string,
-            SourceCodeType::Script,
+            SourceCodeType::Script { strict: false },
             #[cfg(feature = "typescript")]
             false,
             gc.nogc(),

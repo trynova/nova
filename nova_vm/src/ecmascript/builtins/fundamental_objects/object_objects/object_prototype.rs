@@ -6,24 +6,14 @@ use core::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{has_own_property, invoke, is_prototype_of_loop, try_get},
-            testing_and_comparison::is_array,
-            type_conversion::{to_object, to_property_key},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
-            ordinary::caches::PropertyLookupCache, primitive_objects::PrimitiveObjectData,
-        },
-        execution::{Agent, JsResult, Realm, agent::TryError},
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Object, PropertyKey,
-            String, TryGetResult, Value, handle_try_get_result,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinIntrinsic,
+        InternalMethods, JsResult, Object, PrimitiveObjectData, PropertyKey, PropertyLookupCache,
+        Realm, String, TryError, TryGetResult, Value, builders::OrdinaryObjectBuilder,
+        handle_try_get_result, has_own_property, invoke, is_array, is_prototype_of_loop, to_object,
+        to_property_key, try_get,
     },
-    engine::context::{Bindable, GcScope},
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope},
+    heap::{ArenaAccess, IntrinsicFunctionIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct ObjectPrototype;
@@ -98,7 +88,7 @@ impl ObjectPrototype {
         let o = to_object(agent, this_value, gc.nogc())
             .unbind()?
             .bind(gc.nogc());
-        has_own_property(agent, o.unbind(), p.unbind(), gc).map(|result| result.into_value())
+        has_own_property(agent, o.unbind(), p.unbind(), gc).map(|result| result.into())
     }
 
     fn is_prototype_of<'gc>(
@@ -115,7 +105,7 @@ impl ObjectPrototype {
             .unbind()?
             .bind(gc.nogc());
         let result = is_prototype_of_loop(agent, o.unbind(), v.unbind(), gc)?;
-        Ok(result.into_value())
+        Ok(result.into())
     }
 
     fn property_is_enumerable<'gc>(
@@ -161,9 +151,9 @@ impl ObjectPrototype {
     ) -> JsResult<'gc, Value<'gc>> {
         let builtin_tag_with_object_concatenation = match this_value.bind(gc.nogc()) {
             // 1. If the this value is undefined, return "[object Undefined]".
-            Value::Undefined => return Ok(BUILTIN_STRING_MEMORY._object_Undefined_.into_value()),
+            Value::Undefined => return Ok(BUILTIN_STRING_MEMORY._object_Undefined_.into()),
             // 2. If the this value is null, return "[object Null]".
-            Value::Null => return Ok(BUILTIN_STRING_MEMORY._object_Null_.into_value()),
+            Value::Null => return Ok(BUILTIN_STRING_MEMORY._object_Null_.into()),
             // 9. Else if O has a [[BooleanData]] internal slot, let builtinTag be "Boolean".
             // 17. Return the string-concatenation of "[object ", tag, and "]".
             Value::Boolean(_) => BUILTIN_STRING_MEMORY._object_Boolean_,
@@ -209,7 +199,7 @@ impl ObjectPrototype {
             // 17. Return the string-concatenation of "[object ", tag, and "]".
             #[cfg(feature = "regexp")]
             Value::RegExp(_) => BUILTIN_STRING_MEMORY._object_RegExp_,
-            Value::PrimitiveObject(idx) => match &agent[idx].data {
+            Value::PrimitiveObject(idx) => match &idx.get(agent).data {
                 // 9. Else if O has a [[BooleanData]] internal slot, let builtinTag be "Boolean".
                 // 17. Return the string-concatenation of "[object ", tag, and "]".
                 PrimitiveObjectData::Boolean(_) => BUILTIN_STRING_MEMORY._object_Boolean_,
@@ -243,22 +233,18 @@ impl ObjectPrototype {
             // accessing @@toStringTag from the prototype directly.
             let intrinsics = agent.current_realm_record().intrinsics();
             match this_value {
-                Value::Boolean(_) => intrinsics.boolean_prototype().into_object(),
-                Value::String(_) | Value::SmallString(_) => {
-                    intrinsics.string_prototype().into_object()
-                }
-                Value::Symbol(_) => intrinsics.symbol_prototype().into_object(),
+                Value::Boolean(_) => intrinsics.boolean_prototype().into(),
+                Value::String(_) | Value::SmallString(_) => intrinsics.string_prototype().into(),
+                Value::Symbol(_) => intrinsics.symbol_prototype().into(),
                 Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => {
-                    intrinsics.number_prototype().into_object()
+                    intrinsics.number_prototype().into()
                 }
-                Value::BigInt(_) | Value::SmallBigInt(_) => {
-                    intrinsics.big_int_prototype().into_object()
-                }
+                Value::BigInt(_) | Value::SmallBigInt(_) => intrinsics.big_int_prototype().into(),
                 _ => unreachable!(),
             }
         };
         // 15. Let tag be ? Get(O, @@toStringTag).
-        let key = WellKnownSymbolIndexes::ToStringTag.into();
+        let key = WellKnownSymbols::ToStringTag.into();
         let tag = try_get(
             agent,
             o_or_prototype,
@@ -282,7 +268,7 @@ impl ObjectPrototype {
                 handle_try_get_result(
                     agent,
                     o.unbind(),
-                    WellKnownSymbolIndexes::ToStringTag.into(),
+                    WellKnownSymbols::ToStringTag.into(),
                     tag.unbind(),
                     gc.reborrow(),
                 )
@@ -292,11 +278,11 @@ impl ObjectPrototype {
         };
         if let Ok(tag) = String::try_from(tag) {
             // 17. Return the string-concatenation of "[object ", tag, and "]".
-            let str = format!("[object {}]", tag.to_string_lossy(agent));
+            let str = format!("[object {}]", tag.to_string_lossy_(agent));
             Ok(Value::from_string(agent, str, gc.into_nogc()))
         } else {
             // 16. If tag is not a String, set tag to builtinTag.
-            Ok(builtin_tag_with_object_concatenation.into_value())
+            Ok(builtin_tag_with_object_concatenation.into())
         }
     }
 
@@ -306,7 +292,7 @@ impl ObjectPrototype {
         _arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        to_object(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
+        to_object(agent, this_value, gc.into_nogc()).map(|result| result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

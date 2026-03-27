@@ -5,80 +5,27 @@
 mod binding_methods;
 mod execute_instructions;
 
-use execute_instructions::{
-    execute_apply_addition_binary_operator, execute_apply_binary_operator, execute_array_create,
-    execute_array_elision, execute_array_push, execute_async_iterator_close,
-    execute_async_iterator_close_with_error, execute_begin_simple_array_binding_pattern,
-    execute_begin_simple_object_binding_pattern, execute_binding_pattern, execute_bitwise_not,
-    execute_class_define_constructor, execute_class_define_default_constructor,
-    execute_class_define_private_method, execute_class_define_private_property,
-    execute_class_initialize_private_elements, execute_class_initialize_private_value,
-    execute_copy_data_properties, execute_copy_data_properties_into_object,
-    execute_create_immutable_binding, execute_create_mutable_binding,
-    execute_create_unmapped_arguments_object, execute_debug, execute_decrement, execute_delete,
-    execute_direct_eval_call, execute_enter_class_static_element_environment,
-    execute_enter_declarative_environment, execute_enter_private_environment,
-    execute_enumerate_object_properties, execute_evaluate_call, execute_evaluate_new,
-    execute_evaluate_property_access_with_expression_key,
-    execute_evaluate_property_access_with_identifier_key, execute_evaluate_super,
-    execute_exit_declarative_environment, execute_exit_private_environment,
-    execute_exit_variable_environment, execute_get_iterator_async, execute_get_iterator_sync,
-    execute_get_new_target, execute_get_value, execute_greater_than, execute_greater_than_equals,
-    execute_has_private_element, execute_has_property, execute_import_call, execute_import_meta,
-    execute_increment, execute_initialize_referenced_binding,
-    execute_initialize_variable_environment, execute_instanceof_operator,
-    execute_instantiate_arrow_function_expression,
-    execute_instantiate_ordinary_function_expression, execute_is_constructor,
-    execute_is_loosely_equal, execute_is_strictly_equal, execute_iterator_call_next_method,
-    execute_iterator_close, execute_iterator_close_with_error, execute_iterator_complete,
-    execute_iterator_rest_into_array, execute_iterator_return, execute_iterator_step_value,
-    execute_iterator_step_value_or_undefined, execute_iterator_throw, execute_iterator_value,
-    execute_jump, execute_jump_if_not, execute_jump_if_true, execute_less_than,
-    execute_less_than_equals, execute_load_constant, execute_logical_not,
-    execute_make_private_reference, execute_make_super_property_reference_with_expression_key,
-    execute_make_super_property_reference_with_identifier_key, execute_object_create,
-    execute_object_create_with_shape, execute_object_define_getter, execute_object_define_method,
-    execute_object_define_property, execute_object_define_setter, execute_object_set_prototype,
-    execute_push_exception_jump_target, execute_put_value, execute_resolve_binding,
-    execute_resolve_binding_with_cache, execute_resolve_this_binding, execute_store_constant,
-    execute_string_concat, execute_throw_error, execute_to_number, execute_to_numeric,
-    execute_to_object, execute_typeof, execute_unary_minus, execute_verify_is_object,
-};
+use execute_instructions::*;
+
 use std::{hint::unreachable_unchecked, ptr::NonNull};
 use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, copy_data_properties_into_object, get_method, ordinary_has_instance,
-            },
-            testing_and_comparison::is_callable,
-            type_conversion::{
-                to_boolean, to_numeric, to_numeric_primitive, to_object, to_primitive,
-                to_property_key, to_string_primitive,
-            },
-        },
-        builtins::{ArgumentsList, ScopedArgumentsList, array_create},
-        execution::{
-            Agent, Environment, JsResult,
-            agent::{ExceptionType, JsError, resolve_binding},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, Object, Primitive, Reference, String,
-            Value, initialize_referenced_binding, put_value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, BigInt, Environment, ExceptionType, JsError,
+        JsResult, Number, Object, Primitive, Promise, Reference, ScopedArgumentsList, String,
+        Value, call_function, get_method, is_callable, ordinary_has_instance, to_boolean,
+        to_numeric, to_numeric_primitive, to_primitive, to_property_key, to_string_primitive,
+        try_get_object_method, try_result_into_option_js,
     },
     engine::{
-        Scoped,
+        Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle,
         bytecode::{
             Executable, IndexType, Instruction, InstructionIter, instructions::Instr,
             iterator::VmIteratorRecord,
         },
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
 };
 
 #[derive(Debug)]
@@ -87,7 +34,7 @@ pub(crate) enum ExecutionResult<'a> {
     Throw(JsError<'a>),
     Await {
         vm: SuspendedVm,
-        awaited_value: Value<'a>,
+        promise: Promise<'a>,
     },
     Yield {
         vm: SuspendedVm,
@@ -150,35 +97,24 @@ pub(crate) struct Vm {
 #[derive(Debug)]
 pub(crate) struct SuspendedVm {
     ip: usize,
-    /// Note: Stack is non-empty only if the code awaits inside a call
-    /// expression. This is reasonably rare that we can expect the stack to
-    /// usually be empty. In this case this Box is an empty dangling pointer
-    /// and no heap data clone is required.
+    /// Note: Stack is empty only if the code contains no local variables
+    /// optimised into stack slots or temporarily stored Values. A heap clone is
+    /// probably often performed by the `stack.into_boxed_slice()` call.
     stack: Box<[Value<'static>]>,
-    /// Note: Reference stack is non-empty only if the code awaits inside a
-    /// call expression. This means that usually no heap data clone is
-    /// required.
+    /// Note: Reference stack is non-empty only if the code awaits inside a call
+    /// expression. This means that usually no heap data clone is required.
     reference_stack: Box<[Reference<'static>]>,
     /// Note: Iterator stack is non-empty only if the code awaits inside a
     /// for-in or for-of loop. This means that often no heap data clone is
     /// required.
     iterator_stack: Box<[VmIteratorRecord<'static>]>,
-    /// Note: Exception jump stack is non-empty only if the code awaits inside
-    /// a try block. This means that often no heap data clone is required.
+    /// Note: Exception jump stack is non-empty only if the code awaits inside a
+    /// try block or an await for-of loop. This means that often no heap data
+    /// clone is required.
     exception_jump_target_stack: Box<[ExceptionHandler<'static>]>,
 }
 
 impl SuspendedVm {
-    /// Returns true if the suspended VM is safe to keep past a GC safepoint.
-    ///
-    /// This requires that the VMs stacks are all empty.
-    pub(crate) fn is_gc_safe(&self) -> bool {
-        self.stack.is_empty()
-            && self.reference_stack.is_empty()
-            && self.iterator_stack.is_empty()
-            && self.exception_jump_target_stack.is_empty()
-    }
-
     pub(crate) fn resume<'gc>(
         self,
         agent: &mut Agent,
@@ -327,7 +263,7 @@ impl Vm {
         eprintln!();
     }
 
-    pub fn resume<'gc>(
+    fn resume<'gc>(
         mut self,
         agent: &mut Agent,
         executable: Scoped<Executable>,
@@ -338,7 +274,7 @@ impl Vm {
         self.inner_execute(agent, executable, gc)
     }
 
-    pub fn resume_throw<'gc>(
+    fn resume_throw<'gc>(
         mut self,
         agent: &mut Agent,
         executable: Scoped<Executable>,
@@ -428,10 +364,12 @@ impl Vm {
                 if agent.options.print_internals {
                     Self::print_awaiting();
                 }
-                let awaited_value = self.result.take().unwrap();
+                let Value::Promise(promise) = self.result.take().unwrap() else {
+                    unreachable!()
+                };
                 Some(ExecutionResult::Await {
                     vm: core::mem::take(self).suspend(),
-                    awaited_value,
+                    promise,
                 })
             }
             Err(err) => {
@@ -529,11 +467,20 @@ impl Vm {
             Instruction::LoadCopy => {
                 vm.execute_load_copy();
             }
+            Instruction::PutValueToIndex => {
+                vm.execute_load_to_index(instr.get_first_index());
+            }
             Instruction::Store => {
                 vm.execute_store();
             }
+            Instruction::GetValueFromIndex => {
+                vm.execute_store_from_index(instr.get_first_index());
+            }
             Instruction::StoreConstant => {
                 execute_store_constant(agent, vm, executable, instr, gc.into_nogc());
+            }
+            Instruction::PopStack => {
+                vm.execute_pop_stack();
             }
             Instruction::Jump => execute_jump(agent, vm, instr),
             Instruction::JumpIfNot => execute_jump_if_not(agent, vm, instr),
@@ -600,8 +547,11 @@ impl Vm {
         let _: () = match instr.kind {
             Instruction::Load
             | Instruction::LoadCopy
+            | Instruction::PutValueToIndex
             | Instruction::Store
             | Instruction::StoreConstant
+            | Instruction::GetValueFromIndex
+            | Instruction::PopStack
             | Instruction::Jump
             | Instruction::JumpIfNot
             | Instruction::ResolveBinding
@@ -622,7 +572,10 @@ impl Vm {
                 unreachable!("hot instruction not handled before execute_cold_instruction")
             }
             Instruction::Return => return Ok(ContinuationKind::Return),
-            Instruction::Await => return Ok(ContinuationKind::Await),
+            Instruction::Await => {
+                execute_await_promise_resolve(agent, vm, gc)?;
+                return Ok(ContinuationKind::Await);
+            }
             Instruction::Yield => return Ok(ContinuationKind::Yield),
             Instruction::IsStrictlyEqual => execute_is_strictly_equal(agent, vm, gc.into_nogc()),
             Instruction::IsNullOrUndefined => vm.execute_is_null_or_undefined(),
@@ -656,10 +609,10 @@ impl Vm {
             | Instruction::ApplyBitwiseAndBinaryOperator => {
                 execute_apply_binary_operator(agent, vm, instr.kind, gc)?
             }
-            Instruction::ArrayCreate => execute_array_create(agent, vm, instr, gc)?,
+            Instruction::ArrayCreate => execute_array_create(agent, vm, instr, gc.into_nogc())?,
             Instruction::ArrayPush => execute_array_push(agent, vm, gc)?,
             Instruction::ArrayElision => execute_array_elision(agent, vm, gc)?,
-            Instruction::BitwiseNot => execute_bitwise_not(agent, vm, gc)?,
+            Instruction::BitwiseNot => execute_bitwise_not(agent, vm, gc.into_nogc())?,
             Instruction::CreateUnmappedArgumentsObject => {
                 execute_create_unmapped_arguments_object(agent, vm, gc.into_nogc())?
             }
@@ -746,16 +699,19 @@ impl Vm {
             Instruction::PushExceptionJumpTarget => {
                 execute_push_exception_jump_target(agent, vm, instr, gc.into_nogc())
             }
+            Instruction::TruncateStack => vm.stack.truncate(instr.get_first_arg() as usize),
             Instruction::ResolveBindingWithCache => {
                 execute_resolve_binding_with_cache(agent, vm, executable, instr, gc)?
             }
-            Instruction::ResolveThisBinding => execute_resolve_this_binding(agent, vm, gc)?,
+            Instruction::ResolveThisBinding => {
+                execute_resolve_this_binding(agent, vm, gc.into_nogc())?
+            }
             Instruction::StoreCopy => vm.execute_store_copy(),
             Instruction::StringConcat => execute_string_concat(agent, vm, instr, gc)?,
             Instruction::Throw => vm.execute_throw(gc.into_nogc())?,
             Instruction::ThrowError => execute_throw_error(agent, vm, instr, gc.into_nogc())?,
             Instruction::ToNumber => execute_to_number(agent, vm, gc)?,
-            Instruction::ToObject => execute_to_object(agent, vm, gc)?,
+            Instruction::ToObject => execute_to_object(agent, vm, gc.into_nogc())?,
             Instruction::Typeof => execute_typeof(agent, vm, gc)?,
             Instruction::UnaryMinus => execute_unary_minus(agent, vm, gc.into_nogc()),
             Instruction::InitializeVariableEnvironment => {
@@ -787,7 +743,9 @@ impl Vm {
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindNamed
+            | Instruction::BindingPatternBindToIndex
             | Instruction::BindingPatternBindRest
+            | Instruction::BindingPatternBindRestToIndex
             | Instruction::BindingPatternSkip
             | Instruction::BindingPatternGetValue
             | Instruction::BindingPatternGetValueNamed
@@ -838,18 +796,26 @@ impl Vm {
 
     fn get_call_args<'gc>(&mut self, instr: Instr, _gc: NoGcScope<'gc, '_>) -> Vec<Value<'gc>> {
         let instr_arg0 = instr.get_first_arg();
-        let arg_count = if instr_arg0 != IndexType::MAX {
-            instr_arg0 as usize
+        if instr_arg0 != IndexType::MAX {
+            // Static number of arguments less than IndexType::MAX.
+            let arg_count = instr_arg0 as usize;
+            debug_assert!(self.stack.len() >= arg_count);
+            self.stack.split_off(self.stack.len() - arg_count)
         } else {
-            // We parse the result as a SmallInteger.
+            // Dynamic number of arguments, or exactly IndexType::MAX or more
+            // arguments. In this case the number of arguments is stored in the
+            // result register for us. Additionally, an extra accumulator value
+            // is stored on the stack before the arguments.
             let Value::Integer(integer) = self.result.take().unwrap() else {
                 panic!("Expected the number of function arguments to be an integer")
             };
-            usize::try_from(integer.into_i64()).unwrap()
-        };
-
-        assert!(self.stack.len() >= arg_count);
-        self.stack.split_off(self.stack.len() - arg_count)
+            let arg_count = usize::try_from(integer.into_i64()).unwrap();
+            debug_assert!(self.stack.len() > arg_count);
+            let args = self.stack.split_off(self.stack.len() - arg_count);
+            let integer_copy = self.stack.pop().unwrap();
+            debug_assert_eq!(Value::Integer(integer), integer_copy);
+            args
+        }
     }
 
     /// Pop the active (top-most) iterator from the iterator stack.
@@ -902,6 +868,11 @@ impl Vm {
     }
 
     #[inline(always)]
+    fn execute_load_to_index(&mut self, index: usize) {
+        self.stack[index] = self.result.take().unwrap();
+    }
+
+    #[inline(always)]
     fn execute_load_store_swap(&mut self) {
         let temp = self
             .result
@@ -940,8 +911,18 @@ impl Vm {
     }
 
     #[inline(always)]
+    fn execute_store_from_index(&mut self, index: usize) {
+        self.result = Some(self.stack[index]);
+    }
+
+    #[inline(always)]
     fn execute_store_copy(&mut self) {
         self.result = Some(*self.stack.last().expect("Trying to get from empty stack"));
+    }
+
+    #[inline(always)]
+    fn execute_pop_stack(&mut self) {
+        let _ = self.stack.pop().expect("Trying to pop from empty stack");
     }
 
     #[inline(always)]
@@ -1008,7 +989,7 @@ fn concat_string_from_slice<'gc>(
 ) -> String<'gc> {
     let mut result_string = Wtf8Buf::with_capacity(string_length);
     for string in slice.iter() {
-        result_string.push_wtf8(string.as_wtf8(agent));
+        result_string.push_wtf8(string.as_wtf8_(agent));
     }
     String::from_wtf8_buf(agent, result_string, gc)
 }
@@ -1045,9 +1026,9 @@ fn apply_string_or_numeric_binary_operator<'gc>(
 
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
-        bigint_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into_value())
+        bigint_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into())
     } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {
-        number_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into_value())
+        number_binary_operator(agent, op_text, lnum, rnum, gc).map(|v| v.into())
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -1117,21 +1098,21 @@ fn apply_string_or_numeric_addition<'gc>(
     match (String::try_from(lprim), String::try_from(rprim)) {
         (Ok(lstr), Ok(rstr)) => {
             // iii. Return the string-concatenation of lstr and rstr.
-            return Ok(String::concat(agent, [lstr, rstr], gc).into_value());
+            return Ok(String::concat(agent, [lstr, rstr], gc).into());
         }
         (Ok(lstr), Err(_)) => {
             let lstr = lstr.scope(agent, gc);
             // ii. Let rstr be ? ToString(rprim).
             let rstr = to_string_primitive(agent, rprim, gc)?;
             // iii. Return the string-concatenation of lstr and rstr.
-            return Ok(String::concat(agent, [lstr.get(agent).bind(gc), rstr], gc).into_value());
+            return Ok(String::concat(agent, [lstr.get(agent).bind(gc), rstr], gc).into());
         }
         (Err(_), Ok(rstr)) => {
             let rstr = rstr.scope(agent, gc);
             // i. Let lstr be ? ToString(lprim).
             let lstr = to_string_primitive(agent, lprim, gc)?;
             // iii. Return the string-concatenation of lstr and rstr.
-            return Ok(String::concat(agent, [lstr, rstr.get(agent).bind(gc)], gc).into_value());
+            return Ok(String::concat(agent, [lstr, rstr.get(agent).bind(gc)], gc).into());
         }
         (Err(_), Err(_)) => {}
     }
@@ -1146,9 +1127,9 @@ fn apply_string_or_numeric_addition<'gc>(
 
     // 6. If lnum is a BigInt, then
     if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lnum), BigInt::try_from(rnum)) {
-        Ok(BigInt::add(agent, lnum, rnum).into_value())
+        Ok(BigInt::add(agent, lnum, rnum).into())
     } else if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lnum), Number::try_from(rnum)) {
-        Ok(Number::add(agent, lnum, rnum).into_value())
+        Ok(Number::add(agent, lnum, rnum).into())
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -1240,7 +1221,7 @@ fn number_binary_operator<'a>(
 
 /// ### [13.5.3 The typeof operator](https://tc39.es/ecma262/#sec-typeof-operator)
 #[inline]
-fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> {
+pub(crate) fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> {
     match val {
         // 4. If val is undefined, return "undefined".
         Value::Undefined => BUILTIN_STRING_MEMORY.undefined,
@@ -1321,12 +1302,17 @@ fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> 
         Value::SharedFloat16Array(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "date")]
         Value::Date(_)  => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "temporal")]
+        Value::Instant(_)  => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "temporal")]
+        Value::Duration(_)  => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "temporal")]
+        Value::PlainTime(_)  => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) |
         Value::BuiltinConstructorFunction(_) |
         Value::BuiltinPromiseResolvingFunction(_) |
         Value::BuiltinPromiseFinallyFunction(_) |
-        Value::BuiltinPromiseCollectorFunction |
         Value::BuiltinProxyRevokerFunction => BUILTIN_STRING_MEMORY.function,
         Value::Proxy(proxy) => {
             if proxy.is_callable(agent, gc) {
@@ -1355,40 +1341,56 @@ fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> 
 /// > the default instanceof semantics.
 pub(crate) fn instanceof_operator<'a, 'b>(
     agent: &mut Agent,
-    value: impl IntoValue<'b>,
-    target: impl IntoValue<'b>,
+    value: impl Into<Value<'b>>,
+    target: impl Into<Value<'b>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, bool> {
+    let mut value = value.into().bind(gc.nogc());
+    let target = target.into().bind(gc.nogc());
     // 1. If target is not an Object, throw a TypeError exception.
-    let Ok(target) = Object::try_from(target.into_value()) else {
+    let Ok(mut target) = Object::try_from(target) else {
         let error_message = format!(
             "Invalid instanceof target {}.",
             target
-                .into_value()
+                .unbind()
                 .string_repr(agent, gc.reborrow())
-                .to_string_lossy(agent)
+                .to_string_lossy_(agent)
         );
         return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.into_nogc()));
     };
     // 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
-    let inst_of_handler = get_method(
+    let inst_of_handler = if let Some(handler) = try_result_into_option_js(try_get_object_method(
         agent,
-        target.into_value(),
-        WellKnownSymbolIndexes::HasInstance.into(),
-        gc.reborrow(),
-    )
-    .unbind()?
-    .bind(gc.nogc());
+        target,
+        WellKnownSymbols::HasInstance.into(),
+        gc.nogc(),
+    )) {
+        handler.unbind()?.bind(gc.nogc())
+    } else {
+        let scoped_value = value.scope(agent, gc.nogc());
+        let scoped_target = target.scope(agent, gc.nogc());
+        let inst_of_handler = get_method(
+            agent,
+            target.unbind().into(),
+            WellKnownSymbols::HasInstance.into(),
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // SAFETY: not shared.
+        value = unsafe { scoped_value.take(agent) }.bind(gc.nogc());
+        // SAFETY: not shared.
+        target = unsafe { scoped_target.take(agent) }.bind(gc.nogc());
+        inst_of_handler
+    };
     // 3. If instOfHandler is not undefined, then
     if let Some(inst_of_handler) = inst_of_handler {
         // a. Return ToBoolean(? Call(instOfHandler, target, « V »)).
         let result = call_function(
             agent,
             inst_of_handler.unbind(),
-            target.into_value(),
-            Some(ArgumentsList::from_mut_slice(&mut [value
-                .into_value()
-                .unbind()])),
+            target.unbind().into(),
+            Some(ArgumentsList::from_mut_slice(&mut [value.unbind()])),
             gc.reborrow(),
         )
         .unbind()?
@@ -1399,10 +1401,10 @@ pub(crate) fn instanceof_operator<'a, 'b>(
         let Some(target) = is_callable(target, gc.nogc()) else {
             let error_message = format!(
                 "Invalid instanceof target {} is not a function.",
-                target
-                    .into_value()
+                Value::from(target)
+                    .unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1411,7 +1413,12 @@ pub(crate) fn instanceof_operator<'a, 'b>(
             ));
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
-        Ok(ordinary_has_instance(agent, target.unbind(), value, gc)?)
+        Ok(ordinary_has_instance(
+            agent,
+            target.unbind(),
+            value.unbind(),
+            gc,
+        )?)
     }
 }
 
@@ -1563,7 +1570,7 @@ fn set_class_name<'a>(
         };
 
         let name = prop_key.convert_to_value(agent, gc.nogc());
-        set_class_name(agent, vm, name.into_value().unbind(), gc)
+        set_class_name(agent, vm, name.unbind().into(), gc)
     }
 }
 
@@ -1588,7 +1595,7 @@ fn throw_error_in_target_not_object<'a>(
 ) -> JsError<'a> {
     let error_message = format!(
         "right-hand side of 'in' should be an object, got {}.",
-        typeof_operator(agent, value, gc).to_string_lossy(agent)
+        typeof_operator(agent, value, gc).to_string_lossy_(agent)
     );
     agent.throw_exception(ExceptionType::TypeError, error_message, gc)
 }

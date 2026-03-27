@@ -17,63 +17,26 @@ use oxc_ecmascript::BoundNames;
 
 use crate::{
     ecmascript::{
-        builtins::{
-            async_function_objects::await_reaction::AwaitReactionRecord,
-            module::Module,
-            promise::Promise,
-            promise_objects::{
-                promise_abstract_operations::{
-                    promise_capability_records::PromiseCapability,
-                    promise_reaction_records::PromiseReactionHandler,
-                },
-                promise_prototype::inner_promise_then,
-            },
-        },
-        execution::{
-            Agent, ECMAScriptCodeEvaluationState, ExecutionContext, JsResult, ModuleEnvironment,
-            Realm,
-            agent::{ExceptionType, JsError, unwrap_try},
-            create_import_binding, create_indirect_import_binding, initialize_import_binding,
-            new_module_environment,
-        },
-        scripts_and_modules::{
-            ScriptOrModule,
-            module::module_semantics::cyclic_module_records::{
-                CyclicModuleRecordStatus, inner_module_evaluation, inner_module_linking,
-            },
-            script::HostDefined,
-            source_code::{ParseResult, SourceCode, SourceCodeType},
-        },
-        syntax_directed_operations::{
-            contains::{Contains, ContainsSymbol},
-            miscellaneous::instantiate_function_object,
-            scope_analysis::{
-                LexicallyScopedDeclaration, VarScopedDeclaration,
-                module_lexically_scoped_declarations, module_var_scoped_declarations,
-            },
-        },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, OrdinaryObject, String, Value},
+        AbstractModule, AbstractModuleMethods, AbstractModuleRecord, AbstractModuleSlots, Agent,
+        AsyncEvaluationOrder, AwaitReactionRecord, BUILTIN_STRING_MEMORY, Contains, ContainsSymbol,
+        CyclicModuleMethods, CyclicModuleRecord, CyclicModuleRecordStatus, CyclicModuleSlots,
+        ECMAScriptCodeEvaluationState, ExceptionType, ExecutionContext, GraphLoadingStateRecord,
+        HostDefined, JsError, JsResult, LexicallyScopedDeclaration, LexicallyScopedDeclarations,
+        Module, ModuleEnvironment, ModuleRequest, ModuleRequestRecord, OrdinaryObject, ParseResult,
+        Promise, PromiseCapability, PromiseReactionHandler, Realm, ResolveSetEntry,
+        ResolvedBinding, ScriptOrModule, SourceCode, SourceCodeType, String, Value,
+        VarScopedDeclaration, VarScopedDeclarations, create_import_binding,
+        create_indirect_import_binding, get_imported_module, get_module_namespace,
+        initialize_import_binding, inner_module_evaluation, inner_module_linking,
+        inner_module_loading, inner_promise_then, instantiate_function_object,
+        new_module_environment, unwrap_try,
     },
     engine::{
-        Executable, ExecutionResult, Scoped, Vm,
-        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        Bindable, Executable, ExecutionResult, GcScope, GcToken, HeapRootData, NoGcScope, Scopable,
+        Scoped, Vm, bindable_handle,
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
     ndt,
-};
-
-use super::{
-    ModuleRequest, ModuleRequestRecord,
-    abstract_module_records::{
-        AbstractModule, AbstractModuleMethods, AbstractModuleRecord, AbstractModuleSlots,
-        ResolveSetEntry, ResolvedBinding,
-    },
-    cyclic_module_records::{
-        AsyncEvaluationOrder, CyclicModuleMethods, CyclicModuleRecord, CyclicModuleSlots,
-        GraphLoadingStateRecord, inner_module_loading,
-    },
-    get_imported_module, get_module_namespace,
 };
 
 #[derive(Debug)]
@@ -146,6 +109,20 @@ pub(crate) struct SourceTextModuleRecord<'a> {
 unsafe impl Send for SourceTextModuleRecord<'_> {}
 
 /// ### [16.2.1.7 Source Text Module Records](https://tc39.es/ecma262/#sec-source-text-module-records)
+///
+/// A _Source Text Module Record_ is used to represent information about a
+/// module that was defined from ECMAScript source text that was parsed using
+/// the goal symbol _Module_. They are also colloquially known as "ECMAScript
+/// modules" and are the recommended way of executing JavaScript code in the
+/// Nova JavaScript engine.
+///
+/// To create a [`SourceTextModule`], parse a source text using the
+/// [`parse_module`] function. To run the module, use the [`Agent::run_module`]
+/// function.
+///
+/// [`SourceTextModule`]: SourceTextModule
+/// [`parse_module`]: parse_module
+/// [`Agent::run_module`]: crate::ecmascript::Agent::run_module
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct SourceTextModule<'a>(u32, PhantomData<&'a GcToken>);
@@ -164,10 +141,6 @@ impl<'m> SourceTextModule<'m> {
         gc: NoGcScope<'a, '_>,
     ) -> SourceCode<'a> {
         self.get(agent).source_code.bind(gc)
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(0, PhantomData)
     }
 
     fn get<'a>(
@@ -925,9 +898,9 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
     /// The Link concrete method of a Cyclic Module Record module takes no
     /// arguments and returns either a normal completion containing unused or a
     /// throw completion. On success, Link transitions this module's
-    /// \[\[Status]] from unlinked to linked. On failure, an exception is
-    /// thrown and this module's \[\[Status]] remains unlinked. (Most of the
-    /// work is done by the auxiliary function InnerModuleLinking.)
+    /// \[\[Status]] from unlinked to linked. On failure, an exception is thrown
+    /// and this module's \[\[Status]] remains unlinked. (Most of the work is
+    /// done by the auxiliary function InnerModuleLinking.)
     fn link<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> JsResult<'a, ()> {
         let module = self.bind(gc);
         // 1. Assert: module.[[Status]] is one of unlinked, linked, evaluating-async, or evaluated.
@@ -977,10 +950,10 @@ impl AbstractModuleMethods for SourceTextModule<'_> {
     /// first time it is called on a module in a given strongly connected
     /// component, Evaluate creates and returns a Promise which resolves when
     /// the module has finished evaluating. This Promise is stored in the
-    /// \[\[TopLevelCapability]] field of the \[\[CycleRoot]] for the
-    /// component. Future invocations of Evaluate on any module in the
-    /// component return the same Promise. (Most of the work is done by the
-    /// auxiliary function InnerModuleEvaluation.)
+    /// \[\[TopLevelCapability]] field of the \[\[CycleRoot]] for the component.
+    /// Future invocations of Evaluate on any module in the component return the
+    /// same Promise. (Most of the work is done by the auxiliary function
+    /// InnerModuleEvaluation.)
     fn evaluate<'gc>(self, agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> Promise<'gc> {
         let mut module = self.bind(gc.nogc());
         // 1. Assert: This call to Evaluate is not happening at the same time
@@ -1205,7 +1178,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                 // ii. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 env.create_immutable_binding(agent, r#in.local_name);
                 // iii. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
-                env.initialize_binding(agent, r#in.local_name, namespace.into_value());
+                env.initialize_binding(agent, r#in.local_name, namespace.into());
                 continue;
             };
             // c. Else,
@@ -1230,7 +1203,7 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
                 // 2. Perform ! env.CreateImmutableBinding(in.[[LocalName]], true).
                 env.create_immutable_binding(agent, r#in.local_name);
                 // 3. Perform ! env.InitializeBinding(in.[[LocalName]], namespace).
-                env.initialize_binding(agent, r#in.local_name, namespace.into_value());
+                env.initialize_binding(agent, r#in.local_name, namespace.into());
                 continue;
             };
             // iv. Else,
@@ -1291,126 +1264,88 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         // 18. Let code be module.[[ECMAScriptCode]].
         let code = module.get_statements(agent, gc);
         // 19. Let varDeclarations be the VarScopedDeclarations of code.
-        let var_declarations = module_var_scoped_declarations(code);
-        // 20. Let declaredVarNames be a new empty List.
-        let mut declared_var_names = AHashSet::with_capacity(var_declarations.len());
         // 21. For each element d of varDeclarations, do
-        for d in var_declarations {
+        {
+            // 20. Let declaredVarNames be a new empty List.
+            let mut declared_var_names = AHashSet::new();
             // a. For each element dn of the BoundNames of d, do
-            match d {
-                VarScopedDeclaration::Variable(d) => {
-                    d.id.bound_names(&mut |dn: &oxc_ast::ast::BindingIdentifier| {
-                        // i. If declaredVarNames does not contain dn, then
-                        let dn = dn.name.as_str();
-                        if declared_var_names.insert(dn) {
-                            // 3. Append dn to declaredVarNames.
-                            let dn = String::from_str(agent, dn, gc);
-                            // 1. Perform ! env.CreateMutableBinding(dn, false).
-                            env.create_mutable_binding(agent, dn, false);
-                            // 2. Perform ! env.InitializeBinding(dn, undefined).
-                            env.initialize_binding(
-                                &mut agent.heap.environments,
-                                dn,
-                                Value::Undefined,
-                            );
-                        }
-                    })
+            let cb = &mut |dn: &oxc_ast::ast::BindingIdentifier<'a>| {
+                let dn = dn.name;
+                // i. If declaredVarNames does not contain dn, then
+                if declared_var_names.insert(dn) {
+                    // 3. Append dn to declaredVarNames.
+                    let dn = String::from_str(agent, &dn, gc);
+                    // 1. Perform ! env.CreateMutableBinding(dn, false).
+                    env.create_mutable_binding(agent, dn, false);
+                    // 2. Perform ! env.InitializeBinding(dn, undefined).
+                    env.initialize_binding(&mut agent.heap.environments, dn, Value::Undefined);
                 }
-                VarScopedDeclaration::Function(d) => {
-                    d.bound_names(&mut |dn: &oxc_ast::ast::BindingIdentifier| {
-                        // i. If declaredVarNames does not contain dn, then
-                        let dn = dn.name.as_str();
-                        if declared_var_names.insert(dn) {
-                            // 3. Append dn to declaredVarNames.
-                            let dn = String::from_str(agent, dn, gc);
-                            // 1. Perform ! env.CreateMutableBinding(dn, false).
-                            env.create_mutable_binding(agent, dn, false);
-                            // 2. Perform ! env.InitializeBinding(dn, undefined).
-                            env.initialize_binding(
-                                &mut agent.heap.environments,
-                                dn,
-                                Value::Undefined,
-                            );
-                        }
-                    })
-                }
-            }
+            };
+            code.var_scoped_declarations(&mut |d| match d {
+                VarScopedDeclaration::Variable(d) => d.id.bound_names(cb),
+                VarScopedDeclaration::Function(d) => d.bound_names(cb),
+            });
         }
         // 22. Let lexDeclarations be the LexicallyScopedDeclarations of code.
-        let lex_declarations = module_lexically_scoped_declarations(code);
         // 23. Let privateEnv be null.
         let private_env = None;
         // 24. For each element d of lexDeclarations, do
-        for d in lex_declarations {
+        {
             // a. For each element dn of the BoundNames of d, do
-            match d {
-                LexicallyScopedDeclaration::Variable(d) => {
-                    // i. If IsConstantDeclaration of d is true, then
-                    if d.kind.is_const() {
-                        d.id.bound_names(&mut |dn| {
-                            let dn = dn.name.as_str();
-                            let dn = String::from_str(agent, dn, gc);
-                            // 1. Perform ! env.CreateImmutableBinding(dn, true).
-                            env.create_immutable_binding(&mut agent.heap.environments, dn);
-                        });
-                    } else {
-                        // ii. Else,
-                        d.id.bound_names(&mut |dn| {
-                            let dn = dn.name.as_str();
-                            let dn = String::from_str(agent, dn, gc);
-                            // 1. Perform ! env.CreateMutableBinding(dn, false).
-                            env.create_mutable_binding(agent, dn, false);
-                        });
+            let cb = &mut |dn: &oxc_ast::ast::BindingIdentifier<'a>,
+                           d: &LexicallyScopedDeclaration<'a>| {
+                let dn_string = String::from_str(agent, dn.name.as_str(), gc);
+                // i. If IsConstantDeclaration of d is true, then
+                if d.is_const() {
+                    // 1. Perform ! env.CreateImmutableBinding(dn, true).
+                    env.create_immutable_binding(&mut agent.heap.environments, dn_string);
+                } else {
+                    // 1. Perform ! env.CreateMutableBinding(dn, false).
+                    env.create_mutable_binding(agent, dn_string, false);
+                }
+                // iii. If d is either a FunctionDeclaration, a
+                //      GeneratorDeclaration, an AsyncFunctionDeclaration,
+                //      or an AsyncGeneratorDeclaration, then
+                if let LexicallyScopedDeclaration::Function(d) = d {
+                    // 1. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
+                    let fo = instantiate_function_object(agent, d, env.into(), private_env, gc);
+                    // 2. Perform ! env.InitializeBinding(dn, fo).
+                    env.initialize_binding(&mut agent.heap.environments, dn_string, fo.into());
+                }
+            };
+            let mut create_default_export = false;
+            code.lexically_scoped_declarations(&mut |d| {
+                match d {
+                    LexicallyScopedDeclaration::Variable(v) => {
+                        v.id.bound_names(&mut |dn| cb(dn, &d));
+                    }
+                    LexicallyScopedDeclaration::Function(f) => {
+                        f.bound_names(&mut |dn| cb(dn, &d));
+                    }
+                    LexicallyScopedDeclaration::Class(c) => {
+                        c.bound_names(&mut |dn| cb(dn, &d));
+                    }
+                    #[cfg(feature = "typescript")]
+                    LexicallyScopedDeclaration::TSEnum(e) => {
+                        e.id.bound_names(&mut |dn| cb(dn, &d));
+                    }
+                    LexicallyScopedDeclaration::DefaultExport => {
+                        // ExportDeclaration : export default AssignmentExpression ;
+                        // 1. Return « "*default*" ».
+                        // NOTE: It is not necessary to treat export default
+                        // AssignmentExpression as a constant declaration because
+                        // there is no syntax that permits assignment to the
+                        // internal bound name used to reference a module's default
+                        // object.
+                        // NOTE: We optimise references to constant declarations
+                        // separately, so we choose to use an immutable binding
+                        // here despite the spec suggesting a mutable one.
+                        create_default_export = true;
                     }
                 }
-                LexicallyScopedDeclaration::Function(d) => {
-                    // ii. Else,
-                    d.bound_names(&mut |dn| {
-                        let dn = dn.name.as_str();
-                        let dn = String::from_str(agent, dn, gc);
-                        // 1. Perform ! env.CreateMutableBinding(dn, false).
-                        env.create_mutable_binding(agent, dn, false);
-                        // iii. If d is either a FunctionDeclaration, a
-                        //      GeneratorDeclaration, an AsyncFunctionDeclaration,
-                        //      or an AsyncGeneratorDeclaration, then
-                        // 1. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
-                        let fo = instantiate_function_object(agent, d, env.into(), private_env, gc);
-                        // 2. Perform ! env.InitializeBinding(dn, fo).
-                        env.initialize_binding(&mut agent.heap.environments, dn, fo.into_value());
-                    });
-                }
-                LexicallyScopedDeclaration::Class(d) => {
-                    // ii. Else,
-                    d.bound_names(&mut |dn| {
-                        let dn = dn.name.as_str();
-                        let dn = String::from_str(agent, dn, gc);
-                        // 1. Perform ! env.CreateMutableBinding(dn, false).
-                        env.create_mutable_binding(agent, dn, false);
-                    });
-                }
-                #[cfg(feature = "typescript")]
-                LexicallyScopedDeclaration::TSEnum(d) => {
-                    // ii. Else,
-                    d.id.bound_names(&mut |dn| {
-                        let dn = dn.name.as_str();
-                        let dn = String::from_str(agent, dn, gc);
-                        // 1. Perform ! env.CreateMutableBinding(dn, false).
-                        env.create_mutable_binding(agent, dn, false);
-                    });
-                }
-                LexicallyScopedDeclaration::DefaultExport => {
-                    // ExportDeclaration : export default AssignmentExpression ;
-                    // 1. Return « "*default*" ».
-                    // NOTE: It is not necessary to treat export default
-                    // AssignmentExpression as a constant declaration because
-                    // there is no syntax that permits assignment to the
-                    // internal bound name used to reference a module's default
-                    // object.
-                    // NOTE: We optimise references to constant declarations
-                    // separately, so we choose to use an immutable binding
-                    // here despite the spec suggesting a mutable one.
-                    env.create_immutable_binding(agent, BUILTIN_STRING_MEMORY._default_);
-                }
+            });
+            if create_default_export {
+                env.create_immutable_binding(agent, BUILTIN_STRING_MEMORY._default_);
             }
         }
         // 25. Remove moduleContext from the execution context stack.
@@ -1637,7 +1572,10 @@ fn async_module_start(
             //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
             promise_capability.reject(agent, err.value(), gc.nogc());
         }
-        ExecutionResult::Await { vm, awaited_value } => {
+        ExecutionResult::Await {
+            vm,
+            promise: resolve_promise,
+        } => {
             let async_context = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
             let (bytecode, promise, module) = unsafe {
@@ -1661,9 +1599,6 @@ fn async_module_start(
             // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
             // which resume execution of the function.
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
-            let resolve_promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow())
-                .unbind()
-                .bind(gc.nogc());
 
             module.set_executable(agent, bytecode);
 
@@ -1686,16 +1621,21 @@ fn async_module_start(
     //}
 }
 
-pub(crate) type ModuleOrErrors<'a> = Result<SourceTextModule<'a>, Vec<OxcDiagnostic>>;
-
 /// ### [16.2.1.7.1 ParseModule ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parsemodule)
+///
+/// This function parses the `source_text` as an ECMAScript module and returns
+/// the resulting [`SourceTextModule`] or error diagnostics. To then execute the
+/// module code, use the [`Agent::run_module`] function.
+///
+/// [`SourceTextModule`]: SourceTextModule
+/// [`Agent::run_module`]: crate::ecmascript::Agent::run_module
 pub fn parse_module<'a>(
     agent: &mut Agent,
     source_text: String,
     realm: Realm,
     host_defined: Option<HostDefined>,
     gc: NoGcScope<'a, '_>,
-) -> ModuleOrErrors<'a> {
+) -> Result<SourceTextModule<'a>, Vec<OxcDiagnostic>> {
     let realm = realm.bind(gc);
     // 1. Let body be ParseText(sourceText, Module).
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
@@ -2095,25 +2035,19 @@ bindable_handle!(SourceTextModuleRecord);
 
 bindable_handle!(SourceTextModule);
 
-impl Rootable for SourceTextModule<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::SourceTextModule(value.unbind()))
+impl From<SourceTextModule<'_>> for HeapRootData {
+    fn from(value: SourceTextModule<'_>) -> Self {
+        HeapRootData::SourceTextModule(value.unbind())
     }
+}
 
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
+impl TryFrom<HeapRootData> for SourceTextModule<'_> {
+    type Error = ();
 
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::SourceTextModule(object) => Some(object),
-            _ => None,
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::SourceTextModule(v) => Ok(v),
+            _ => Err(()),
         }
     }
 }
@@ -2313,12 +2247,14 @@ impl AsMut<SourceTextModuleHeap> for SourceTextModuleHeap {
     }
 }
 
+#[doc(hidden)]
 impl AsRef<SourceTextModuleHeap> for Agent {
     fn as_ref(&self) -> &SourceTextModuleHeap {
         &self.heap.source_text_module_records
     }
 }
 
+#[doc(hidden)]
 impl AsMut<SourceTextModuleHeap> for Agent {
     fn as_mut(&mut self) -> &mut SourceTextModuleHeap {
         &mut self.heap.source_text_module_records

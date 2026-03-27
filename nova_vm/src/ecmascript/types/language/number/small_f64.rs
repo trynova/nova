@@ -2,13 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::SmallInteger;
+use crate::ecmascript::{SmallInteger, number_value};
 
-/// 56-bit double, the implied bottom 8 bits are zero.
+/// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+///
+/// Stack-allocated floating-point [`Number`] data. Internally, the value is a
+/// double with 8 trailing zeroes that are cut off to produce a 56-bit value.
+///
+/// [`Number`]: crate::ecmascript::Number
 #[derive(Clone, Copy, PartialEq)]
 pub struct SmallF64 {
     data: [u8; 7],
 }
+number_value!(SmallF64);
 
 impl core::fmt::Debug for SmallF64 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -17,12 +23,9 @@ impl core::fmt::Debug for SmallF64 {
 }
 
 impl SmallF64 {
-    pub(crate) const fn _def() -> SmallF64 {
-        Self {
-            data: [1, 2, 3, 4, 5, 6, 7],
-        }
-    }
+    pub(crate) const _DEF: Self = Self { data: [0; 7] };
 
+    /// Get the f64 value.
     #[inline]
     pub fn into_f64(self) -> f64 {
         self.into()

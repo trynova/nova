@@ -2,33 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//!## [9.9 Processing Model of WeakRef and FinalizationRegistry Targets](https://tc39.es/ecma262/#sec-weakref-processing-model)
+//! ## [9.9 Processing Model of WeakRef and FinalizationRegistry Targets](https://tc39.es/ecma262/#sec-weakref-processing-model)
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::call_function,
-        builtins::{
-            ArgumentsList, finalization_registry::FinalizationRegistry,
-            fundamental_objects::symbol_objects::symbol_constructor::key_for_symbol,
-        },
-        execution::{Agent, JsResult, weak_key::WeakKey},
-        types::{Object, Value},
+        Agent, ArgumentsList, ExceptionType, FinalizationRegistry, JsError, JsResult, Object,
+        Value, WeakKey, call_function, key_for_symbol,
     },
-    engine::{
-        Global, ScopableCollection,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Global, NoGcScope, Scopable, ScopableCollection},
 };
-
-use super::agent::{ExceptionType, JsError};
 
 /// ## [9.10 ClearKeptObjects ( )](https://tc39.es/ecma262/#sec-clear-kept-objects)
 ///
 /// The abstract operation ClearKeptObjects takes no arguments and returns
 /// unused. ECMAScript implementations are expected to call ClearKeptObjects
 /// when a synchronous sequence of ECMAScript executions completes.
-pub(super) fn clear_kept_objects(agent: &mut Agent) {
+pub(crate) fn clear_kept_objects(agent: &mut Agent) {
     // 1. Let agentRecord be the surrounding agent's Agent Record.
     // 2. Set agentRecord.[[KeptAlive]] to a new empty List.
     if agent.kept_alive {
@@ -215,7 +204,7 @@ pub(crate) fn throw_not_weak_key_error<'a>(
     let string_repr = target.try_string_repr(agent, gc);
     let message = format!(
         "{} is not a non-null object or unique symbol",
-        string_repr.to_string_lossy(agent)
+        string_repr.to_string_lossy_(agent)
     );
     agent.throw_exception(ExceptionType::TypeError, message, gc)
 }

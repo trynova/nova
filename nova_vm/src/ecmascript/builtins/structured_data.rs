@@ -3,12 +3,23 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #[cfg(feature = "array-buffer")]
-pub(crate) mod array_buffer_objects;
+mod array_buffer_objects;
 #[cfg(feature = "atomics")]
-pub(crate) mod atomics_object;
+mod atomics_object;
 #[cfg(feature = "array-buffer")]
-pub(crate) mod data_view_objects;
+mod data_view_objects;
 #[cfg(feature = "json")]
-pub(crate) mod json_object;
+mod json_object;
 #[cfg(feature = "shared-array-buffer")]
-pub(crate) mod shared_array_buffer_objects;
+mod shared_array_buffer_objects;
+
+#[cfg(feature = "array-buffer")]
+pub(crate) use array_buffer_objects::*;
+#[cfg(feature = "atomics")]
+pub(crate) use atomics_object::*;
+#[cfg(feature = "array-buffer")]
+pub(crate) use data_view_objects::*;
+#[cfg(feature = "json")]
+pub(crate) use json_object::*;
+#[cfg(feature = "shared-array-buffer")]
+pub(crate) use shared_array_buffer_objects::*;

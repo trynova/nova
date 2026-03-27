@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//!### [13.2.8 Template Literals](https://tc39.es/ecma262/#sec-template-literals)
+//! ### [13.2.8 Template Literals](https://tc39.es/ecma262/#sec-template-literals)
 
 use std::ptr::NonNull;
 
@@ -11,15 +11,11 @@ use oxc_ast::ast;
 
 use crate::{
     ecmascript::{
-        builtins::{Array, array_create},
-        execution::{Agent, agent::unwrap_try},
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, OrdinaryObject,
-            String, Value,
-        },
+        Agent, Array, BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, OrdinaryObject,
+        String, Value, array_create, unwrap_try,
     },
-    engine::context::{Bindable, NoGcScope},
-    heap::{ObjectEntry, ObjectEntryPropertyDescriptor, element_array::ElementDescriptor},
+    engine::{Bindable, NoGcScope},
+    heap::{ElementDescriptor, ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 
 /// ### [13.2.8.4 GetTemplateObject ( templateLiteral )](https://tc39.es/ecma262/#sec-gettemplateobject)
@@ -101,7 +97,7 @@ pub(super) fn get_template_object<'a>(
                 cooked_value.as_str(),
                 gc,
             )
-            .into_value()
+            .into()
         });
         // d. Let rawValue be the String value rawStrings[index].
         let raw_value = String::from_str_direct(
@@ -111,8 +107,7 @@ pub(super) fn get_template_object<'a>(
             alloc_counter,
             quasi.value.raw.as_str(),
             gc,
-        )
-        .into_value();
+        );
         // c. Perform ! DefinePropertyOrThrow(template, prop,
         //    PropertyDescriptor {
         //        [[Value]]: cookedValue,
@@ -128,7 +123,7 @@ pub(super) fn get_template_object<'a>(
         // e. Perform ! DefinePropertyOrThrow(rawObj, prop,
         //    PropertyDescriptor {
         //        [[Value]]: rawValue,
-        raw_obj_values[prop] = Some(raw_value.unbind());
+        raw_obj_values[prop] = Some(raw_value.unbind().into());
         //        [[Writable]]: false,
         //        [[Enumerable]]: true,
         //        [[Configurable]]: false
@@ -152,7 +147,7 @@ pub(super) fn get_template_object<'a>(
             // PropertyDescriptor {
             value: ObjectEntryPropertyDescriptor::Data {
                 // [[Value]]: rawObj,
-                value: raw_obj.into_value(),
+                value: raw_obj.into(),
                 // [[Writable]]: false,
                 writable: false,
                 // [[Enumerable]]: false,

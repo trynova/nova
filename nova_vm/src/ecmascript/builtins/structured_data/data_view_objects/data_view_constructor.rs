@@ -6,21 +6,12 @@ use ecmascript_atomics::Ordering;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_index,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            array_buffer::is_fixed_length_array_buffer, data_view::AnyDataView,
-            ordinary::ordinary_create_from_constructor,
-            structured_data::array_buffer_objects::array_buffer_prototype::require_internal_slot_any_array_buffer,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        Agent, AnyDataView, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
+        Realm, String, Value, builders::BuiltinFunctionBuilder, is_fixed_length_array_buffer,
+        ordinary_create_from_constructor, require_internal_slot_any_array_buffer, to_index,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -191,7 +182,7 @@ impl DataViewConstructor {
         unsafe { o.initialise_data(agent, buffer, view_byte_length, offset) };
 
         // 18. Return O.
-        Ok(o.into_value())
+        Ok(o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -200,7 +191,7 @@ impl DataViewConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<DataViewConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype_property(data_view_prototype.into_object())
+            .with_prototype_property(data_view_prototype.into())
             .build();
     }
 }

@@ -4,48 +4,53 @@
 
 mod data;
 
-use core::ops::{Index, IndexMut};
-
-pub use data::SymbolHeapData;
+pub(crate) use data::*;
 
 use crate::{
-    ecmascript::{execution::Agent, types::String},
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    ecmascript::{Agent, BUILTIN_STRING_MEMORY, Primitive, PropertyKey, String, Value},
+    engine::{Bindable, HeapRootData, HeapRootRef, NoGcScope, Rootable, bindable_handle},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        LAST_WELL_KNOWN_SYMBOL_INDEX, PropertyKeyHeap, WellKnownSymbolIndexes, WorkQueues,
-        indexes::BaseIndex,
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapIndexHandle,
+        HeapMarkAndSweep, HeapSweepWeakReference, WellKnownSymbols, WorkQueues, arena_vec_access,
     },
 };
 
-use super::{BUILTIN_STRING_MEMORY, IntoPrimitive, Primitive, PropertyKey, Value};
-
+/// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
+///
+/// The Symbol type is the set of all non-String values that may be used as the
+/// key of an Object property (6.1.7).
+///
+/// Each Symbol is unique and immutable.
+///
+/// Each Symbol has an immutable \[\[Description]] internal slot whose value is
+/// either a String or undefined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Symbol<'a>(BaseIndex<'a, SymbolHeapData<'static>>);
+bindable_handle!(Symbol);
+arena_vec_access!(
+    Symbol,
+    'a,
+    SymbolHeapData,
+    symbols
+);
 
 /// Inner root repr type to hide WellKnownSymbolIndexes.
 #[derive(Debug, Clone, Copy)]
 enum SymbolRootReprInner {
     // Note: Handle a special case of avoiding rooting well-known symbols.
-    WellKnown(WellKnownSymbolIndexes),
+    WellKnown(WellKnownSymbols),
     HeapRef(HeapRootRef),
 }
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
-pub struct SymbolRootRepr(SymbolRootReprInner);
+pub(crate) struct SymbolRootRepr(SymbolRootReprInner);
 
 impl<'a> Symbol<'a> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
+    /// Returns the \[\[Description]] internal slot value of the Symbol.
+    pub fn description(self, agent: &Agent) -> Option<String<'a>> {
+        self.get(agent).description
     }
 
     /// Return the name for functions created using NamedEvaluation with a
@@ -65,118 +70,48 @@ impl<'a> Symbol<'a> {
         gc: NoGcScope<'a, '_>,
     ) -> String<'a> {
         // a. Let description be name's [[Description]] value.
-        if let Some(descriptor) = agent[self].descriptor {
+        if let Some(description) = self.description(agent) {
             // c. Else, set name to the string-concatenation of
             //    "[", description, and "]".
-            let description = descriptor.to_string_lossy(agent);
+            let description = description.to_string_lossy_(agent);
             String::from_string(agent, format!("[{description}]"), gc)
         } else {
-            // b. If description is undefined, set name to the
-            //    empty String.
-            String::EMPTY_STRING
+            // b. If description is undefined, set name to the empty String.
+            String::EMPTY_STRING.bind(gc)
         }
     }
 
     /// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
-    pub fn descriptive_string(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> String<'a> {
-        if let Some(descriptor) = agent[self].descriptor {
+    pub(crate) fn descriptive_string(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> String<'a> {
+        // 1. Let desc be sym's [[Description]] value.
+        if let Some(desc) = self.description(agent) {
+            // 3. Assert: desc is a String.
+            // 4. Return the string-concatenation of "Symbol(", desc, and ")".
             String::concat(
                 agent,
                 [
                     String::from_small_string("Symbol("),
-                    descriptor,
+                    desc,
                     String::from_small_string(")"),
                 ],
                 gc,
             )
         } else {
+            // 2. If desc is undefined, set desc to the empty String.
             BUILTIN_STRING_MEMORY.Symbol__
         }
     }
 }
 
-bindable_handle!(Symbol);
-
-impl From<WellKnownSymbolIndexes> for Symbol<'static> {
-    fn from(value: WellKnownSymbolIndexes) -> Self {
-        Symbol(BaseIndex::from_u32_index(value as u32))
+impl From<WellKnownSymbols> for Symbol<'static> {
+    fn from(value: WellKnownSymbols) -> Self {
+        Symbol(BaseIndex::from_index_u32(value as u32))
     }
 }
 
-impl WellKnownSymbolIndexes {
+impl WellKnownSymbols {
     pub const fn to_property_key(self) -> PropertyKey<'static> {
-        PropertyKey::Symbol(Symbol(BaseIndex::from_u32_index(self as u32)))
-    }
-}
-
-impl<'a> From<Symbol<'a>> for Value<'a> {
-    fn from(symbol: Symbol<'a>) -> Self {
-        Value::Symbol(symbol.unbind())
-    }
-}
-
-impl<'a> From<Symbol<'a>> for Primitive<'a> {
-    fn from(value: Symbol<'a>) -> Self {
-        value.into_primitive()
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Symbol<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::Symbol(idx) => Ok(idx),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Primitive<'a>> for Symbol<'a> {
-    type Error = ();
-
-    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Primitive::Symbol(idx) => Ok(idx),
-            _ => Err(()),
-        }
-    }
-}
-
-impl Index<Symbol<'_>> for Agent {
-    type Output = SymbolHeapData<'static>;
-
-    fn index(&self, index: Symbol<'_>) -> &Self::Output {
-        &self.heap.symbols[index]
-    }
-}
-
-impl IndexMut<Symbol<'_>> for Agent {
-    fn index_mut(&mut self, index: Symbol<'_>) -> &mut Self::Output {
-        &mut self.heap.symbols[index]
-    }
-}
-
-impl Index<Symbol<'_>> for PropertyKeyHeap<'_> {
-    type Output = SymbolHeapData<'static>;
-
-    fn index(&self, index: Symbol<'_>) -> &Self::Output {
-        &self.symbols[index]
-    }
-}
-
-impl Index<Symbol<'_>> for Vec<SymbolHeapData<'static>> {
-    type Output = SymbolHeapData<'static>;
-
-    fn index(&self, index: Symbol<'_>) -> &Self::Output {
-        self.get(index.get_index()).expect("Symbol out of bounds")
-    }
-}
-
-impl IndexMut<Symbol<'_>> for Vec<SymbolHeapData<'static>> {
-    fn index_mut(&mut self, index: Symbol<'_>) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Symbol out of bounds")
+        PropertyKey::Symbol(Symbol(BaseIndex::from_index_const(self as u32 as usize)))
     }
 }
 
@@ -204,21 +139,26 @@ impl<'a> CreateHeapData<SymbolHeapData<'a>, Symbol<'a>> for Heap {
     }
 }
 
+// === OUTPUT OF primitive_handle! MACRO ADAPTED FOR Symbol ===
+impl HeapIndexHandle for Symbol<'_> {
+    const _DEF: Self = Self(BaseIndex::MAX);
+    #[inline]
+    fn from_index_u32(index: u32) -> Self {
+        Self(BaseIndex::from_index_u32(index))
+    }
+    #[inline]
+    fn get_index_u32(self) -> u32 {
+        self.0.get_index_u32()
+    }
+}
 impl Rootable for Symbol<'_> {
     type RootRepr = SymbolRootRepr;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        if value.0.into_u32_index() <= LAST_WELL_KNOWN_SYMBOL_INDEX {
-            Ok(SymbolRootRepr(SymbolRootReprInner::WellKnown(
-                // SAFETY: Value is within the maximum number of well-known symbol indexes.
-                unsafe {
-                    core::mem::transmute::<u32, WellKnownSymbolIndexes>(value.0.into_u32_index())
-                },
-            )))
-        } else {
-            Err(HeapRootData::Symbol(value.unbind()))
-        }
+        WellKnownSymbols::try_from(value)
+            .map(|s| SymbolRootRepr(SymbolRootReprInner::WellKnown(s)))
+            .map_err(|_| HeapRootData::try_from(value).unwrap())
     }
 
     #[inline]
@@ -237,8 +177,62 @@ impl Rootable for Symbol<'_> {
     #[inline]
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
         match heap_data {
-            HeapRootData::Symbol(heap_symbol) => Some(heap_symbol),
+            HeapRootData::Symbol(s) => Some(s),
             _ => None,
         }
     }
 }
+impl TryFrom<HeapRootData> for Symbol<'_> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::Symbol(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+impl TryFrom<Symbol<'_>> for HeapRootData {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Symbol) -> Result<Self, ()> {
+        if WellKnownSymbols::try_from(value).is_ok() {
+            Err(())
+        } else {
+            Ok(Self::Symbol(value.unbind()))
+        }
+    }
+}
+impl<'a> From<Symbol<'a>> for Value<'a> {
+    #[inline(always)]
+    fn from(value: Symbol<'a>) -> Self {
+        Self::Symbol(value)
+    }
+}
+impl<'a> TryFrom<Value<'a>> for Symbol<'a> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Value::Symbol(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+impl<'a> From<Symbol<'a>> for Primitive<'a> {
+    #[inline(always)]
+    fn from(value: Symbol<'a>) -> Self {
+        Self::Symbol(value)
+    }
+}
+impl<'a> TryFrom<Primitive<'a>> for Symbol<'a> {
+    type Error = ();
+    #[inline]
+    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
+        match value {
+            Primitive::Symbol(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+// === END ===

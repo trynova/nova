@@ -2,21 +2,11 @@ use ecmascript_atomics::Ordering;
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_big_int, to_index, to_number, try_to_index},
-        builtins::{
-            array_buffer::{is_fixed_length_array_buffer, set_value_in_buffer},
-            structured_data::data_view_objects::data_view_prototype::require_internal_slot_data_view,
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, try_result_into_js},
-        },
-        types::{BigInt, IntoNumeric, Number, Value, Viewable},
+        Agent, BigInt, ExceptionType, JsResult, Number, Numeric, Value, Viewable,
+        is_fixed_length_array_buffer, require_internal_slot_data_view, set_value_in_buffer,
+        to_big_int, to_index, to_number, try_result_into_js, try_to_index,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
 };
 
 use super::AnyDataView;
@@ -33,7 +23,8 @@ impl ByteLength {
         Self(usize::MAX)
     }
 
-    pub fn is_detached(&self) -> bool {
+    /// Returns `true` if the byte length is the detached sentinel.
+    pub(crate) fn is_detached(&self) -> bool {
         *self == Self::detached()
     }
 }
@@ -301,30 +292,28 @@ pub(crate) fn set_view_value<'gc, T: Viewable>(
     };
 
     // 4. If IsBigIntElementType(type) is true, let numberValue be ? ToBigInt(value).
-    let number_value = if T::IS_BIGINT {
+    let number_value: Numeric = if T::IS_BIGINT {
         if let Ok(v) = BigInt::try_from(value) {
-            v.into_numeric()
+            v.into()
         } else {
             let scoped_view = view.scope(agent, gc.nogc());
             let v = to_big_int(agent, value, gc.reborrow())
                 .unbind()?
-                .into_numeric()
                 .bind(gc.nogc());
             view = scoped_view.get(agent).bind(gc.nogc());
-            v
+            v.into()
         }
     } else {
         // 5. Otherwise, let numberValue be ? ToNumber(value).
         if let Ok(v) = Number::try_from(value) {
-            v.into_numeric()
+            v.into()
         } else {
             let scoped_view = view.scope(agent, gc.nogc());
             let v = to_number(agent, value, gc.reborrow())
                 .unbind()?
-                .into_numeric()
                 .bind(gc.nogc());
             view = scoped_view.get(agent).bind(gc.nogc());
-            v
+            v.into()
         }
     };
     let view = view.unbind();

@@ -4,15 +4,11 @@
 
 use crate::{
     ecmascript::{
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
+        Realm, String, Value, builders::BuiltinFunctionBuilder, ordinary_create_from_constructor,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -42,13 +38,7 @@ impl IteratorConstructor {
                 gc.into_nogc(),
             ));
         };
-        if new_target
-            == agent
-                .running_execution_context()
-                .function
-                .unwrap()
-                .into_object()
-        {
+        if new_target == agent.running_execution_context().function.unwrap().into() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Iterator constructor can't be used directly",
@@ -73,8 +63,8 @@ impl IteratorConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<IteratorConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype(function_prototype.into_object())
-            .with_prototype_property(iterator_prototype.into_object())
+            .with_prototype(function_prototype)
+            .with_prototype_property(iterator_prototype.into())
             .build();
     }
 }

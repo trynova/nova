@@ -6,62 +6,52 @@
 
 use crate::{
     ecmascript::{
-        builtins::ordinary::caches::PropertyLookupCache,
-        execution::{
-            Agent, ECMAScriptCode, Environment, ExecutionContext, GlobalEnvironment, JsResult,
-            Realm, agent::ExceptionType,
-        },
-        scripts_and_modules::ScriptOrModule,
-        syntax_directed_operations::{
-            miscellaneous::instantiate_function_object,
-            scope_analysis::{
-                LexicallyScopedDeclaration, VarScopedDeclaration, script_lexically_declared_names,
-                script_lexically_scoped_declarations, script_var_declared_names,
-                script_var_scoped_declarations,
-            },
-        },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        AbstractModule, Agent, BUILTIN_STRING_MEMORY, ECMAScriptCode, Environment, ExceptionType,
+        ExecutionContext, GlobalEnvironment, JsResult, LexicallyScopedDeclaration, LoadedModules,
+        ModuleRequest, ParseResult, PropertyLookupCache, Realm, ScriptOrModule, SourceCode,
+        SourceCodeType, String, Value, VarScopedDeclaration, instantiate_function_object,
+        script_lexically_declared_names, script_lexically_scoped_declarations,
+        script_var_declared_names, script_var_scoped_declarations,
     },
-    engine::{
-        Executable, Vm,
-        context::{Bindable, GcScope, GcToken, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, bindable_handle},
+    heap::{
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapIndexHandle, HeapMarkAndSweep, WorkQueues, arena_vec_access, index_handle,
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     ndt,
 };
 use ahash::AHashSet;
-use core::{
-    any::Any,
-    marker::PhantomData,
-    ops::{Index, IndexMut},
-};
+use core::any::Any;
 use oxc_ast::ast;
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_ecmascript::BoundNames;
 use std::{ptr::NonNull, rc::Rc};
 
-use super::{
-    module::module_semantics::{
-        LoadedModules, ModuleRequest, abstract_module_records::AbstractModule,
-    },
-    source_code::{ParseResult, SourceCode, SourceCodeType},
-};
-
+/// Host defined data for an ECMAScript Agent, Script, or Module.
 pub type HostDefined = Rc<dyn Any>;
 
 /// ## [16.1 Scripts](https://tc39.es/ecma262/#sec-scripts)
+///
+/// Scripts are the most common way of executing synchronous JavaScript code. A
+/// _Script_ can be created by parsing a source [`String`] using the
+/// [`parse_script`] function, and Script can then be run using the
+/// [`script_evaluation`] function.
+///
+/// Consider favouring [ECMAScript Modules] instead whenever possible.
+///
+/// [`String`]: crate::ecmascript::String
+/// [`parse_script`]: crate::ecmascript::parse_script
+/// [`script_evaluation`]: crate::ecmascript::script_evaluation
+/// [ECMAScript Modules]: crate::ecmascript::SourceTextModule
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Script<'a>(
-    u32,
-    PhantomData<ScriptRecord<'static>>,
-    PhantomData<&'a GcToken>,
-);
+pub struct Script<'a>(BaseIndex<'a, ScriptRecord<'static>>);
+index_handle!(Script);
+arena_vec_access!(Script, 'a, ScriptRecord, scripts);
 
 impl core::fmt::Debug for Script<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Script({:?})", self.into_u32())
+        write!(f, "Script({:?})", self.get_index_u32())
     }
 }
 
@@ -78,7 +68,7 @@ impl Script<'_> {
         // is valid while the self SourceTextModule is held (the parent call).
         unsafe {
             core::mem::transmute::<&[ast::Statement], &'a [ast::Statement<'a>]>(
-                agent[self].ecmascript_code.as_ref(),
+                self.get(agent).ecmascript_code.as_ref(),
             )
         }
     }
@@ -89,44 +79,17 @@ impl Script<'_> {
         agent: &Agent,
         gc: NoGcScope<'a, '_>,
     ) -> SourceCode<'a> {
-        agent[self].source_code.bind(gc)
-    }
-
-    /// Creates a script identififer from a usize.
-    ///
-    /// ## Panics
-    /// If the given index is greater than `u32::MAX`.
-    pub(crate) const fn from_index(value: usize) -> Self {
-        assert!(value <= u32::MAX as usize);
-        Self::from_u32(value as u32)
-    }
-
-    /// Creates a module identififer from a u32.
-    pub(crate) const fn from_u32(value: u32) -> Self {
-        Self(value, PhantomData, PhantomData)
-    }
-
-    pub(crate) fn last(scripts: &[ScriptRecord]) -> Self {
-        let index = scripts.len() - 1;
-        Self::from_index(index)
-    }
-
-    pub(crate) const fn into_index(self) -> usize {
-        self.0 as usize
-    }
-
-    pub(crate) const fn into_u32(self) -> u32 {
-        self.0
+        self.get(agent).source_code.bind(gc)
     }
 
     /// ### \[\[Realm]]
     pub(crate) fn realm<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Realm<'a> {
-        agent[self].realm.bind(gc)
+        self.get(agent).realm.bind(gc)
     }
 
     /// \[\[\HostDefined]]
     pub(crate) fn host_defined(self, agent: &Agent) -> Option<HostDefined> {
-        agent[self].host_defined.clone()
+        self.get(agent).host_defined.clone()
     }
 
     pub(crate) fn insert_loaded_module(
@@ -136,39 +99,9 @@ impl Script<'_> {
         module: AbstractModule,
     ) {
         let requests = &agent.heap.module_request_records;
-        agent.heap.scripts[self]
+        self.get_mut(&mut agent.heap.scripts)
             .loaded_modules
-            .insert_loaded_module(requests, request.unbind(), module.unbind());
-    }
-}
-
-impl Index<Script<'_>> for Agent {
-    type Output = ScriptRecord<'static>;
-
-    fn index(&self, index: Script) -> &Self::Output {
-        &self.heap.scripts[index]
-    }
-}
-
-impl IndexMut<Script<'_>> for Agent {
-    fn index_mut(&mut self, index: Script) -> &mut Self::Output {
-        &mut self.heap.scripts[index]
-    }
-}
-
-impl Index<Script<'_>> for Vec<ScriptRecord<'static>> {
-    type Output = ScriptRecord<'static>;
-
-    fn index(&self, index: Script) -> &Self::Output {
-        self.get(index.into_index())
-            .expect("ScriptIdentifier out of bounds")
-    }
-}
-
-impl IndexMut<Script<'_>> for Vec<ScriptRecord<'static>> {
-    fn index_mut(&mut self, index: Script) -> &mut Self::Output {
-        self.get_mut(index.into_index())
-            .expect("ScriptIdentifier out of bounds")
+            .insert_loaded_module(requests, request, module);
     }
 }
 
@@ -178,7 +111,15 @@ impl HeapMarkAndSweep for Script<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.scripts.shift_u32_index(&mut self.0);
+        compactions.scripts.shift_index(&mut self.0);
+    }
+}
+
+impl<'a> CreateHeapData<ScriptRecord<'a>, Script<'a>> for Heap {
+    fn create(&mut self, data: ScriptRecord<'a>) -> Script<'a> {
+        self.scripts.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<ScriptRecord<'static>>();
+        Script(BaseIndex::last(&self.scripts))
     }
 }
 
@@ -186,7 +127,7 @@ impl HeapMarkAndSweep for Script<'static> {
 ///
 /// A Script Record encapsulates information about a script being evaluated.
 #[derive(Debug)]
-pub struct ScriptRecord<'a> {
+pub(crate) struct ScriptRecord<'a> {
     /// ### \[\[Realm]]
     ///
     /// The realm within which this script was created. undefined if not yet
@@ -229,33 +170,6 @@ pub struct ScriptRecord<'a> {
 // other threads.
 unsafe impl Send for ScriptRecord<'_> {}
 
-pub type ScriptOrErrors<'a> = Result<Script<'a>, Vec<OxcDiagnostic>>;
-
-bindable_handle!(Script);
-
-impl Rootable for Script<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Script(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Script(script) => Some(script),
-            _ => None,
-        }
-    }
-}
-
 bindable_handle!(ScriptRecord);
 
 impl HeapMarkAndSweep for ScriptRecord<'static> {
@@ -290,27 +204,32 @@ impl HeapMarkAndSweep for ScriptRecord<'static> {
 
 /// ### [16.1.5 ParseScript ( sourceText, realm, hostDefined )](https://tc39.es/ecma262/#sec-parse-script)
 ///
-/// The abstract operation ParseScript takes arguments sourceText (ECMAScript
-/// source text), realm (a Realm Record), and hostDefined (anything) and
-/// returns a Script Record or a non-empty List of SyntaxError objects. It
-/// creates a Script Record based upon the result of parsing sourceText as a
-/// Script.
+/// The abstract operation ParseScript takes arguments _sourceText_ ([ECMAScript
+/// source text]), _realm_ (a [Realm Record]), and _hostDefined_ ([anything])
+/// and returns a Script Record or a non-empty List of SyntaxError objects. It
+/// creates a Script Record based upon the result of parsing _sourceText_ as a
+/// Script. The `strict` boolean is an additional parameter that can be used to
+/// parse the _sourceText_ in strict mode: it is recommended to use strict mode
+/// unless non-strict mode is required.
+///
+/// The resulting [`Script`] can be executed using the [`script_evaluation`]
+/// function.
+///
+/// [`Script`]: crate::ecmascript::Script
+/// [`script_evaluation`]: crate::ecmascript::script_evaluation
+/// [ECMAScript source text]: crate::ecmascript::String
+/// [Realm Record]: crate::ecmascript::Realm
+/// [anything]: crate::ecmascript::HostDefined
 pub fn parse_script<'a>(
     agent: &mut Agent,
     source_text: String,
     realm: Realm,
-    strict_mode: bool,
+    strict: bool,
     host_defined: Option<HostDefined>,
     gc: NoGcScope<'a, '_>,
-) -> ScriptOrErrors<'a> {
+) -> Result<Script<'a>, Vec<OxcDiagnostic>> {
     // 1. Let script be ParseText(sourceText, Script).
-    let source_type = if strict_mode {
-        // Strict mode script is equal to module code.
-        SourceCodeType::StrictScript
-    } else {
-        // Loose mode script is just script code.
-        SourceCodeType::Script
-    };
+    let source_type = SourceCodeType::Script { strict };
 
     // SAFETY: Script keeps the SourceCode reference alive in the Heap, thus
     // making the Program's references point to a live Allocator.
@@ -356,8 +275,7 @@ pub fn parse_script<'a>(
         source_code: source_code.unbind(),
     };
     // }
-    let script = agent.heap.add_script(script_record, gc);
-    Ok(script)
+    Ok(agent.heap.create(script_record).bind(gc))
 }
 
 /// ### [16.1.6 ScriptEvaluation ( scriptRecord )](https://tc39.es/ecma262/#sec-runtime-semantics-scriptevaluation)
@@ -376,7 +294,7 @@ pub fn script_evaluation<'a>(
         id = create_id(agent, script, gc.nogc());
         id
     });
-    let script_record = &agent[script];
+    let script_record = script.get(agent);
     let realm_id = script_record.realm;
     let is_strict_mode = script_record.is_strict;
     let source_code = script_record.source_code;
@@ -391,7 +309,7 @@ pub fn script_evaluation<'a>(
         function: None,
 
         // 4. Set the Realm of scriptContext to scriptRecord.[[Realm]].
-        realm: realm_id,
+        realm: realm_id.unbind(),
 
         // 5. Set the ScriptOrModule of scriptContext to scriptRecord.
         script_or_module: Some(ScriptOrModule::Script(script.unbind())),
@@ -408,7 +326,7 @@ pub fn script_evaluation<'a>(
 
             is_strict_mode,
 
-            source_code,
+            source_code: source_code.unbind(),
         }),
     };
 
@@ -498,14 +416,12 @@ unsafe fn global_declaration_instantiation<'a>(
     let env = env.bind(gc.nogc());
     let scoped_env = env.scope(agent, gc.nogc());
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
-    // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
     let (lex_names, var_names, var_declarations, lex_declarations) = {
-        let body = agent[script].ecmascript_code;
         // SAFETY: The caller promises that Script is rooted, meaning that its
         // backing SourceCode cannot be dropped during this call. Hence, we can
         // take the body slice reference and keep it alive for the duration of
         // this call.
-        let body = unsafe { body.as_ref() };
+        let body = unsafe { script.unbind().get(agent).ecmascript_code.as_ref() };
 
         // 1. Let lexNames be the LexicallyDeclaredNames of script.
         let lex_names = script_lexically_declared_names(body);
@@ -552,7 +468,7 @@ unsafe fn global_declaration_instantiation<'a>(
         if env.has_lexical_declaration(agent, name) {
             let error_message = format!(
                 "Redeclaration of lexical binding '{}'.",
-                name.to_string_lossy(agent)
+                name.to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::SyntaxError,
@@ -635,7 +551,7 @@ unsafe fn global_declaration_instantiation<'a>(
                     if !vn_definable {
                         let error_message = format!(
                             "Cannot declare global variable '{}'.",
-                            vn.to_string_lossy(agent)
+                            vn.to_string_lossy_(agent)
                         );
                         return Err(agent.throw_exception(
                             ExceptionType::TypeError,
@@ -725,7 +641,7 @@ unsafe fn global_declaration_instantiation<'a>(
             .create_global_function_binding(
                 agent,
                 function_name.unbind(),
-                fo.into_value().unbind(),
+                fo.unbind().into(),
                 false,
                 gc.reborrow(),
             )
@@ -752,34 +668,22 @@ mod test {
     use std::ops::ControlFlow;
 
     use crate::{
-        SmallInteger,
         ecmascript::{
-            abstract_operations::operations_on_objects::create_data_property_or_throw,
-            builtins::{
-                ArgumentsList, Array, Behaviour, BuiltinFunctionArgs, create_builtin_function,
-            },
-            execution::{
-                Agent, DefaultHostHooks, JsResult, TryHasBindingContinue,
-                agent::{ExceptionType, Options, unwrap_try},
-                initialize_default_realm,
-            },
-            scripts_and_modules::script::{parse_script, script_evaluation},
-            types::{
-                BUILTIN_STRING_MEMORY, InternalMethods, IntoObject, IntoValue, Number, Object,
-                PropertyKey, String, TryHasResult, Value,
-            },
+            Agent, AgentOptions, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour,
+            BuiltinFunctionArgs, DefaultHostHooks, ExceptionType, InternalMethods, JsResult,
+            Number, Object, PropertyKey, SmallInteger, String, TryHasBindingContinue, TryHasResult,
+            Value, create_builtin_function, create_data_property_or_throw,
+            initialize_default_realm, parse_script, script_evaluation, unwrap_try,
         },
-        engine::{
-            context::{Bindable, GcScope},
-            rootable::Scopable,
-        },
+        engine::{Bindable, GcScope, Scopable},
+        heap::ArenaAccess,
     };
 
     #[test]
     fn empty_script() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "", gc.nogc());
@@ -794,7 +698,7 @@ mod test {
     fn basic_constants() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "true", gc.nogc());
@@ -809,7 +713,7 @@ mod test {
     fn unary_minus() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "-2", gc.nogc());
@@ -824,7 +728,7 @@ mod test {
     fn unary_void() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "void (2 + 2 + 6)", gc.nogc());
@@ -839,7 +743,7 @@ mod test {
     fn unary_plus() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "+(54)", gc.nogc());
@@ -854,7 +758,7 @@ mod test {
     fn logical_not() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "!true", gc.nogc());
@@ -869,7 +773,7 @@ mod test {
     fn bitwise_not() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "~0b1111", gc.nogc());
@@ -884,7 +788,7 @@ mod test {
     fn unary_typeof() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -974,7 +878,7 @@ mod test {
     fn binary_add() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "2 + 2 + 6", gc.nogc());
@@ -989,7 +893,7 @@ mod test {
     fn var_assign() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "var foo = 3;", gc.nogc());
@@ -1003,7 +907,7 @@ mod test {
     fn empty_object() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "var foo = {};", gc.nogc());
@@ -1036,7 +940,7 @@ mod test {
     fn non_empty_object() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "var foo = { a: 3 };", gc.nogc());
@@ -1073,7 +977,7 @@ mod test {
     fn empty_array() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "var foo = [];", gc.nogc());
@@ -1100,7 +1004,7 @@ mod test {
     fn non_empty_array() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "var foo = [ 'a', 3 ];", gc.nogc());
@@ -1121,7 +1025,7 @@ mod test {
         let key = PropertyKey::Integer(0.into());
         assert_eq!(
             result.try_has_property(&mut agent, key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasResult::Custom(0, result.into_object()))
+            ControlFlow::Continue(TryHasResult::Custom(0, result.into()))
         );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, None, gc.nogc()))
@@ -1132,7 +1036,7 @@ mod test {
         let key = PropertyKey::Integer(1.into());
         assert_eq!(
             result.try_has_property(&mut agent, key, None, gc.nogc()),
-            ControlFlow::Continue(TryHasResult::Custom(1, result.into_object()))
+            ControlFlow::Continue(TryHasResult::Custom(1, result.into()))
         );
         assert_eq!(
             unwrap_try(result.try_get_own_property(&mut agent, key, None, gc.nogc()))
@@ -1146,7 +1050,7 @@ mod test {
     fn empty_function() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "function foo() {}", gc.nogc());
@@ -1182,7 +1086,7 @@ mod test {
     fn empty_iife_function_call() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "(function() {})()", gc.nogc());
@@ -1196,7 +1100,7 @@ mod test {
     fn empty_named_function_call() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1211,7 +1115,7 @@ mod test {
     fn empty_declared_function_call() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "function f() {}; f();", gc.nogc());
@@ -1225,7 +1129,7 @@ mod test {
     fn non_empty_iife_function_call() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1233,14 +1137,14 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
     }
 
     #[test]
     fn builtin_function_call() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let global = agent.current_global_object(gc.nogc());
@@ -1271,7 +1175,7 @@ mod test {
             &mut agent,
             global.unbind(),
             key.unbind(),
-            func.into_value().unbind(),
+            func.unbind().into(),
             gc.reborrow(),
         )
         .unwrap();
@@ -1299,14 +1203,14 @@ mod test {
     fn if_statement() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(&mut agent, "if (true) 3", gc.nogc());
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
 
         let source_text = String::from_static_str(&mut agent, "if (false) 3", gc.nogc());
         let result = agent
@@ -1319,7 +1223,7 @@ mod test {
     fn if_else_statement() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(
@@ -1330,7 +1234,7 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
 
         let source_text = String::from_static_str(
             &mut agent,
@@ -1340,14 +1244,14 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(5).into_value());
+        assert_eq!(result, Number::from(5).into());
     }
 
     #[test]
     fn static_property_access() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1355,14 +1259,14 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
     }
 
     #[test]
     fn deep_static_property_access() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(
@@ -1373,14 +1277,14 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
     }
 
     #[test]
     fn computed_property_access() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(
@@ -1391,13 +1295,13 @@ mod test {
         let result = agent
             .run_script(source_text.unbind(), gc.reborrow())
             .unwrap();
-        assert_eq!(result, Number::from(3).into_value());
+        assert_eq!(result, Number::from(3).into());
     }
     #[test]
     fn for_loop() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1423,7 +1327,7 @@ mod test {
     fn lexical_declarations() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1450,7 +1354,7 @@ mod test {
         ));
         assert_eq!(
             unwrap_try(global_env.try_get_binding_value(&mut agent, a_key, None, true, gc.nogc())),
-            String::from_small_string("foo").into_value()
+            String::from_small_string("foo").into()
         );
         assert_eq!(
             unwrap_try(global_env.try_get_binding_value(&mut agent, i_key, None, true, gc.nogc())),
@@ -1462,7 +1366,7 @@ mod test {
     fn lexical_declarations_in_block() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(
@@ -1491,7 +1395,7 @@ mod test {
     fn object_property_assignment() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1505,7 +1409,7 @@ mod test {
         assert_eq!(
             object
                 .unbind()
-                .internal_get(&mut agent, pk.unbind(), object.into_value().unbind(), gc)
+                .internal_get(&mut agent, pk.unbind(), object.unbind().into(), gc)
                 .unwrap(),
             Value::Integer(SmallInteger::from(42))
         );
@@ -1515,7 +1419,7 @@ mod test {
     fn try_catch_not_thrown() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text = String::from_static_str(
@@ -1533,7 +1437,7 @@ mod test {
     fn try_catch_thrown() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1552,7 +1456,7 @@ mod test {
     fn catch_binding() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1574,7 +1478,7 @@ mod test {
     fn throwing_in_try_restores_lexical_environment() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1593,7 +1497,7 @@ mod test {
     fn function_argument_bindings() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1612,7 +1516,7 @@ mod test {
     fn logical_and() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1634,7 +1538,7 @@ mod test {
     fn logical_or() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1656,7 +1560,7 @@ mod test {
     fn nullish_coalescing() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1688,7 +1592,7 @@ mod test {
     fn string_concat() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1731,7 +1635,7 @@ mod test {
     fn property_access_on_functions() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -1775,7 +1679,7 @@ mod test {
     fn name_and_length_on_builtin_functions() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1800,7 +1704,7 @@ mod test {
     fn constructor() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1835,7 +1739,7 @@ mod test {
     fn this_expression() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1865,7 +1769,7 @@ mod test {
     fn symbol_stringification() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1876,7 +1780,7 @@ mod test {
         let Value::Error(result) = result else {
             unreachable!()
         };
-        assert_eq!(agent[result].kind, ExceptionType::TypeError);
+        assert_eq!(result.get(&agent).kind, ExceptionType::TypeError);
 
         // let realm = agent.current_realm_id(gc.nogc());
         let source_text = String::from_static_str(&mut agent, "+Symbol('foo')", gc.nogc());
@@ -1886,7 +1790,7 @@ mod test {
         let Value::Error(result) = result else {
             unreachable!()
         };
-        assert_eq!(agent[result].kind, ExceptionType::TypeError);
+        assert_eq!(result.get(&agent).kind, ExceptionType::TypeError);
 
         let source_text = String::from_static_str(&mut agent, "String(Symbol())", gc.nogc());
         let result = agent
@@ -1911,7 +1815,7 @@ mod test {
     fn instanceof() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -1961,7 +1865,7 @@ mod test {
     fn array_binding_pattern() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
 
         let source_text =
@@ -2000,7 +1904,7 @@ mod test {
     fn do_while() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -2035,7 +1939,7 @@ mod test {
     fn no_implicit_return() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 
@@ -2051,7 +1955,7 @@ mod test {
     fn for_in_loop() {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
-        let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
         initialize_default_realm(&mut agent, gc.reborrow());
         // let realm = agent.current_realm_id(gc.nogc());
 

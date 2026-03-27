@@ -6,26 +6,16 @@ use wtf8::CodePoint;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::get, testing_and_comparison::is_reg_exp},
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            regexp::{reg_exp_alloc, reg_exp_initialize},
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
-            Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, PropertyKey, Realm,
+        String, Value, builders::BuiltinFunctionBuilder, get, is_reg_exp, reg_exp_alloc,
+        reg_exp_initialize,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
-    heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope, Scopable},
+    heap::{IntrinsicConstructorIndexes, WellKnownSymbols},
 };
 
-pub struct RegExpConstructor;
+pub(crate) struct RegExpConstructor;
 
 impl Builtin for RegExpConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
@@ -48,8 +38,7 @@ impl Builtin for RegExpGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpConstructor::get_species);
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
 }
 impl BuiltinGetter for RegExpGetSpecies {}
 
@@ -97,12 +86,12 @@ impl RegExpConstructor {
                 // SAFETY: not shared.
                 let new_target = unsafe { new_target.take(agent) }.bind(gc.nogc());
                 // ii. If SameValue(newTarget, patternConstructor) is true, return pattern.
-                if new_target.into_value() == pattern_constructor {
+                if Value::from(new_target) == pattern_constructor {
                     return Ok(scoped_pattern.get(agent));
                 }
-                new_target.into_object()
+                new_target.into()
             } else {
-                new_target.into_object()
+                new_target.into()
             }
         } else {
             // 3. Else,
@@ -123,7 +112,7 @@ impl RegExpConstructor {
                 // c. Else, let F be flags.
                 Err(scoped_flags)
             };
-            (p.into_value(), f)
+            (p.into(), f)
         } else if pattern_is_reg_exp {
             // 5. Else if patternIsRegExp is true, then
             // a. Let P be ? Get(pattern, "source").
@@ -177,7 +166,7 @@ impl RegExpConstructor {
         .unbind()?
         .bind(gc.nogc());
         // 8. Return ? RegExpInitialize(O, P, F).
-        reg_exp_initialize(agent, o.unbind(), p, f, gc).map(|o| o.into_value())
+        reg_exp_initialize(agent, o.unbind(), p, f, gc).map(|o| o.into())
     }
 
     /// ### [22.2.5.1 RegExp.escape ( S )](https://tc39.es/ecma262/#sec-regexp.escape)
@@ -207,12 +196,12 @@ impl RegExpConstructor {
             ));
         };
         // 2. Let escaped be the empty String.
-        let mut escaped = std::string::String::with_capacity(s.len(agent));
+        let mut escaped = std::string::String::with_capacity(s.len_(agent));
         // 3. Let cpList be StringToCodePoints(S).
-        let mut cp_list = s.as_wtf8(agent).code_points();
+        let mut cp_list = s.as_wtf8_(agent).code_points();
         // 4. For each code point cp of cpList, do
         let Some(first_cp) = cp_list.next() else {
-            return Ok(String::EMPTY_STRING.into_value());
+            return Ok(String::EMPTY_STRING.into());
         };
         // a. If escaped is the empty String
         if let Some(cp) = first_cp.to_char()
@@ -248,7 +237,7 @@ impl RegExpConstructor {
             encode_for_reg_exp_escape(&mut escaped, cp);
         }
         // 5. Return escaped.
-        Ok(String::from_string(agent, escaped, gc).into_value())
+        Ok(String::from_string(agent, escaped, gc).into())
     }
 
     fn get_species<'gc>(
@@ -266,7 +255,7 @@ impl RegExpConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<RegExpConstructor>(agent, realm)
             .with_property_capacity(3)
-            .with_prototype_property(regexp_prototype.into_object())
+            .with_prototype_property(regexp_prototype.into())
             .with_builtin_function_property::<RegExpEscape>()
             .with_builtin_function_getter_property::<RegExpGetSpecies>()
             .build();

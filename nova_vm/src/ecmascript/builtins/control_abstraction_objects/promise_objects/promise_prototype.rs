@@ -4,38 +4,15 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{invoke, species_constructor},
-            testing_and_comparison::{is_callable, is_constructor},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            promise::{
-                Promise,
-                data::{PromiseReactions, PromiseState},
-            },
-            promise_objects::promise_abstract_operations::promise_finally_functions::BuiltinPromiseFinallyFunction,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, PromiseRejectionTrackerOperation},
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinPromiseFinallyFunction, ExceptionType, Function, JsResult, Object, Promise,
+        PromiseCapability, PromiseReactionHandler, PromiseReactionRecord, PromiseReactionType,
+        PromiseReactions, PromiseRejectionTrackerOperation, PromiseState, ProtoIntrinsics, Realm,
+        String, Value, builders::OrdinaryObjectBuilder, invoke, is_callable, is_constructor,
+        new_promise_reaction_job, species_constructor,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
-    heap::{CreateHeapData, WellKnownSymbolIndexes},
-};
-
-use super::promise_abstract_operations::{
-    promise_capability_records::PromiseCapability,
-    promise_jobs::new_promise_reaction_job,
-    promise_reaction_records::{
-        PromiseReactionHandler, PromiseReactionRecord, PromiseReactionType,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    heap::{ArenaAccessMut, CreateHeapData, WellKnownSymbols},
 };
 
 pub(crate) struct PromisePrototype;
@@ -108,7 +85,7 @@ impl PromisePrototype {
         // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
         let c = species_constructor(
             agent,
-            promise.into_object().unbind(),
+            promise.unbind(),
             ProtoIntrinsics::Promise,
             gc.reborrow(),
         )
@@ -132,7 +109,7 @@ impl PromisePrototype {
                 // d. Let catchFinally be CreateBuiltinFunction(catchFinallyClosure, 1, "", « »).
                 let (then_finally, catch_finally) =
                     BuiltinPromiseFinallyFunction::create_finally_functions(agent, c, on_finally);
-                (then_finally.into_value(), catch_finally.into_value())
+                (then_finally.into(), catch_finally.into())
             } else {
                 // a. Let thenFinally be onFinally.
                 // b. Let catchFinally be onFinally.
@@ -141,7 +118,7 @@ impl PromisePrototype {
         // 7. Return ? Invoke(promise, "then", « thenFinally, catchFinally »).
         invoke(
             agent,
-            promise.into_value().unbind(),
+            promise.unbind().into(),
             BUILTIN_STRING_MEMORY.then.to_property_key(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 then_finally.unbind(),
@@ -186,7 +163,7 @@ impl PromisePrototype {
             Some(result_capability),
             gc,
         );
-        Ok(result_capability_promise.into_value())
+        Ok(result_capability_promise.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -204,8 +181,8 @@ impl PromisePrototype {
             .with_builtin_function_property::<PromisePrototypeThen>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Promise.into_value())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Promise.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -275,7 +252,7 @@ pub(crate) fn inner_promise_then(
         handler: on_rejected,
     });
 
-    match &mut agent[promise].promise_state {
+    match &mut promise.get_mut(agent).promise_state {
         // 9. If promise.[[PromiseState]] is pending, then
         PromiseState::Pending {
             fulfill_reactions,

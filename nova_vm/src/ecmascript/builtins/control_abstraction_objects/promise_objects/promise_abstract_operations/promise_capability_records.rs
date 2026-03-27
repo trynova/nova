@@ -6,22 +6,14 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{get, try_get},
-        builtins::promise::{
-            Promise,
-            data::{PromiseHeapData, PromiseState},
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, PromiseRejectionTrackerOperation, TryError, TryResult},
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, TryGetResult, Value},
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, Function, JsResult, Object, Promise,
+        PromiseHeapData, PromiseRejectionTrackerOperation, PromiseState, TryError, TryGetResult,
+        TryResult, Value, get, try_get,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
+    engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
+    heap::{
+        ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
     },
-    heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::promise_jobs::new_promise_resolve_thenable_job;
@@ -48,7 +40,9 @@ pub struct PromiseCapability<'a> {
 }
 
 impl<'a> PromiseCapability<'a> {
-    ///### [27.2.1.5 NewPromiseCapability ( C )](https://tc39.es/ecma262/#sec-newpromisecapability)
+    /// ### [27.2.1.5 NewPromiseCapability ( C )](https://tc39.es/ecma262/#sec-newpromisecapability)
+    ///
+    /// Create a new PromiseCapability
     ///
     /// NOTE: Our implementation doesn't take C as a parameter, since we don't
     /// yet support promise subclassing.
@@ -56,6 +50,10 @@ impl<'a> PromiseCapability<'a> {
         Self::from_promise(agent.heap.create(PromiseHeapData::default()), true).bind(gc)
     }
 
+    /// Recreate a PromiseCapability from its associated [`Promise`] and the
+    /// `must_be_resolved` boolean value.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     pub fn from_promise(promise: Promise<'a>, must_be_unresolved: bool) -> Self {
         Self {
             promise,
@@ -63,6 +61,9 @@ impl<'a> PromiseCapability<'a> {
         }
     }
 
+    /// Get the associated [`Promise`].
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     pub fn promise(&self) -> Promise<'a> {
         self.promise
     }
@@ -71,7 +72,7 @@ impl<'a> PromiseCapability<'a> {
         // If `self.must_be_unresolved` is true, then `alreadyResolved`
         // corresponds with the `is_resolved` flag in PromiseState::Pending.
         // Otherwise, it corresponds to `promise_state` not being Pending.
-        match agent[self.promise].promise_state {
+        match self.promise.get(agent).promise_state {
             PromiseState::Pending { is_resolved, .. } => {
                 if self.must_be_unresolved {
                     is_resolved
@@ -83,11 +84,11 @@ impl<'a> PromiseCapability<'a> {
         }
     }
 
-    ///### [27.2.1.4 FulfillPromise ( promise, value )](https://tc39.es/ecma262/#sec-fulfillpromise)
+    /// ### [27.2.1.4 FulfillPromise ( promise, value )](https://tc39.es/ecma262/#sec-fulfillpromise)
     pub(crate) fn internal_fulfill(&self, agent: &mut Agent, value: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseFulfillReactions]].
-        let promise_state = &mut agent[self.promise].promise_state;
+        let promise_state = &mut self.promise.get_mut(agent).promise_state;
         let reactions = match promise_state {
             PromiseState::Pending {
                 fulfill_reactions, ..
@@ -107,11 +108,11 @@ impl<'a> PromiseCapability<'a> {
         }
     }
 
-    ///### [27.2.1.7 RejectPromise ( promise, reason )](https://tc39.es/ecma262/#sec-rejectpromise)
+    /// ### [27.2.1.7 RejectPromise ( promise, reason )](https://tc39.es/ecma262/#sec-rejectpromise)
     fn internal_reject(&self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseRejectReactions]].
-        let promise_state = &mut agent[self.promise].promise_state;
+        let promise_state = &mut self.promise.get_mut(agent).promise_state;
         let reactions = match promise_state {
             PromiseState::Pending {
                 reject_reactions, ..
@@ -140,7 +141,12 @@ impl<'a> PromiseCapability<'a> {
         }
     }
 
-    ///### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
+    /// ### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
+    ///
+    /// Resolve the associated [`Promise`] with a given value. Ignored if the
+    /// [`Promise`] is already resolved.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     pub fn resolve(self, agent: &mut Agent, resolution: Value, mut gc: GcScope) {
         let promise_capability = self.bind(gc.nogc());
         let resolution = resolution.bind(gc.nogc());
@@ -161,7 +167,7 @@ impl<'a> PromiseCapability<'a> {
         promise.set_already_resolved(agent);
 
         // 7. If SameValue(resolution, promise) is true, then
-        if resolution == promise.into_value() {
+        if resolution == promise.into() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
             let exception = agent
@@ -217,7 +223,7 @@ impl<'a> PromiseCapability<'a> {
                 promise: promise.get(agent),
                 must_be_unresolved,
             }
-            .internal_fulfill(agent, resolution.into_value().unbind(), gc.nogc());
+            .internal_fulfill(agent, resolution.unbind().into(), gc.nogc());
             // b. Return undefined.
             return;
         };
@@ -240,7 +246,13 @@ impl<'a> PromiseCapability<'a> {
         // 16. Return undefined.
     }
 
-    ///### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
+    /// ### [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
+    ///
+    /// Try resolve the associated [`Promise`] with a given value. Fails if
+    /// resolving would require calling into user-code. Ignored if the
+    /// [`Promise`] is already resolved.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     pub fn try_resolve<'gc>(
         &self,
         agent: &mut Agent,
@@ -256,13 +268,13 @@ impl<'a> PromiseCapability<'a> {
             return TryResult::Continue(());
         }
         // 6. Set alreadyResolved.[[Value]] to true.
-        match &mut agent[self.promise].promise_state {
+        match &mut self.promise.get_mut(agent).promise_state {
             PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
             _ => unreachable!(),
         };
 
         // 7. If SameValue(resolution, promise) is true, then
-        if resolution == self.promise.into_value() {
+        if resolution == self.promise.into() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
             let exception = agent
@@ -306,7 +318,7 @@ impl<'a> PromiseCapability<'a> {
         // TODO: Callable proxies
         let Ok(then_action) = Function::try_from(then_action) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution.into_value(), gc);
+            self.internal_fulfill(agent, resolution.into(), gc);
             // b. Return undefined.
             return TryResult::Continue(());
         };
@@ -323,7 +335,12 @@ impl<'a> PromiseCapability<'a> {
         TryResult::Continue(())
     }
 
-    ///### [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
+    /// ### [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
+    ///
+    /// Reject the associated [`Promise`] with a given value. Ignored if the
+    /// [`Promise`] is already resolved.
+    ///
+    /// [`Promise`]: crate::ecmascript::Promise
     pub fn reject(&self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
@@ -341,7 +358,7 @@ impl<'a> PromiseCapability<'a> {
 
         // 6. Set alreadyResolved.[[Value]] to true.
         debug_assert!(matches!(
-            agent[promise].promise_state,
+            promise.get(agent).promise_state,
             PromiseState::Rejected { .. }
         ));
     }

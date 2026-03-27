@@ -6,29 +6,16 @@
 use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{
-    indexed_collections::typed_array_objects::abstract_operations::make_typed_array_with_buffer_witness_record,
-    typed_array::AnyTypedArray,
-};
+use crate::ecmascript::builtins::{AnyTypedArray, make_typed_array_with_buffer_witness_record};
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::create_iter_result_object,
-            operations_on_objects::{create_array_from_list, get, length_of_array_like},
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, array::ARRAY_INDEX_RANGE,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, InternalSlots, IntoValue, Object, String, Value},
+        ARRAY_INDEX_RANGE, Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        CollectionIteratorKind, ExceptionType, InternalSlots, JsResult, Object, Realm, String,
+        Value, builders::OrdinaryObjectBuilder, create_array_from_list, create_iter_result_object,
+        get, length_of_array_like,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
-    heap::WellKnownSymbolIndexes,
+    engine::{Bindable, GcScope, Scopable},
+    heap::{ArenaAccess, ArenaAccessMut, WellKnownSymbols},
 };
 
 pub(crate) struct ArrayIteratorPrototype;
@@ -63,9 +50,9 @@ impl ArrayIteratorPrototype {
 
         // 23.1.5.1 CreateArrayIterator ( array, kind ), step 1. b
         // NOTE: We set `array` to None when the generator in the spec text has returned.
-        let Some(array) = agent[iterator].array else {
+        let Some(array) = iterator.get(agent).array else {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                .map(|o| o.into_value());
+                .map(|o| o.into());
         };
         let mut array = array.bind(gc.nogc());
 
@@ -113,18 +100,18 @@ impl ArrayIteratorPrototype {
         };
 
         // iii. If index ≥ len, return NormalCompletion(undefined).
-        if agent[iterator].next_index >= len {
-            agent[iterator].array = None;
+        if iterator.get(agent).next_index >= len {
+            iterator.get_mut(agent).array = None;
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                .map(|o| o.into_value());
+                .map(|o| o.into());
         }
 
         // iv. Let indexNumber be 𝔽(index).
-        let index = agent[iterator].next_index;
+        let index = iterator.get(agent).next_index;
         // viii. Set index to index + 1.
-        agent[iterator].next_index += 1;
+        iterator.get_mut(agent).next_index += 1;
 
-        let result = match agent[iterator].kind {
+        let result = match iterator.get(agent).kind {
             // v. If kind is key, then
             CollectionIteratorKind::Key => {
                 // 1. Let result be indexNumber.
@@ -185,13 +172,12 @@ impl ArrayIteratorPrototype {
                     &[index.try_into().unwrap(), value.unbind()],
                     gc.nogc(),
                 )
-                .into_value()
+                .into()
             }
         };
 
         // vii. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-        create_iter_result_object(agent, result.unbind(), false, gc.into_nogc())
-            .map(|o| o.into_value())
+        create_iter_result_object(agent, result.unbind(), false, gc.into_nogc()).map(|o| o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -205,8 +191,8 @@ impl ArrayIteratorPrototype {
             .with_builtin_function_property::<ArrayIteratorPrototypeNext>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.Array_Iterator.into_value())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.Array_Iterator.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

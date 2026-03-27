@@ -3,9 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::{
-    builders::ordinary_object_builder::OrdinaryObjectBuilder,
-    execution::{Agent, Realm},
-    types::{BUILTIN_STRING_MEMORY, IntoValue, String},
+    Agent, BUILTIN_STRING_MEMORY, Realm, String, builders::OrdinaryObjectBuilder,
 };
 
 pub(crate) struct NativeErrorPrototypes;
@@ -34,14 +32,14 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.message.into())
-                    .with_value(String::EMPTY_STRING.into_value())
+                    .with_value(String::EMPTY_STRING.into())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.name.into())
-                    .with_value(BUILTIN_STRING_MEMORY.EvalError.into_value())
+                    .with_value(BUILTIN_STRING_MEMORY.EvalError.into())
                     .build()
             })
             .build();
@@ -53,14 +51,14 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.message.into())
-                    .with_value(String::EMPTY_STRING.into_value())
+                    .with_value(String::EMPTY_STRING.into())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.name.into())
-                    .with_value(BUILTIN_STRING_MEMORY.RangeError.into_value())
+                    .with_value(BUILTIN_STRING_MEMORY.RangeError.into())
                     .build()
             })
             .build();
@@ -72,14 +70,14 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.message.into())
-                    .with_value(String::EMPTY_STRING.into_value())
+                    .with_value(String::EMPTY_STRING.into())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.name.into())
-                    .with_value(BUILTIN_STRING_MEMORY.ReferenceError.into_value())
+                    .with_value(BUILTIN_STRING_MEMORY.ReferenceError.into())
                     .build()
             })
             .build();
@@ -91,14 +89,14 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.message.into())
-                    .with_value(String::EMPTY_STRING.into_value())
+                    .with_value(String::EMPTY_STRING.into())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.name.into())
-                    .with_value(BUILTIN_STRING_MEMORY.SyntaxError.into_value())
+                    .with_value(BUILTIN_STRING_MEMORY.SyntaxError.into())
                     .build()
             })
             .build();
@@ -110,14 +108,14 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.message.into())
-                    .with_value(String::EMPTY_STRING.into_value())
+                    .with_value(String::EMPTY_STRING.into())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.name.into())
-                    .with_value(BUILTIN_STRING_MEMORY.TypeError.into_value())
+                    .with_value(BUILTIN_STRING_MEMORY.TypeError.into())
                     .build()
             })
             .build();
@@ -129,14 +127,14 @@ impl NativeErrorPrototypes {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.message.into())
-                    .with_value(String::EMPTY_STRING.into_value())
+                    .with_value(String::EMPTY_STRING.into())
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_enumerable(false)
                     .with_key(BUILTIN_STRING_MEMORY.name.into())
-                    .with_value(BUILTIN_STRING_MEMORY.URIError.into_value())
+                    .with_value(BUILTIN_STRING_MEMORY.URIError.into())
                     .build()
             })
             .build();

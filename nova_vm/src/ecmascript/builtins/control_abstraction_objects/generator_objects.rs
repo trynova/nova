@@ -2,42 +2,37 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
-
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_iterator_objects::create_iter_result_object,
-        execution::{
-            Agent, ExecutionContext, JsResult, ProtoIntrinsics,
-            agent::{ExceptionType, JsError},
-        },
-        types::{InternalMethods, InternalSlots, IntoValue, Object, OrdinaryObject, Value},
+        Agent, ExceptionType, ExecutionContext, InternalMethods, InternalSlots, JsError, JsResult,
+        OrdinaryObject, ProtoIntrinsics, Value, create_iter_result_object, object_handle,
     },
     engine::{
-        Executable, ExecutionResult, SuspendedVm,
-        context::{Bindable, GcScope, bindable_handle},
-        rootable::{HeapRootData, Scopable},
+        Bindable, Executable, ExecutionResult, GcScope, Scopable, SuspendedVm, bindable_handle,
     },
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
+/// ## [27.5 Generator Objects](https://tc39.es/ecma262/#sec-generator-objects)
+///
+/// A Generator is created by calling a generator function and conforms to both
+/// the iterator interface and the iterable interface.
+///
+/// Generator instances directly inherit properties from the initial value of
+/// the **"prototype"** property of the generator function that created the
+/// instance. Generator instances indirectly inherit properties from
+/// %GeneratorPrototype%.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Generator<'a>(BaseIndex<'a, GeneratorHeapData<'static>>);
+object_handle!(Generator);
+arena_vec_access!(Generator, 'a, GeneratorHeapData, generators);
 
 impl Generator<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    ///### [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
+    /// ### [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
     pub(crate) fn resume<'a>(
         self,
         agent: &mut Agent,
@@ -47,7 +42,7 @@ impl Generator<'_> {
         let value = value.bind(gc.nogc());
         let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
-        match agent[generator].generator_state.as_ref().unwrap() {
+        match generator.get(agent).generator_state.as_ref().unwrap() {
             GeneratorState::Executing => {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
@@ -58,7 +53,7 @@ impl Generator<'_> {
             GeneratorState::Completed => {
                 // 2. If state is completed, return CreateIterResultObject(undefined, true).
                 return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                    .map(|o| o.into_value());
+                    .map(|o| o.into());
             }
             GeneratorState::SuspendedStart(_) | GeneratorState::SuspendedYield(_) => {
                 // 3. Assert: state is either suspended-start or suspended-yield.
@@ -70,7 +65,8 @@ impl Generator<'_> {
             vm,
             executable,
             execution_context,
-        } = match agent[generator]
+        } = match generator
+            .get_mut(agent)
             .generator_state
             .replace(GeneratorState::Executing)
         {
@@ -116,14 +112,14 @@ impl Generator<'_> {
                 // h. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with acGenerator can be discarded at this point.
-                agent[generator].generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 // i. If result is a normal completion, then
                 //    i. Let resultValue be undefined.
                 // j. Else if result is a return completion, then
                 //    i. Let resultValue be result.[[Value]].
                 // l. Return CreateIterResultObject(resultValue, true).
                 create_iter_result_object(agent, result_value, true, gc.into_nogc())
-                    .map(|o| o.into_value())
+                    .map(|o| o.into())
             }
             ExecutionResult::Throw(err) => {
                 // GeneratorStart step 4:
@@ -131,7 +127,7 @@ impl Generator<'_> {
                 // h. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with acGenerator can be discarded at this point.
-                agent[generator].generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 // k. i. Assert: result is a throw completion.
                 //    ii. Return ? result.
                 Err(err.unbind())
@@ -142,7 +138,7 @@ impl Generator<'_> {
                 // GeneratorYield:
                 // 3. Let generator be the value of the Generator component of genContext.
                 // 5. Set generator.[[GeneratorState]] to suspended-yield.
-                agent[generator].generator_state =
+                generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
                         executable: executable.get(agent),
@@ -156,7 +152,7 @@ impl Generator<'_> {
         }
     }
 
-    ///### [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
+    /// ### [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
     /// NOTE: This method only accepts throw completions.
     pub(crate) fn resume_throw<'a>(
         self,
@@ -167,14 +163,14 @@ impl Generator<'_> {
         let value = value.bind(gc.nogc());
         let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
-        match agent[generator].generator_state.as_ref().unwrap() {
+        match generator.get(agent).generator_state.as_ref().unwrap() {
             GeneratorState::SuspendedStart(_) => {
                 // 2. If state is suspended-start, then
                 // a. Set generator.[[GeneratorState]] to completed.
                 // b. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with generator can be discarded at this point.
-                agent[generator].generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 // c. Set state to completed.
 
                 // 3. If state is completed, then
@@ -203,7 +199,8 @@ impl Generator<'_> {
             vm,
             executable,
             execution_context,
-        })) = agent[generator]
+        })) = generator
+            .get_mut(agent)
             .generator_state
             .replace(GeneratorState::Executing)
         else {
@@ -244,16 +241,16 @@ impl Generator<'_> {
         // 12. Return ? result.
         match execution_result {
             ExecutionResult::Return(result) => {
-                agent[generator].generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 create_iter_result_object(agent, result.unbind(), true, gc.into_nogc())
-                    .map(|o| o.into_value())
+                    .map(|o| o.into())
             }
             ExecutionResult::Throw(err) => {
-                agent[generator].generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 Err(err)
             }
             ExecutionResult::Yield { vm, yielded_value } => {
-                agent[generator].generator_state =
+                generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
                         executable: executable.unbind(),
@@ -265,7 +262,7 @@ impl Generator<'_> {
         }
     }
 
-    ///### [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
+    /// ### [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
     /// NOTE: This method only accepts return completions.
     pub(crate) fn resume_return<'a>(
         self,
@@ -276,14 +273,14 @@ impl Generator<'_> {
         let abrupt_completion = abrupt_completion.bind(gc.nogc());
         let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
-        match agent[generator].generator_state.as_ref().unwrap() {
+        match generator.get(agent).generator_state.as_ref().unwrap() {
             GeneratorState::SuspendedStart(_) => {
                 // 2. If state is suspended-start, then
                 // a. Set generator.[[GeneratorState]] to completed.
                 // b. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with generator can be discarded at this point.
-                agent[generator].generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 // c. Set state to completed.
 
                 // 3. If abruptCompletion is a return completion, then
@@ -294,7 +291,7 @@ impl Generator<'_> {
                     true,
                     gc.into_nogc(),
                 )
-                .map(|o| o.into_value());
+                .map(|o| o.into());
             }
             GeneratorState::SuspendedYield(_) => {
                 // 4. Assert: state is suspended-yield.
@@ -315,7 +312,7 @@ impl Generator<'_> {
                     true,
                     gc.into_nogc(),
                 )
-                .map(|o| o.into_value());
+                .map(|o| o.into());
             }
         };
 
@@ -325,7 +322,8 @@ impl Generator<'_> {
             vm,
             executable,
             execution_context,
-        })) = agent[generator]
+        })) = generator
+            .get_mut(agent)
             .generator_state
             .replace(GeneratorState::Executing)
         else {
@@ -372,16 +370,15 @@ impl Generator<'_> {
         // 12. Return ? result.
         match execution_result {
             ExecutionResult::Return(result) => {
-                agent[generator].generator_state = Some(GeneratorState::Completed);
-                create_iter_result_object(agent, result, true, gc.into_nogc())
-                    .map(|o| o.into_value())
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
+                create_iter_result_object(agent, result, true, gc.into_nogc()).map(|o| o.into())
             }
             ExecutionResult::Throw(err) => {
-                agent[generator].generator_state = Some(GeneratorState::Completed);
+                generator.get_mut(agent).generator_state = Some(GeneratorState::Completed);
                 Err(err)
             }
             ExecutionResult::Yield { vm, yielded_value } => {
-                agent[generator].generator_state =
+                generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
                         executable: executable.unbind(),
@@ -394,42 +391,21 @@ impl Generator<'_> {
     }
 }
 
-bindable_handle!(Generator);
-
-impl<'a> From<Generator<'a>> for Value<'a> {
-    fn from(value: Generator<'a>) -> Self {
-        Value::Generator(value)
-    }
-}
-
-impl<'a> From<Generator<'a>> for Object<'a> {
-    fn from(value: Generator) -> Self {
-        Object::Generator(value.unbind())
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Generator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::Generator(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
 impl<'a> InternalSlots<'a> for Generator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Generator;
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+        assert!(
+            self.get_mut(agent)
+                .object_index
+                .replace(backing_object)
+                .is_none()
+        );
     }
 }
 
@@ -440,49 +416,6 @@ impl<'a> CreateHeapData<GeneratorHeapData<'a>, Generator<'a>> for Heap {
         self.generators.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<GeneratorHeapData<'static>>();
         Generator(BaseIndex::last(&self.generators))
-    }
-}
-
-impl Index<Generator<'_>> for Agent {
-    type Output = GeneratorHeapData<'static>;
-
-    fn index(&self, index: Generator) -> &Self::Output {
-        &self.heap.generators[index]
-    }
-}
-
-impl IndexMut<Generator<'_>> for Agent {
-    fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
-        &mut self.heap.generators[index]
-    }
-}
-
-impl Index<Generator<'_>> for Vec<GeneratorHeapData<'static>> {
-    type Output = GeneratorHeapData<'static>;
-
-    fn index(&self, index: Generator) -> &Self::Output {
-        self.get(index.get_index())
-            .expect("Generator out of bounds")
-    }
-}
-
-impl IndexMut<Generator<'_>> for Vec<GeneratorHeapData<'static>> {
-    fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Generator out of bounds")
-    }
-}
-
-impl TryFrom<HeapRootData> for Generator<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::Generator(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
     }
 }
 
@@ -503,7 +436,7 @@ impl HeapSweepWeakReference for Generator<'static> {
 }
 
 #[derive(Debug, Default)]
-pub struct GeneratorHeapData<'a> {
+pub(crate) struct GeneratorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) generator_state: Option<GeneratorState>,
 }

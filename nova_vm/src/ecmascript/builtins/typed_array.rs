@@ -2,25 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{
-    ecmascript::{
-        abstract_operations::type_conversion::canonical_numeric_index_string,
-        execution::Agent,
-        types::{Number, PropertyKey, String},
-    },
-    engine::context::NoGcScope,
-};
-
 mod any_typed_array;
-pub mod data;
+mod data;
 mod normal_typed_array;
 #[cfg(feature = "shared-array-buffer")]
 mod shared_typed_array;
 
 pub use any_typed_array::*;
+pub(crate) use data::*;
 pub use normal_typed_array::*;
 #[cfg(feature = "shared-array-buffer")]
 pub use shared_typed_array::*;
+
+use crate::{
+    ecmascript::{Agent, Number, PropertyKey, String, canonical_numeric_index_string},
+    engine::NoGcScope,
+};
 
 /// Canonicalize the given property key if it is a numeric string key.
 pub(crate) fn canonicalize_numeric_index_string(

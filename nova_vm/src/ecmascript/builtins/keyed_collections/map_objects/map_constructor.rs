@@ -9,45 +9,19 @@ use ahash::AHasher;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close_with_error,
-                iterator_step_value,
-            },
-            operations_on_objects::{
-                call_function, create_array_from_list, get, get_method, group_by_collection,
-                throw_not_callable, try_get,
-            },
-            testing_and_comparison::{is_callable, same_value},
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
-            array::ArrayHeap,
-            keyed_collections::map_objects::map_prototype::{
-                MapPrototypeSet, canonicalize_keyed_collection_key,
-            },
-            map::{
-                Map,
-                data::{MapHeapData, MapHeapDataMut},
-            },
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm,
-            agent::{ExceptionType, TryError},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
-            PropertyKey, String, TryGetResult, Value, handle_try_get_result,
-        },
+        Agent, ArgumentsList, ArrayHeap, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, IteratorRecord, JsResult, Map,
+        MapHeapData, MapPrototypeSet, Object, PropertyKey, ProtoIntrinsics, Realm, String,
+        TryError, TryGetResult, Value, builders::BuiltinFunctionBuilder, call_function,
+        canonicalize_keyed_collection_key, create_array_from_list, get, get_iterator, get_method,
+        group_by_collection, handle_try_get_result, if_abrupt_close_iterator, is_callable,
+        iterator_close_with_error, iterator_step_value, ordinary_create_from_constructor,
+        same_value, throw_not_callable, try_get,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::{
-        CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes,
+        ArenaAccess, CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap,
+        WellKnownSymbols,
     },
 };
 
@@ -71,8 +45,7 @@ impl Builtin for MapGroupBy {
 struct MapGetSpecies;
 impl Builtin for MapGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::get_species);
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Species.to_property_key());
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
@@ -109,7 +82,7 @@ impl MapConstructor {
                 ProtoIntrinsics::Map,
                 gc,
             )?
-            .into_value());
+            .into());
         }
         let iterable = iterable.scope(agent, nogc);
         let mut map = Map::try_from(
@@ -179,7 +152,7 @@ impl MapConstructor {
             adder.unbind(),
             gc,
         )
-        .map(|result| result.into_value())
+        .map(|result| result.into())
     }
 
     /// ### [24.1.2.1 Map.groupBy ( items, callback )](https://tc39.es/ecma262/#sec-map.groupby)
@@ -220,13 +193,7 @@ impl MapConstructor {
         } = &mut agent.heap;
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
-        let MapHeapDataMut {
-            keys,
-            values,
-            map_data,
-            ..
-        } = map.get_direct_mut(maps);
-        let map_data = map_data.get_mut();
+        let (map_data, keys, values) = map.get_map_data_mut(maps, &primitive_heap);
         let hasher = |value: Value| {
             let mut hasher = AHasher::default();
             value.hash(&primitive_heap, &mut hasher);
@@ -246,7 +213,7 @@ impl MapConstructor {
             match entry {
                 hashbrown::hash_table::Entry::Occupied(occupied) => {
                     let index = *occupied.get();
-                    values[index as usize] = Some(elements.into_value().unbind());
+                    values[index as usize] = Some(elements.unbind().into());
                 }
                 hashbrown::hash_table::Entry::Vacant(vacant) => {
                     // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
@@ -254,12 +221,12 @@ impl MapConstructor {
                     let index = u32::try_from(values.len()).unwrap();
                     vacant.insert(index);
                     keys.push(Some(key.unbind()));
-                    values.push(Some(elements.into_value().unbind()));
+                    values.push(Some(elements.unbind().into()));
                 }
             }
         }
         // 4. Return map
-        Ok(map.into_value())
+        Ok(map.into())
     }
 
     fn get_species<'gc>(
@@ -278,7 +245,7 @@ impl MapConstructor {
         BuiltinFunctionBuilder::new_intrinsic_constructor::<MapConstructor>(agent, realm)
             .with_property_capacity(3)
             .with_builtin_function_property::<MapGroupBy>()
-            .with_prototype_property(map_prototype.into_object())
+            .with_prototype_property(map_prototype.into())
             .with_builtin_function_getter_property::<MapGetSpecies>()
             .build();
     }
@@ -289,7 +256,7 @@ impl MapConstructor {
 /// #### Unspecified specialization
 ///
 /// This is a specialization for the `new Map()` use case.
-pub fn add_entries_from_iterable_map_constructor<'a>(
+pub(crate) fn add_entries_from_iterable_map_constructor<'a>(
     agent: &mut Agent,
     target: Map,
     iterable: Value,
@@ -301,7 +268,7 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
     let mut iterable = iterable.bind(nogc);
     let mut adder = adder.bind(nogc);
     if let Function::BuiltinFunction(bf) = adder
-        && agent[bf].behaviour == MapPrototypeSet::BEHAVIOUR
+        && bf.get(agent).behaviour == MapPrototypeSet::BEHAVIOUR
     {
         // Normal Map.prototype.set
         if let Value::Array(arr_iterable) = iterable {
@@ -310,8 +277,8 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
             let scoped_adder = bf.scope(agent, nogc);
             let using_iterator = get_method(
                 agent,
-                arr_iterable.into_value().unbind(),
-                WellKnownSymbolIndexes::Iterator.into(),
+                arr_iterable.unbind().into(),
+                WellKnownSymbols::Iterator.into(),
                 gc.reborrow(),
             )
             .unbind()?
@@ -323,7 +290,7 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                         .current_realm_record()
                         .intrinsics()
                         .array_prototype_values()
-                        .into_function(),
+                        .into(),
                 )
             {
                 let arr_iterable = scoped_iterable.get(agent).bind(gc.nogc());
@@ -337,7 +304,6 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                     ..
                 } = &mut agent.heap;
                 let array_heap = ArrayHeap::new(elements, arrays);
-                let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
                 let arr_elements = arr_iterable.get_elements(&array_heap);
                 // Iterable uses the normal Array iterator of this realm.
@@ -363,13 +329,8 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                     // Trivial, dense array of trivial, dense arrays of two elements.
                     let gc = gc.nogc();
                     let length = arr_elements.len();
-                    let MapHeapDataMut {
-                        keys,
-                        values,
-                        map_data,
-                        ..
-                    } = target.get_direct_mut(maps);
-                    let map_data = map_data.get_mut();
+                    let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+                    let (map_data, keys, values) = target.get_map_data_mut(maps, &primitive_heap);
 
                     let length = length as usize;
                     keys.reserve(length);
@@ -415,8 +376,8 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
                 }
             }
             let gc = gc.nogc();
-            iterable = scoped_iterable.get(agent).bind(gc).into_value();
-            adder = scoped_adder.get(agent).bind(gc).into_function();
+            iterable = scoped_iterable.get(agent).bind(gc).into();
+            adder = scoped_adder.get(agent).bind(gc).into();
         }
     }
 
@@ -529,7 +490,7 @@ pub(crate) fn add_entries_from_iterable<'a, T: Into<Object<'a>> + TryFrom<Object
         let status = call_function(
             agent,
             adder.get(agent),
-            target.get(agent).into_value(),
+            target.get(agent).into(),
             Some(ArgumentsList::from_mut_slice(&mut [
                 k.get(agent),
                 v.unbind(),

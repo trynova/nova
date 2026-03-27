@@ -5,11 +5,10 @@
 use hashbrown::HashTable;
 
 use crate::{
-    ecmascript::{execution::Agent, types::PropertyKey},
+    ecmascript::{Agent, PropertyKey},
     engine::{
-        ScopableCollection, ScopedCollection,
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::HeapRootCollectionData,
+        Bindable, HeapRootCollection, NoGcScope, ScopableCollection, ScopedCollection,
+        bindable_handle,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -26,19 +25,17 @@ impl core::fmt::Debug for PropertyKeySet<'_> {
 }
 
 impl<'a> PropertyKeySet<'a> {
+    /// Create a new PropertyKeySet.
     pub fn new(_: NoGcScope<'a, '_>) -> Self {
         Self(HashTable::new())
     }
 
+    /// Create a new PropertyKeySet with a given capacity.
     pub fn with_capacity(capacity: usize, _: NoGcScope<'a, '_>) -> Self {
         Self(HashTable::with_capacity(capacity))
     }
 
     /// Insert a PropertyKey into the set.
-    ///
-    /// The insertion might trigger a resize of the underlying hash table,
-    /// requiring rehashing of some or all previous elements. Hence the
-    /// PropertyKeyHeap parameter is needed.
     pub fn insert(&mut self, agent: &Agent, value: PropertyKey) -> bool {
         let hash = value.heap_hash(agent);
         let entry = self.0.entry(hash, |p| *p == value, |p| p.heap_hash(agent));
@@ -70,16 +67,12 @@ impl ScopableCollection for PropertyKeySet<'_> {
 
 impl ScopedCollection<'_, PropertyKeySet<'static>> {
     /// Insert a PropertyKey into the scoped set.
-    ///
-    /// The insertion might trigger a resize of the underlying hash table,
-    /// requiring rehashing of some or all previous elements. Hence the
-    /// PropertyKeyHeap parameter is needed.
     pub fn insert(&mut self, agent: &Agent, value: PropertyKey) -> bool {
         let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
         let Some(stack_slot) = stack_ref_collections.get_mut(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::PropertyKeySet(property_key_set) = stack_slot else {
+        let HeapRootCollection::PropertyKeySet(property_key_set) = stack_slot else {
             unreachable!()
         };
         property_key_set.insert(agent, value)
@@ -91,7 +84,7 @@ impl ScopedCollection<'_, PropertyKeySet<'static>> {
         let Some(stack_slot) = stack_ref_collections.get(self.inner as usize) else {
             unreachable!();
         };
-        let HeapRootCollectionData::PropertyKeySet(property_key_set) = stack_slot else {
+        let HeapRootCollection::PropertyKeySet(property_key_set) = stack_slot else {
             unreachable!()
         };
         property_key_set.contains(agent, value)

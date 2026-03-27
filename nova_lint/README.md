@@ -12,10 +12,13 @@ along side [Clippy](https://doc.rust-lang.org/stable/clippy/index.html).
 ## Usage
 
 1. Install `cargo-dylint` and `dylint-link`:
-  ```bash
-  cargo install cargo-dylint dylint-link
-  ```
+
+```bash
+cargo install cargo-dylint dylint-link
+```
+
 2. Run the linter in the root of the project:
-  ```bash
-  cargo dylint --all
-  ```
+
+```bash
+cargo dylint --all
+```

@@ -2,88 +2,50 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod data;
+mod data;
 
-use core::ops::{Index, IndexMut};
-
-use data::DateValue;
+pub(crate) use data::*;
 
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
-        types::{InternalMethods, InternalSlots, Object, OrdinaryObject, Value},
+        Agent, InternalMethods, InternalSlots, OrdinaryObject, ProtoIntrinsics, object_handle,
     },
-    engine::{
-        context::{Bindable, bindable_handle},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-    },
+    engine::Bindable,
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
-use self::data::DateHeapData;
-
+/// ## [21.4 Date Objects](https://tc39.es/ecma262/#sec-date-objects)
+///
+/// Time measurement in ECMAScript is analogous to time measurement in POSIX, in
+/// particular sharing definition in terms of the proleptic Gregorian calendar,
+/// an _epoch_ of midnight at the beginning of 1 January 1970 UTC, and an
+/// accounting of every day as comprising exactly 86,400 seconds (each of which
+/// is 1000 milliseconds long).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Date<'a>(BaseIndex<'a, DateHeapData<'static>>);
+object_handle!(Date);
+arena_vec_access!(
+    Date,
+    'a,
+    DateHeapData,
+    dates
+);
 
 impl Date<'_> {
     /// ### get [[DateValue]]
     #[inline]
     pub(crate) fn date_value(self, agent: &Agent) -> DateValue {
-        agent[self].date
+        self.get(agent).date
     }
 
     /// ### set [[DateValue]]
     #[inline]
     pub(crate) fn set_date_value(self, agent: &mut Agent, date: DateValue) {
-        agent[self].date = date;
-    }
-
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-}
-
-bindable_handle!(Date);
-
-impl<'a> From<Date<'a>> for Value<'a> {
-    fn from(value: Date<'a>) -> Self {
-        Value::Date(value)
-    }
-}
-
-impl<'a> From<Date<'a>> for Object<'a> {
-    fn from(value: Date<'a>) -> Self {
-        Object::Date(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for Date<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, ()> {
-        match value {
-            Value::Date(idx) => Ok(idx),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for Date<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, ()> {
-        match value {
-            Object::Date(idx) => Ok(idx),
-            _ => Err(()),
-        }
+        self.get_mut(agent).date = date;
     }
 }
 
@@ -92,66 +54,20 @@ impl<'a> InternalSlots<'a> for Date<'a> {
 
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        agent[self].object_index
+        self.get(agent).object_index.unbind()
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+        assert!(
+            self.get_mut(agent)
+                .object_index
+                .replace(backing_object)
+                .is_none()
+        );
     }
 }
 
 impl<'a> InternalMethods<'a> for Date<'a> {}
-
-impl Index<Date<'_>> for Agent {
-    type Output = DateHeapData<'static>;
-
-    fn index(&self, index: Date) -> &Self::Output {
-        &self.heap.dates[index]
-    }
-}
-
-impl IndexMut<Date<'_>> for Agent {
-    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
-        &mut self.heap.dates[index]
-    }
-}
-
-impl Index<Date<'_>> for Vec<DateHeapData<'static>> {
-    type Output = DateHeapData<'static>;
-
-    fn index(&self, index: Date) -> &Self::Output {
-        self.get(index.get_index()).expect("Date out of bounds")
-    }
-}
-
-impl IndexMut<Date<'_>> for Vec<DateHeapData<'static>> {
-    fn index_mut(&mut self, index: Date) -> &mut Self::Output {
-        self.get_mut(index.get_index()).expect("Date out of bounds")
-    }
-}
-
-impl Rootable for Date<'_> {
-    type RootRepr = HeapRootRef;
-
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Date(value.unbind()))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Date(object) => Some(object),
-            _ => None,
-        }
-    }
-}
 
 impl HeapMarkAndSweep for Date<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

@@ -6,38 +6,16 @@ use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call_function, define_property_or_throw, get, has_property, set, throw_set_error,
-                try_define_property_or_throw, try_get, try_has_property, try_set,
-            },
-            type_conversion::to_boolean,
-        },
-        builtins::{
-            ArgumentsList,
-            ordinary::{
-                caches::{PropertyLookupCache, PropertyOffset},
-                try_get_ordinary_object_value,
-            },
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{
-                ExceptionType, JsError, TryError, TryResult, js_result_into_try, try_result_into_js,
-            },
-            environments::{Environment, ObjectEnvironment, OuterEnv},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyDescriptor,
-            PropertyKey, SetCachedProps, SetResult, String, TryGetResult, TryHasResult, Value,
-            call_proxy_set, try_get_result_into_value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Environment, ExceptionType, InternalMethods,
+        JsError, JsResult, Object, ObjectEnvironment, OuterEnv, PropertyDescriptor, PropertyKey,
+        PropertyLookupCache, PropertyOffset, SetAtOffsetProps, SetResult, String, TryError,
+        TryGetResult, TryHasResult, TryResult, Value, call_function, call_proxy_set,
+        define_property_or_throw, get, has_property, js_result_into_try, set, throw_set_error,
+        to_boolean, try_define_property_or_throw, try_get, try_get_ordinary_object_value,
+        try_get_result_into_value, try_has_property, try_result_into_js, try_set,
     },
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
-    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
 };
 
 use super::TryHasBindingContinue;
@@ -58,7 +36,7 @@ use super::TryHasBindingContinue;
 /// if the Writable attribute of the corresponding property is false. Immutable
 /// bindings do not exist for Object Environment Records.
 #[derive(Debug, Clone)]
-pub struct ObjectEnvironmentRecord {
+pub(crate) struct ObjectEnvironmentRecord {
     /// ### \[\[BindingObject\]\]
     ///
     /// The binding object of this Environment Record.
@@ -124,11 +102,11 @@ impl HeapMarkAndSweep for ObjectEnvironmentRecord {
 
 impl<'e> ObjectEnvironment<'e> {
     pub(crate) fn get_binding_object(self, agent: &Agent) -> Object<'e> {
-        agent[self].binding_object
+        self.get(agent).binding_object
     }
 
     pub(crate) fn get_outer_env(self, agent: &Agent) -> Option<Environment<'e>> {
-        agent[self].outer_env
+        self.get(agent).outer_env
     }
 
     /// ### Try [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
@@ -144,7 +122,7 @@ impl<'e> ObjectEnvironment<'e> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'gc, '_>,
     ) -> ControlFlow<TryError<'gc>, TryHasBindingContinue<'gc>> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc);
         let is_with_environment = env_rec.is_with_environment;
@@ -165,7 +143,7 @@ impl<'e> ObjectEnvironment<'e> {
         let unscopables = match try_get(
             agent,
             binding_object,
-            WellKnownSymbolIndexes::Unscopables.into(),
+            WellKnownSymbols::Unscopables.into(),
             None,
             gc,
         )? {
@@ -209,7 +187,7 @@ impl<'e> ObjectEnvironment<'e> {
         n: String,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, bool> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc.nogc());
         let is_with_environment = env_rec.is_with_environment;
@@ -241,7 +219,7 @@ impl<'e> ObjectEnvironment<'e> {
         let unscopables = get(
             agent,
             scoped_binding_object.get(agent),
-            PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
+            PropertyKey::Symbol(WellKnownSymbols::Unscopables.into()),
             gc.reborrow(),
         )
         .unbind()?
@@ -283,7 +261,7 @@ impl<'e> ObjectEnvironment<'e> {
         cache: Option<PropertyLookupCache>,
         gc: NoGcScope<'a, '_>,
     ) -> TryResult<'a, ()> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc);
         // 2. Perform ? DefinePropertyOrThrow(bindingObject, N, PropertyDescriptor { [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }).
@@ -327,7 +305,7 @@ impl<'e> ObjectEnvironment<'e> {
         d: bool,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc.nogc());
         let n = PropertyKey::from(n).bind(gc.nogc());
@@ -435,7 +413,7 @@ impl<'e> ObjectEnvironment<'e> {
         s: bool,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc);
         let n = PropertyKey::from(n).bind(gc);
@@ -470,9 +448,9 @@ impl<'e> ObjectEnvironment<'e> {
         {
             let result = object.set_at_offset(
                 agent,
-                &SetCachedProps {
+                &SetAtOffsetProps {
                     p: n.bind(gc),
-                    receiver: binding_object.into_value().bind(gc),
+                    receiver: binding_object.bind(gc).into(),
                     cache: cache.bind(gc),
                     value: v.bind(gc),
                 },
@@ -511,7 +489,7 @@ impl<'e> ObjectEnvironment<'e> {
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ()> {
         let env = self.bind(gc.nogc());
-        let env_rec = &agent[env];
+        let env_rec = &env.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc.nogc());
         let n = PropertyKey::from(n).bind(gc.nogc());
@@ -537,7 +515,7 @@ impl<'e> ObjectEnvironment<'e> {
                     call_function(
                         agent,
                         setter.unbind(),
-                        binding_object.into_value().unbind(),
+                        binding_object.unbind().into(),
                         Some(ArgumentsList::from_mut_value(&mut v.unbind())),
                         gc,
                     )?;
@@ -548,7 +526,7 @@ impl<'e> ObjectEnvironment<'e> {
                         proxy.unbind(),
                         n.unbind(),
                         v.unbind(),
-                        binding_object.into_value().unbind(),
+                        binding_object.unbind().into(),
                         s,
                         gc,
                     )?;
@@ -597,8 +575,7 @@ impl<'e> ObjectEnvironment<'e> {
             )
             .into();
         }
-        let result =
-            binding_object.try_set(agent, n, v, binding_object.into_value(), Some(cache), gc)?;
+        let result = binding_object.try_set(agent, n, v, binding_object.into(), Some(cache), gc)?;
         if result.failed() {
             // The key was unwritable and we're in strict mode;
             // need to throw an error.
@@ -637,10 +614,8 @@ impl<'e> ObjectEnvironment<'e> {
 
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
-            let binding_object_repr = scoped_binding_object
-                .get(agent)
-                .into_value()
-                .string_repr(agent, gc.reborrow());
+            let binding_object_repr =
+                Value::from(scoped_binding_object.get(agent)).string_repr(agent, gc.reborrow());
             Err(Self::throw_property_doesnt_exist_error(
                 agent,
                 binding_object_repr.unbind(),
@@ -671,7 +646,7 @@ impl<'e> ObjectEnvironment<'e> {
         let error_message = format!(
             "Property '{}' does not exist in {}.",
             n.as_display(agent),
-            binding_object_repr.to_string_lossy(agent)
+            binding_object_repr.to_string_lossy_(agent)
         );
         agent.throw_exception(ExceptionType::ReferenceError, error_message, gc)
     }
@@ -692,7 +667,7 @@ impl<'e> ObjectEnvironment<'e> {
         s: bool,
         gc: NoGcScope<'e, '_>,
     ) -> TryResult<'e, Value<'e>> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc);
         let name = PropertyKey::from(n).bind(gc);
@@ -747,7 +722,7 @@ impl<'e> ObjectEnvironment<'e> {
         s: bool,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<'a, Value<'a>> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object.bind(gc.nogc());
         let name = PropertyKey::from(name).bind(gc.nogc());
@@ -815,7 +790,7 @@ impl<'e> ObjectEnvironment<'e> {
         name: String,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, bool> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         let name = PropertyKey::from(name);
@@ -836,12 +811,12 @@ impl<'e> ObjectEnvironment<'e> {
         name: String,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, bool> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. Let bindingObject be envRec.[[BindingObject]].
-        let binding_boject = env_rec.binding_object;
+        let binding_object = env_rec.binding_object;
         let name = PropertyKey::from(name);
         // 2. Return ? bindingObject.[[Delete]](N).
-        binding_boject.internal_delete(agent, name, gc)
+        binding_object.internal_delete(agent, name, gc)
     }
 
     /// ### [9.1.1.2.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-object-environment-records-withbaseobject)
@@ -849,7 +824,7 @@ impl<'e> ObjectEnvironment<'e> {
     /// The WithBaseObject concrete method of an Object Environment Record
     /// envRec takes no arguments and returns an Object or undefined.
     pub(crate) fn with_base_object(self, agent: &Agent) -> Option<Object<'e>> {
-        let env_rec = &agent[self];
+        let env_rec = &self.get(agent);
         // 1. If envRec.[[IsWithEnvironment]] is true, return envRec.[[BindingObject]].
         if env_rec.is_with_environment {
             Some(env_rec.binding_object)
@@ -866,8 +841,6 @@ impl HeapMarkAndSweep for ObjectEnvironment<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .object_environments
-            .shift_non_zero_u32_index(&mut self.0);
+        compactions.object_environments.shift_index(&mut self.0);
     }
 }

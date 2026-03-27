@@ -3,31 +3,15 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::abstract_operations::type_conversion::to_number,
-    engine::context::{Bindable, GcScope, NoGcScope},
-};
-use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::invoke,
-            type_conversion::{
-                PreferredType, ordinary_to_primitive, to_integer_or_infinity_f64, to_object,
-            },
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
-            date::{
-                Date,
-                data::{DateValue, time_clip},
-            },
-            text_processing::string_objects::string_prototype::to_zero_padded_decimal_string,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinIntrinsic, Date,
+        DateValue, ExceptionType, JsResult, Number, Object, PreferredType, PropertyKey, Realm,
+        String, Value, abstract_operations::to_number, builders::OrdinaryObjectBuilder, invoke,
+        ordinary_to_primitive, to_integer_or_infinity_f64, to_object,
+        to_zero_padded_decimal_string,
     },
-    engine::rootable::Scopable,
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbols},
 };
 
 pub(crate) struct DatePrototype;
@@ -297,8 +281,7 @@ struct DatePrototypeToPrimitive;
 impl Builtin for DatePrototypeToPrimitive {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
 
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::ToPrimitive.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::ToPrimitive.to_property_key());
 
     const LENGTH: u8 = 1;
 
@@ -513,7 +496,7 @@ impl DatePrototype {
             .unbind()?
             .bind(gc.nogc());
         // 3. Return dateObject.[[DateValue]].
-        Ok(date_object.date_value(agent).into_value())
+        Ok(date_object.date_value(agent).into())
     }
 
     fn get_timezone_offset<'gc>(
@@ -570,11 +553,11 @@ impl DatePrototype {
             time_within_day(t),
         );
         // 8. Let u be TimeClip(UTC(newDate)).
-        let u = time_clip(utc(agent, new_date));
+        let u = DateValue::time_clip(utc(agent, new_date));
         // 9. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 10. Return u.
-        Ok(u.into_value())
+        Ok(u.into())
     }
 
     /// ### [21.4.4.21 Date.prototype.setFullYear ( year \[ , month \[ , date \] \] )](https://tc39.es/ecma262/#sec-date.prototype.setfullyear)
@@ -620,7 +603,7 @@ impl DatePrototype {
                 .to_number(agent, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc())
-                .into_f64(agent)
+                .into_f64_(agent)
         };
         // 7. If date is not present, let dt be DateFromTime(t); otherwise, let dt be ? ToNumber(date).
         let dt = if arguments.len() < 3 {
@@ -630,16 +613,16 @@ impl DatePrototype {
                 .to_number(agent, gc.reborrow())
                 .unbind()?
                 .bind(gc.nogc())
-                .into_f64(agent)
+                .into_f64_(agent)
         };
         // 8. Let newDate be MakeDate(MakeDay(y, m, dt), TimeWithinDay(t)).
         let new_date = make_date(make_day(y, m, dt), time_within_day(t));
         // 9. Let u be TimeClip(UTC(newDate)).
-        let u = time_clip(utc(agent, new_date));
+        let u = DateValue::time_clip(utc(agent, new_date));
         // 10. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 11. Return u.
-        Ok(u.into_value())
+        Ok(u.into())
     }
 
     /// ### [21.4.4.22 Date.prototype.setHours ( hour \[ , min \[ , sec \[ , ms \] \] \] )](https://tc39.es/ecma262/#sec-date.prototype.sethours)
@@ -718,11 +701,11 @@ impl DatePrototype {
         // 13. Let date be MakeDate(Day(t), MakeTime(h, m, s, milli)).
         let date = make_date(day(t), make_time(h, m, s, milli));
         // 14. Let u be TimeClip(UTC(date)).
-        let u = time_clip(utc(agent, date));
+        let u = DateValue::time_clip(utc(agent, date));
         // 15. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 16. Return u.
-        Ok(u.into_value())
+        Ok(u.into())
     }
 
     /// ### [21.4.4.23 Date.prototype.setMilliseconds ( ms )](https://tc39.es/ecma262/#sec-date.prototype.setmilliseconds)
@@ -759,11 +742,11 @@ impl DatePrototype {
             ms,
         );
         // 8. Let u be TimeClip(UTC(MakeDate(Day(t), time))).
-        let u = time_clip(utc(agent, make_date(day(t), time)));
+        let u = DateValue::time_clip(utc(agent, make_date(day(t), time)));
         // 9. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 10. Return u.
-        Ok(u.into_value())
+        Ok(u.into())
     }
 
     /// ### [21.4.4.24 Date.prototype.setMinutes ( min \[ , sec \[ , ms \] \] )](https://tc39.es/ecma262/#sec-date.prototype.setminutes)
@@ -827,11 +810,11 @@ impl DatePrototype {
         // 11. Let date be MakeDate(Day(t), MakeTime(HourFromTime(t), m, s, milli)).
         let date = make_date(day(t), make_time(hour_from_time(t) as f64, m, s, milli));
         // 12. Let u be TimeClip(UTC(date)).
-        let u = time_clip(utc(agent, date));
+        let u = DateValue::time_clip(utc(agent, date));
         // 13. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 14. Return u.
-        Ok(u.into_value())
+        Ok(u.into())
     }
 
     /// ### [21.4.4.25 Date.prototype.setMonth ( month \[ , date \] )](https://tc39.es/ecma262/#sec-date.prototype.setmonth)
@@ -884,11 +867,11 @@ impl DatePrototype {
             time_within_day(t),
         );
         // 10. Let u be TimeClip(UTC(newDate)).
-        let u = time_clip(utc(agent, new_date));
+        let u = DateValue::time_clip(utc(agent, new_date));
         // 11. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 12. Return u.
-        Ok(u.into_value())
+        Ok(u.into())
     }
 
     /// ### [21.4.4.26 Date.prototype.setSeconds ( sec \[ , ms \] )](https://tc39.es/ecma262/#sec-date.prototype.setseconds)
@@ -941,11 +924,11 @@ impl DatePrototype {
             make_time(hour_from_time(t) as f64, min_from_time(t) as f64, s, milli),
         );
         // 10. Let u be TimeClip(UTC(date)).
-        let u = time_clip(utc(agent, date));
+        let u = DateValue::time_clip(utc(agent, date));
         // 11. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 12. Return u.
-        Ok(u.into_value())
+        Ok(u.into())
     }
 
     /// ### [21.4.4.27 Date.prototype.setTime ( time )](https://tc39.es/ecma262/#sec-date.prototype.settime)
@@ -967,11 +950,11 @@ impl DatePrototype {
             .unbind()?
             .to_real(agent);
         // 4. Let v be TimeClip(t).
-        let v = time_clip(t);
+        let v = DateValue::time_clip(t);
         // 5. Set dateObject.[[DateValue]] to v.
         date_object.get(agent).set_date_value(agent, v);
         // 6. Return v.
-        Ok(v.into_value())
+        Ok(v.into())
     }
 
     /// ### [21.4.4.35 Date.prototype.toDateString ( )](https://tc39.es/ecma262/#sec-date.prototype.todatestring)
@@ -1070,14 +1053,14 @@ impl DatePrototype {
             .bind(gc.nogc());
         // 3. If tv is a Number and tv is not finite, return null.
         if let Ok(tv) = Number::try_from(tv)
-            && !tv.is_finite(agent)
+            && !tv.is_finite_(agent)
         {
             return Ok(Value::Null);
         }
         // 4. Return ? Invoke(O, "toISOString").
         let k =
             PropertyKey::from_static_str(agent, "toISOString", gc.nogc()).scope(agent, gc.nogc());
-        invoke(agent, o.get(agent).into_value(), k.get(agent), None, gc)
+        invoke(agent, o.get(agent).into(), k.get(agent), None, gc)
     }
 
     /// ### [21.4.4.38 Date.prototype.toLocaleDateString ( \[ reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-date.prototype.tolocaledatestring)
@@ -1301,7 +1284,7 @@ impl DatePrototype {
             .unbind()?
             .bind(gc.nogc());
         // 3. Return dateObject.[[DateValue]].
-        Ok(date_object.date_value(agent).into_value())
+        Ok(date_object.date_value(agent).into())
     }
 
     /// ### [21.4.4.45 Date.prototype \[ %Symbol.toPrimitive% \] ( hint )](https://tc39.es/ecma262/#sec-date.prototype-%symbol.toprimitive%)
@@ -1326,7 +1309,7 @@ impl DatePrototype {
                 "{} is not an object",
                 this_value
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1335,12 +1318,12 @@ impl DatePrototype {
             ));
         };
         // 3. If hint is either "string" or "default", then
-        let try_first = if hint == BUILTIN_STRING_MEMORY.string.into_value()
-            || hint == BUILTIN_STRING_MEMORY.default.into_value()
+        let try_first = if hint == BUILTIN_STRING_MEMORY.string.into()
+            || hint == BUILTIN_STRING_MEMORY.default.into()
         {
             // a. Let tryFirst be string.
             PreferredType::String
-        } else if hint == BUILTIN_STRING_MEMORY.number.into_value() {
+        } else if hint == BUILTIN_STRING_MEMORY.number.into() {
             // 4. Else if hint is "number", then
             // a. Let tryFirst be number.
             PreferredType::Number
@@ -1351,7 +1334,7 @@ impl DatePrototype {
                 "Expected 'hint' to be \"string\", \"default\", or \"number\", got {}",
                 hint.unbind()
                     .string_repr(agent, gc.reborrow())
-                    .to_string_lossy(agent)
+                    .to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -1362,8 +1345,8 @@ impl DatePrototype {
         // 6. Return ? OrdinaryToPrimitive(O, tryFirst).
         Ok(ordinary_to_primitive(agent, o, try_first, gc.reborrow())
             .unbind()?
-            .into_value()
-            .bind(gc.into_nogc()))
+            .bind(gc.into_nogc())
+            .into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {

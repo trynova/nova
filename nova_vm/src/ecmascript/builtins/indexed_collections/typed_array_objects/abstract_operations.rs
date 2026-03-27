@@ -7,52 +7,28 @@ use std::hint::assert_unchecked;
 use ecmascript_atomics::Ordering;
 
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::{GenericSharedTypedArray, data::SharedTypedArrayRecord};
+use crate::ecmascript::{GenericSharedTypedArray, SharedTypedArrayRecord};
 use crate::{
-    SmallInteger,
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                construct, get, length_of_array_like, set, species_constructor,
-                try_species_constructor,
-            },
-            type_conversion::{to_index, try_to_index},
-        },
-        builtins::{
-            ArgumentsList, ArrayBuffer, ArrayBufferHeapData,
-            array_buffer::{
-                AnyArrayBuffer, get_value_from_buffer, is_fixed_length_array_buffer,
-                set_value_in_buffer,
-            },
-            indexed_collections::typed_array_objects::typed_array_intrinsic_object::require_internal_slot_typed_array,
-            ordinary::get_prototype_from_constructor,
-            typed_array::{
-                AnyTypedArray, GenericTypedArray, TypedArray, VoidArray, data::TypedArrayRecord,
-            },
-        },
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult, js_result_into_try, try_result_into_js},
-        },
-        types::{
-            DataBlock, Function, InternalSlots, IntoObject, IntoValue, Number, Numeric, Object,
-            PropertyKey, Value, Viewable, create_byte_data_block,
-        },
+        Agent, AnyArrayBuffer, AnyTypedArray, ArgumentsList, ArrayBuffer, ArrayBufferHeapData,
+        DataBlock, ExceptionType, Function, GenericTypedArray, InternalSlots, JsResult, Number,
+        Numeric, Object, PropertyKey, SmallInteger, TryError, TryResult, TypedArray,
+        TypedArrayRecord, Value, Viewable, VoidArray, construct, create_byte_data_block, get,
+        get_prototype_from_constructor, get_value_from_buffer, is_fixed_length_array_buffer,
+        js_result_into_try, length_of_array_like, require_internal_slot_typed_array, set,
+        set_value_in_buffer, species_constructor, to_index, try_result_into_js,
+        try_species_constructor, try_to_index,
     },
-    engine::{
-        Scoped, ScopedCollection,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, ScopedCollection, bindable_handle},
     heap::CreateHeapData,
 };
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CachedBufferByteLength(pub usize);
+pub(crate) struct CachedBufferByteLength(pub(crate) usize);
 
 impl CachedBufferByteLength {
-    pub const fn value(value: usize) -> Self {
+    pub(crate) const fn value(value: usize) -> Self {
         assert!(
             value != usize::MAX,
             "byte length cannot be usize::MAX as it is reserved for detached buffers"
@@ -61,11 +37,11 @@ impl CachedBufferByteLength {
     }
 
     /// A sentinel value of `usize::MAX` means that the buffer is detached.
-    pub const fn detached() -> Self {
+    pub(crate) const fn detached() -> Self {
         Self(usize::MAX)
     }
 
-    pub fn is_detached(self) -> bool {
+    pub(crate) fn is_detached(self) -> bool {
         self == Self::detached()
     }
 }
@@ -78,8 +54,8 @@ impl From<CachedBufferByteLength> for Option<usize> {
 
 #[derive(Debug)]
 pub(crate) struct TypedArrayWithBufferWitnessRecords<'a> {
-    pub object: AnyTypedArray<'a>,
-    pub cached_buffer_byte_length: CachedBufferByteLength,
+    pub(crate) object: AnyTypedArray<'a>,
+    pub(crate) cached_buffer_byte_length: CachedBufferByteLength,
 }
 bindable_handle!(TypedArrayWithBufferWitnessRecords);
 
@@ -509,7 +485,7 @@ pub(crate) trait TypedArrayAbstractOperations<'ta>: Copy + Sized {
         count: usize,
     );
 
-    ///### [23.2.3.26.2 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/#sec-settypedarrayfromtypedarray)
+    /// ### [23.2.3.26.2 SetTypedArrayFromTypedArray ( target, targetOffset, source )](https://tc39.es/ecma262/#sec-settypedarrayfromtypedarray)
     ///
     /// The abstract operation SetTypedArrayFromTypedArray takes arguments
     /// target (a TypedArray), targetOffset (a non-negative integer or +∞), and
@@ -725,6 +701,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<'gc, T: Viewable>(
 
     // 6. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
     if buffer.is_detached(agent) {
+        eprintln!("{buffer:?}");
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "attempting to access detached ArrayBuffer",
@@ -870,7 +847,7 @@ pub(crate) fn initialize_typed_array_from_list<'a, T: Viewable>(
         // d. Perform ? Set(O, Pk, kValue, true).
         set(
             agent,
-            o.unbind().into_object(),
+            o.unbind().into(),
             pk,
             k_value.unbind(),
             true,
@@ -917,7 +894,7 @@ pub(crate) fn initialize_typed_array_from_array_like<'a, T: Viewable>(
         // c. Perform ? Set(O, Pk, kValue, true).
         set(
             agent,
-            o.get(agent).into_object(),
+            o.get(agent).into(),
             pk,
             k_value.unbind(),
             true,
@@ -976,8 +953,7 @@ fn typed_array_create_from_constructor_internal<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, AnyTypedArray<'a>> {
     // 2. Let taRecord be ? ValidateTypedArray(newTypedArray, seq-cst).
-    let ta_record =
-        validate_typed_array(agent, new_typed_array.into_value(), Ordering::SeqCst, gc)?;
+    let ta_record = validate_typed_array(agent, new_typed_array.into(), Ordering::SeqCst, gc)?;
     // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
     if let Some(length) = length {
         // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
@@ -1019,12 +995,12 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, AnyTypedArray<'a>> {
     let constructor = constructor.bind(gc.nogc());
-    let arg0 = Number::from_i64(agent, length, gc.nogc()).into_value();
+    let arg0 = Number::from_i64(agent, length, gc.nogc());
     // 1. Let newTypedArray be ? Construct(constructor, argumentList).
     let new_typed_array = construct(
         agent,
         constructor.unbind(),
-        Some(ArgumentsList::from_mut_value(&mut arg0.unbind())),
+        Some(ArgumentsList::from_mut_value(&mut arg0.unbind().into())),
         None,
         gc.reborrow(),
     )
@@ -1057,20 +1033,18 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
     let new_typed_array = {
         let args: &mut [Value] = if let Some(length) = length {
             &mut [
-                buffer.into_value().unbind(),
+                buffer.unbind().into(),
                 Number::from_usize(agent, byte_offset, gc.nogc())
-                    .into_value()
-                    .unbind(),
-                Number::from_usize(agent, length, gc.nogc())
-                    .into_value()
-                    .unbind(),
+                    .unbind()
+                    .into(),
+                Number::from_usize(agent, length, gc.nogc()).unbind().into(),
             ]
         } else {
             &mut [
-                buffer.into_value().unbind(),
+                buffer.unbind().into(),
                 Number::from_usize(agent, byte_offset, gc.nogc())
-                    .into_value()
-                    .unbind(),
+                    .unbind()
+                    .into(),
             ]
         };
 
@@ -1123,8 +1097,7 @@ pub(crate) fn try_typed_array_species_create_with_length<'gc>(
     let default_constructor = exemplar.intrinsic_default_constructor();
     let element_size = exemplar.typed_array_element_size();
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
-    let constructor =
-        try_species_constructor(agent, exemplar.into_object(), default_constructor, gc)?;
+    let constructor = try_species_constructor(agent, exemplar.into(), default_constructor, gc)?;
     if constructor.is_some() {
         // We'd have to perform an actual Construct call; we cannot do that so
         // this is the end of the road.
@@ -1153,7 +1126,7 @@ pub(crate) fn typed_array_species_create_with_length<'gc>(
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
-        exemplar.into_object().unbind(),
+        exemplar.unbind().into(),
         default_constructor,
         gc.reborrow(),
     )
@@ -1199,7 +1172,7 @@ pub(crate) fn typed_array_species_create_with_buffer<'a>(
     // 2. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
     let constructor = species_constructor(
         agent,
-        exemplar.into_object().unbind(),
+        exemplar.unbind().into(),
         default_constructor,
         gc.reborrow(),
     )

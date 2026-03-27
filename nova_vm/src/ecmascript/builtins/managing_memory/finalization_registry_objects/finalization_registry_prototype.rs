@@ -4,16 +4,12 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::testing_and_comparison::same_value,
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, finalization_registry::FinalizationRegistry,
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType, can_be_held_weakly},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType,
+        FinalizationRegistry, JsResult, Realm, String, Value, builders::OrdinaryObjectBuilder,
+        can_be_held_weakly, same_value,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
-    heap::WellKnownSymbolIndexes,
+    engine::{Bindable, GcScope, NoGcScope},
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct FinalizationRegistryPrototype;
@@ -130,7 +126,7 @@ impl FinalizationRegistryPrototype {
         // 6. Return removed.
         Ok(finalization_registry
             .unregister(agent, unregister_token)
-            .into_value())
+            .into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -147,8 +143,8 @@ impl FinalizationRegistryPrototype {
             .with_builtin_function_property::<FinalizationRegistryPrototypeUnregister>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.FinalizationRegistry.into_value())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.FinalizationRegistry.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

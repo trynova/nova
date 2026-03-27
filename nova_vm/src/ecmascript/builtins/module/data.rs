@@ -3,18 +3,15 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{
-        scripts_and_modules::module::module_semantics::abstract_module_records::AbstractModule,
-        types::String,
-    },
-    engine::context::{Bindable, bindable_handle},
-    heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
+    ecmascript::{AbstractModule, String},
+    engine::{Bindable, bindable_handle},
+    heap::{CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep, WorkQueues},
 };
 
 use super::Module;
 
 #[derive(Debug, Clone)]
-pub struct ModuleHeapData<'a> {
+pub(crate) struct ModuleHeapData<'a> {
     pub(super) module: AbstractModule<'a>,
     pub(super) exports: Box<[String<'a>]>,
 }

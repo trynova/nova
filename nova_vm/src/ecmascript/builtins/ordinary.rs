@@ -2,8 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod caches;
-pub mod shape;
+mod caches;
+mod shape;
+
+pub use caches::*;
+pub use shape::*;
 
 use std::{
     collections::{TryReserveError, hash_map::Entry},
@@ -11,78 +14,44 @@ use std::{
     vec,
 };
 
-use caches::{CacheToPopulate, Caches, PropertyLookupCache, PropertyOffset};
-
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::data_view::data::SharedDataViewRecord;
+use crate::ecmascript::SharedDataViewRecord;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::types::try_get_result_into_value;
+use crate::ecmascript::try_get_result_into_value;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{DurationRecord, InstantRecord, PlainTimeRecord};
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{
-            try_create_data_property, try_get, try_get_function_realm,
-        },
-        execution::{
-            Realm,
-            agent::{TryError, TryResult, unwrap_try},
-        },
-        types::{
-            IntoValue, SetCachedProps, SetResult, TryGetResult, TryHasResult, handle_try_get_result,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, Function, InternalMethods,
+        InternalSlots, JsResult, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+        ProtoIntrinsics, Realm, SetAtOffsetProps, SetResult, String, Symbol, TryError,
+        TryGetResult, TryHasResult, TryResult, Value, call_function, create_data_property,
+        get_function_realm, handle_try_get_result, same_value, try_create_data_property, try_get,
+        try_get_function_realm, try_result_into_js, unwrap_try,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped},
+    heap::{
+        CreateHeapData, WellKnownSymbols, {ElementStorageRef, PropertyStorageRef},
     },
-    heap::element_array::{ElementStorageRef, PropertyStorageRef},
-};
-use crate::{
-    ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{call_function, create_data_property, get_function_realm},
-            testing_and_comparison::same_value,
-        },
-        builtins::ArgumentsList,
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
-            IntoObject, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol,
-            Value,
-        },
-    },
-    heap::{CreateHeapData, WellKnownSymbolIndexes},
 };
 
 #[cfg(feature = "date")]
-use super::date::data::DateHeapData;
+use crate::ecmascript::DateHeapData;
 #[cfg(feature = "regexp")]
-use super::regexp::RegExpHeapData;
+use crate::ecmascript::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
-use super::shared_array_buffer::data::SharedArrayBufferRecord;
+use crate::ecmascript::SharedArrayBufferRecord;
 #[cfg(feature = "array-buffer")]
-use super::{
-    ArrayBufferHeapData, data_view::data::DataViewRecord, typed_array::data::TypedArrayRecord,
-};
-use super::{
-    ArrayHeapData, async_generator_objects::AsyncGeneratorHeapData,
-    control_abstraction_objects::generator_objects::GeneratorHeapData, error::ErrorHeapData,
-    finalization_registry::data::FinalizationRegistryRecord,
-    indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-    keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-    map::data::MapHeapData, module::Module, primitive_objects::PrimitiveObjectRecord,
-    promise::data::PromiseHeapData,
-    text_processing::string_objects::string_iterator_objects::StringIteratorHeapData,
+use crate::ecmascript::{ArrayBufferHeapData, DataViewRecord, TypedArrayRecord};
+use crate::ecmascript::{
+    ArrayHeapData, ArrayIteratorHeapData, AsyncGeneratorHeapData, ErrorHeapData,
+    FinalizationRegistryRecord, GeneratorHeapData, MapHeapData, MapIteratorHeapData, Module,
+    PrimitiveObjectRecord, PromiseHeapData, StringIteratorHeapData,
 };
 #[cfg(feature = "set")]
-use super::{
-    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
-    set::data::SetHeapData,
-};
+use crate::ecmascript::{SetHeapData, SetIteratorHeapData};
 #[cfg(feature = "weak-refs")]
-use super::{
-    weak_map::data::WeakMapRecord, weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData,
-};
+use crate::ecmascript::{WeakMapRecord, WeakRefHeapData, WeakSetHeapData};
 
 /// ## [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
@@ -110,11 +79,11 @@ impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {
     fn set_at_offset<'gc>(
         self,
         agent: &mut Agent,
-        props: &SetCachedProps,
+        props: &SetAtOffsetProps,
         offset: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
-        ordinary_set_at_offset(agent, props, self.into_object(), Some(self), offset, gc)
+        ordinary_set_at_offset(agent, props, self.into(), Some(self), offset, gc)
     }
 }
 
@@ -299,7 +268,8 @@ pub(crate) fn ordinary_get_own_property<'a>(
         .caches
         .take_current_cache_to_populate(property_key)
     {
-        let is_receiver = object.into_value() == receiver;
+        let ov: Value = object.into();
+        let is_receiver = ov == receiver;
         if is_receiver {
             cache.insert_lookup_offset(agent, shape, offset);
         } else {
@@ -659,7 +629,8 @@ pub(crate) fn ordinary_try_has_property<'gc>(
             .caches
             .take_current_cache_to_populate(property_key)
         {
-            let is_receiver = object.into_value() == receiver;
+            let ov: Value = object.into();
+            let is_receiver = ov == receiver;
             if is_receiver {
                 cache.insert_lookup_offset(agent, shape, offset);
             } else {
@@ -673,7 +644,7 @@ pub(crate) fn ordinary_try_has_property<'gc>(
     // Note: ? means that if we'd call a Proxy's GetPrototypeOf trap then we'll
     // instead return None.
     let parent = match backing_object
-        .map_or(object, |bo| bo.into_object())
+        .map_or(object, |bo| bo.into())
         .try_get_prototype_of(agent, gc)
     {
         ControlFlow::Continue(p) => p,
@@ -743,7 +714,8 @@ pub(crate) fn ordinary_has_property<'a>(
             .caches
             .take_current_cache_to_populate(property_key)
         {
-            let is_receiver = object.into_value() == receiver;
+            let ov: Value = object.into();
+            let is_receiver = ov == receiver;
             if is_receiver {
                 cache.insert_lookup_offset(agent, shape, offset);
             } else {
@@ -792,7 +764,7 @@ pub(crate) fn ordinary_has_property_entry<'a, 'gc>(
     match object.get_backing_object(agent) {
         Some(backing_object) => ordinary_has_property(
             agent,
-            object.into_object(),
+            object.into(),
             backing_object,
             property_key.unbind(),
             gc,
@@ -838,8 +810,7 @@ pub(crate) fn ordinary_try_get<'gc>(
         } else {
             object.object_shape(agent)
         };
-        if let Some(result) = shape.get_cached(agent, property_key, object.into_value(), cache, gc)
-        {
+        if let Some(result) = shape.get_cached(agent, property_key, object.into(), cache, gc) {
             // Found a cached result.
             return result.into();
         }
@@ -1052,6 +1023,8 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
     cache: Option<PropertyLookupCache>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<'gc, SetResult<'gc>> {
+    let ov: Value = object.into();
+    let is_receiver = ov == receiver;
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
         own_descriptor
     } else {
@@ -1067,7 +1040,7 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
         }
         // c. Else,
         else {
-            if object.into_value() == receiver {
+            if is_receiver {
                 // No property set and the receiver is the object itself; this
                 // means that the property does not exist on object and the
                 // property is not a custom property of the object type (eg.
@@ -1080,14 +1053,7 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
                 if let Err(err) = object
                     .get_or_create_backing_object(agent)
                     .property_storage()
-                    .push(
-                        agent,
-                        object.into_object(),
-                        property_key,
-                        Some(value),
-                        None,
-                        gc,
-                    )
+                    .push(agent, object.into(), property_key, Some(value), None, gc)
                 {
                     return TryError::Err(agent.throw_allocation_exception(err, gc)).into();
                 }
@@ -1118,7 +1084,7 @@ fn ordinary_try_set_with_own_descriptor<'gc, 'o>(
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
         // Note: Here again we do not have guarantees; the receiver could be a
         // Proxy.
-        let existing_descriptor = if object.into_object() == receiver {
+        let existing_descriptor = if is_receiver {
             // Direct [[Set]] call on our receiver; we already know that the
             // existingDescriptor is going to equal ownDescriptor.
             Some(own_descriptor)
@@ -1336,7 +1302,7 @@ fn ordinary_set_with_own_descriptor<'a>(
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
 pub(crate) fn ordinary_set_at_offset<'a>(
     agent: &mut Agent,
-    props: &SetCachedProps,
+    props: &SetAtOffsetProps,
     o: Object,
     bo: Option<OrdinaryObject>,
     offset: PropertyOffset,
@@ -1348,6 +1314,9 @@ pub(crate) fn ordinary_set_at_offset<'a>(
     let v = props.value.bind(gc);
     let receiver = props.receiver.bind(gc);
 
+    let ov: Value = o.into();
+    let is_receiver = ov == receiver;
+
     if offset.is_unset() {
         // 1.c.i. Set ownDesc to PropertyDescriptor {
         //   [[Value]]: undefined,
@@ -1358,7 +1327,8 @@ pub(crate) fn ordinary_set_at_offset<'a>(
         if bo.is_some_and(|bo| !ordinary_is_extensible(agent, bo)) {
             return SetResult::Unwritable.into();
         }
-        if o.into_value() == receiver {
+
+        if is_receiver {
             // ## 2.e.
             // Fast path for growing an object when we know property does not
             // exist on its shape.
@@ -1402,7 +1372,7 @@ pub(crate) fn ordinary_set_at_offset<'a>(
         if !writable {
             return SetResult::Unwritable.into();
         }
-        if o.into_value() == receiver {
+        if is_receiver {
             // ## 2.d.
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
@@ -1568,6 +1538,15 @@ pub(crate) fn ordinary_own_property_keys<'a>(
     keys_vec
 }
 
+pub(crate) fn ordinary_object_create_null<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+) -> OrdinaryObject<'a> {
+    OrdinaryObject::create_object(agent, None, &[])
+        .expect("Should perform GC here")
+        .bind(gc)
+}
+
 /// ### [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
 ///
 /// The abstract operation OrdinaryObjectCreate takes argument proto (an Object
@@ -1593,51 +1572,40 @@ pub(crate) fn ordinary_own_property_keys<'a>(
 /// `prototype` must be None.
 pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
     agent: &mut Agent,
-    proto_intrinsics: Option<ProtoIntrinsics>,
-    prototype: Option<Object>,
+    proto_intrinsics: ProtoIntrinsics,
+    prototype: Option<Object<'a>>,
     gc: NoGcScope<'a, '_>,
 ) -> Object<'a> {
-    let Some(proto_intrinsics) = proto_intrinsics else {
-        assert!(prototype.is_none());
-        return OrdinaryObject::create_object(agent, None, &[])
-            .expect("Should perform GC here")
-            .into();
-    };
-
     let object = match proto_intrinsics {
-        ProtoIntrinsics::Array => agent.heap.create(ArrayHeapData::default()).into_object(),
+        ProtoIntrinsics::Array => agent.heap.create(ArrayHeapData::default()).into(),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::ArrayBuffer => agent
-            .heap
-            .create(ArrayBufferHeapData::default())
-            .into_object(),
-        ProtoIntrinsics::ArrayIterator => agent
-            .heap
-            .create(ArrayIteratorHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::ArrayBuffer => agent.heap.create(ArrayBufferHeapData::default()).into(),
+        ProtoIntrinsics::ArrayIterator => {
+            agent.heap.create(ArrayIteratorHeapData::default()).into()
+        }
         ProtoIntrinsics::BigInt => agent
             .heap
             .create(PrimitiveObjectRecord::new_big_int_object(0.into()))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::Boolean => agent
             .heap
             .create(PrimitiveObjectRecord::new_boolean_object(false))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::Error => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::Error, None, None))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::EvalError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::EvalError, None, None))
-            .into_object(),
+            .into(),
         #[cfg(feature = "date")]
-        ProtoIntrinsics::Date => agent.heap.create(DateHeapData::new_invalid()).into_object(),
+        ProtoIntrinsics::Date => agent.heap.create(DateHeapData::new_invalid()).into(),
         ProtoIntrinsics::Function => todo!(),
         ProtoIntrinsics::Number => agent
             .heap
             .create(PrimitiveObjectRecord::new_number_object(0.into()))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::Object => OrdinaryObject::create_object(
             agent,
             Some(
@@ -1645,7 +1613,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
                     .current_realm_record()
                     .intrinsics()
                     .object_prototype()
-                    .into_object(),
+                    .into(),
             ),
             &[],
         )
@@ -1654,7 +1622,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::RangeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::RangeError, None, None))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::ReferenceError => agent
             .heap
             .create(ErrorHeapData::new(
@@ -1662,35 +1630,41 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
                 None,
                 None,
             ))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::String => agent
             .heap
             .create(PrimitiveObjectRecord::new_string_object(
                 String::EMPTY_STRING,
             ))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::StringIterator => agent
             .heap
             .create(StringIteratorHeapData::new(String::EMPTY_STRING))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::Symbol => agent
             .heap
             .create(PrimitiveObjectRecord::new_symbol_object(Symbol::from(
-                WellKnownSymbolIndexes::AsyncIterator,
+                WellKnownSymbols::AsyncIterator,
             )))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::SyntaxError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None))
-            .into_object(),
+            .into(),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalInstant => agent.heap.create(InstantRecord::default()).into(),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalDuration => agent.heap.create(DurationRecord::default()).into(),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalPlainTime => agent.heap.create(PlainTimeRecord::default()).into(),
         ProtoIntrinsics::TypeError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::URIError => agent
             .heap
             .create(ErrorHeapData::new(ExceptionType::UriError, None, None))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::AggregateError => agent
             .heap
             .create(ErrorHeapData::new(
@@ -1698,12 +1672,11 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
                 None,
                 None,
             ))
-            .into_object(),
+            .into(),
         ProtoIntrinsics::AsyncFunction => todo!(),
-        ProtoIntrinsics::AsyncGenerator => agent
-            .heap
-            .create(AsyncGeneratorHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::AsyncGenerator => {
+            agent.heap.create(AsyncGeneratorHeapData::default()).into()
+        }
         ProtoIntrinsics::AsyncGeneratorFunction => todo!(),
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::BigInt64Array => {
@@ -1714,16 +1687,15 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             Object::BigUint64Array(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::DataView => agent.heap.create(DataViewRecord::default()).into_object(),
+        ProtoIntrinsics::DataView => agent.heap.create(DataViewRecord::default()).into(),
         #[cfg(feature = "shared-array-buffer")]
-        ProtoIntrinsics::SharedDataView => agent
-            .heap
-            .create(SharedDataViewRecord::default())
-            .into_object(),
+        ProtoIntrinsics::SharedDataView => {
+            agent.heap.create(SharedDataViewRecord::default()).into()
+        }
         ProtoIntrinsics::FinalizationRegistry => agent
             .heap
             .create(FinalizationRegistryRecord::default())
-            .into_object(),
+            .into(),
         #[cfg(feature = "proposal-float16array")]
         ProtoIntrinsics::Float16Array => {
             Object::Float16Array(agent.heap.create(TypedArrayRecord::default()))
@@ -1736,10 +1708,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::Float64Array => {
             Object::Float64Array(agent.heap.create(TypedArrayRecord::default()))
         }
-        ProtoIntrinsics::Generator => agent
-            .heap
-            .create(GeneratorHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::Generator => agent.heap.create(GeneratorHeapData::default()).into(),
         ProtoIntrinsics::GeneratorFunction => todo!(),
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Int16Array => {
@@ -1760,34 +1729,27 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
                     .current_realm_record()
                     .intrinsics()
                     .iterator_prototype()
-                    .into_object(),
+                    .into(),
             ),
             &[],
         )
         .expect("Should perform GC here")
-        .into_object(),
-        ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
-        ProtoIntrinsics::MapIterator => agent
-            .heap
-            .create(MapIteratorHeapData::default())
-            .into_object(),
-        ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()).into_object(),
+        .into(),
+        ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into(),
+        ProtoIntrinsics::MapIterator => agent.heap.create(MapIteratorHeapData::default()).into(),
+        ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()).into(),
         #[cfg(feature = "regexp")]
-        ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()).into_object(),
+        ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()).into(),
         #[cfg(feature = "regexp")]
         ProtoIntrinsics::RegExpStringIterator => unreachable!(),
         #[cfg(feature = "set")]
-        ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into_object(),
+        ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into(),
         #[cfg(feature = "set")]
-        ProtoIntrinsics::SetIterator => agent
-            .heap
-            .create(SetIteratorHeapData::default())
-            .into_object(),
+        ProtoIntrinsics::SetIterator => agent.heap.create(SetIteratorHeapData::default()).into(),
         #[cfg(feature = "shared-array-buffer")]
-        ProtoIntrinsics::SharedArrayBuffer => agent
-            .heap
-            .create(SharedArrayBufferRecord::default())
-            .into_object(),
+        ProtoIntrinsics::SharedArrayBuffer => {
+            agent.heap.create(SharedArrayBufferRecord::default()).into()
+        }
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Uint16Array => {
             Object::Uint16Array(agent.heap.create(TypedArrayRecord::default()))
@@ -1805,24 +1767,15 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             Object::Uint8ClampedArray(agent.heap.create(TypedArrayRecord::default()))
         }
         #[cfg(feature = "weak-refs")]
-        ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapRecord::default()).into_object(),
+        ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapRecord::default()).into(),
         #[cfg(feature = "weak-refs")]
-        ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into_object(),
+        ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into(),
         #[cfg(feature = "weak-refs")]
-        ProtoIntrinsics::WeakSet => agent.heap.create(WeakSetHeapData::default()).into_object(),
-    };
-
-    if let Some(prototype) = prototype {
-        if !prototype.is_proxy() && !prototype.is_module() {
-            prototype
-                .get_or_create_backing_object(agent)
-                .make_intrinsic(agent)
-                .expect("Should perform GC here");
-        }
-        object.internal_set_prototype(agent, Some(prototype));
+        ProtoIntrinsics::WeakSet => agent.heap.create(WeakSetHeapData::default()).into(),
     }
+    .bind(gc);
 
-    object.bind(gc)
+    ordinary_object_populate_with_intrinsics(agent, object, prototype)
 }
 
 /// ### [10.1.13 OrdinaryCreateFromConstructor ( constructor, intrinsicDefaultProto \[ , internalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinarycreatefromconstructor)
@@ -1859,16 +1812,88 @@ pub(crate) fn ordinary_create_from_constructor<'a>(
         intrinsic_default_proto,
         gc.reborrow(),
     )
-    .unbind()?
-    .bind(gc.nogc());
+    .unbind()?;
+    let gc = gc.into_nogc();
+    let proto = proto.bind(gc.into_nogc());
     // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
     // 4. Else, let slotsList be a new empty List.
     // 5. Return OrdinaryObjectCreate(proto, slotsList).
     Ok(ordinary_object_create_with_intrinsics(
         agent,
-        Some(intrinsic_default_proto),
-        proto.unbind(),
-        gc.into_nogc(),
+        intrinsic_default_proto,
+        proto,
+        gc,
+    ))
+}
+
+fn ordinary_object_populate_with_intrinsics<'a>(
+    agent: &mut Agent,
+    object: Object<'a>,
+    prototype: Option<Object<'a>>,
+) -> Object<'a> {
+    if let Some(prototype) = prototype {
+        if !prototype.is_proxy() && !prototype.is_module() {
+            prototype
+                .get_or_create_backing_object(agent)
+                .make_intrinsic(agent)
+                .expect("Should perform GC here");
+        }
+        object.internal_set_prototype(agent, Some(prototype));
+    }
+
+    object
+}
+
+pub(crate) fn ordinary_populate_from_constructor<'gc>(
+    agent: &mut Agent,
+    object: Object,
+    constructor: Function,
+    intrinsic_default_proto: ProtoIntrinsics,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, Object<'gc>> {
+    let mut object = object.bind(gc.nogc());
+    let constructor = constructor.bind(gc.nogc());
+
+    // 1. Assert: intrinsicDefaultProto is this specification's name of an
+    // intrinsic object. The corresponding object must be an intrinsic that is
+    // intended to be used as the [[Prototype]] value of an object.
+
+    // 2. Let proto be ? GetPrototypeFromConstructor(constructor, intrinsicDefaultProto).
+    let proto = if let Some(proto) = try_result_into_js(try_get_prototype_from_constructor(
+        agent,
+        constructor,
+        intrinsic_default_proto,
+        gc.nogc(),
+    ))
+    .unbind()?
+    .bind(gc.nogc())
+    {
+        proto
+    } else {
+        // Couldn't get proto without calling into JS. This is a very rare case.
+        let scoped_object = object.scope(agent, gc.nogc());
+        let proto = get_prototype_from_constructor(
+            agent,
+            constructor.unbind(),
+            intrinsic_default_proto,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+        // SAFETY: not shared.
+        object = unsafe { scoped_object.take(agent) }.bind(gc.nogc());
+        proto
+    };
+    let object = object.unbind();
+    let proto = proto.unbind();
+    let gc = gc.into_nogc();
+    let object = object.bind(gc);
+    let proto = proto.bind(gc);
+    // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
+    // 4. Else, let slotsList be a new empty List.
+    // 5. Return OrdinaryObjectCreate(proto, slotsList).
+    Ok(ordinary_object_populate_with_intrinsics(
+        agent, object, proto,
     ))
 }
 
@@ -1987,94 +2012,93 @@ fn get_intrinsic_constructor<'a>(
 ) -> Option<Function<'a>> {
     let intrinsics = agent.get_realm_record_by_id(function_realm).intrinsics();
     match intrinsic_default_proto {
-        ProtoIntrinsics::AggregateError => Some(intrinsics.aggregate_error().into_function()),
-        ProtoIntrinsics::Array => Some(intrinsics.array().into_function()),
+        ProtoIntrinsics::AggregateError => Some(intrinsics.aggregate_error().into()),
+        ProtoIntrinsics::Array => Some(intrinsics.array().into()),
         ProtoIntrinsics::ArrayIterator => None,
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::ArrayBuffer => Some(intrinsics.array_buffer().into_function()),
-        ProtoIntrinsics::AsyncFunction => Some(intrinsics.async_function().into_function()),
+        ProtoIntrinsics::ArrayBuffer => Some(intrinsics.array_buffer().into()),
+        ProtoIntrinsics::AsyncFunction => Some(intrinsics.async_function().into()),
         ProtoIntrinsics::AsyncGenerator => None,
         ProtoIntrinsics::AsyncGeneratorFunction => {
-            Some(intrinsics.async_generator_function().into_function())
+            Some(intrinsics.async_generator_function().into())
         }
-        ProtoIntrinsics::BigInt => Some(intrinsics.big_int().into_function()),
+        ProtoIntrinsics::BigInt => Some(intrinsics.big_int().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::BigInt64Array => Some(intrinsics.big_int64_array().into_function()),
+        ProtoIntrinsics::BigInt64Array => Some(intrinsics.big_int64_array().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::BigUint64Array => Some(intrinsics.big_uint64_array().into_function()),
-        ProtoIntrinsics::Boolean => Some(intrinsics.boolean().into_function()),
+        ProtoIntrinsics::BigUint64Array => Some(intrinsics.big_uint64_array().into()),
+        ProtoIntrinsics::Boolean => Some(intrinsics.boolean().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::DataView => Some(intrinsics.data_view().into_function()),
+        ProtoIntrinsics::DataView => Some(intrinsics.data_view().into()),
         #[cfg(feature = "shared-array-buffer")]
-        ProtoIntrinsics::SharedDataView => Some(intrinsics.data_view().into_function()),
+        ProtoIntrinsics::SharedDataView => Some(intrinsics.data_view().into()),
         #[cfg(feature = "date")]
-        ProtoIntrinsics::Date => Some(intrinsics.date().into_function()),
-        ProtoIntrinsics::Error => Some(intrinsics.error().into_function()),
-        ProtoIntrinsics::EvalError => Some(intrinsics.eval_error().into_function()),
-        ProtoIntrinsics::FinalizationRegistry => {
-            Some(intrinsics.finalization_registry().into_function())
-        }
+        ProtoIntrinsics::Date => Some(intrinsics.date().into()),
+        ProtoIntrinsics::Error => Some(intrinsics.error().into()),
+        ProtoIntrinsics::EvalError => Some(intrinsics.eval_error().into()),
+        ProtoIntrinsics::FinalizationRegistry => Some(intrinsics.finalization_registry().into()),
         #[cfg(feature = "proposal-float16array")]
-        ProtoIntrinsics::Float16Array => Some(intrinsics.float16_array().into_function()),
+        ProtoIntrinsics::Float16Array => Some(intrinsics.float16_array().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Float32Array => Some(intrinsics.float32_array().into_function()),
+        ProtoIntrinsics::Float32Array => Some(intrinsics.float32_array().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Float64Array => Some(intrinsics.float64_array().into_function()),
-        ProtoIntrinsics::Function => Some(intrinsics.function().into_function()),
+        ProtoIntrinsics::Float64Array => Some(intrinsics.float64_array().into()),
+        ProtoIntrinsics::Function => Some(intrinsics.function().into()),
         ProtoIntrinsics::Generator => None,
-        ProtoIntrinsics::GeneratorFunction => Some(intrinsics.generator_function().into_function()),
+        ProtoIntrinsics::GeneratorFunction => Some(intrinsics.generator_function().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Int16Array => Some(intrinsics.int16_array().into_function()),
+        ProtoIntrinsics::Int16Array => Some(intrinsics.int16_array().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Int32Array => Some(intrinsics.int32_array().into_function()),
+        ProtoIntrinsics::Int32Array => Some(intrinsics.int32_array().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Int8Array => Some(intrinsics.int8_array().into_function()),
-        ProtoIntrinsics::Iterator => Some(intrinsics.iterator().into_function()),
-        ProtoIntrinsics::Map => Some(intrinsics.map().into_function()),
+        ProtoIntrinsics::Int8Array => Some(intrinsics.int8_array().into()),
+        ProtoIntrinsics::Iterator => Some(intrinsics.iterator().into()),
+        ProtoIntrinsics::Map => Some(intrinsics.map().into()),
         ProtoIntrinsics::MapIterator => None,
-        ProtoIntrinsics::Number => Some(intrinsics.number().into_function()),
-        ProtoIntrinsics::Object => Some(intrinsics.object().into_function()),
-        ProtoIntrinsics::Promise => Some(intrinsics.promise().into_function()),
-        ProtoIntrinsics::RangeError => Some(intrinsics.range_error().into_function()),
-        ProtoIntrinsics::ReferenceError => Some(intrinsics.reference_error().into_function()),
+        ProtoIntrinsics::Number => Some(intrinsics.number().into()),
+        ProtoIntrinsics::Object => Some(intrinsics.object().into()),
+        ProtoIntrinsics::Promise => Some(intrinsics.promise().into()),
+        ProtoIntrinsics::RangeError => Some(intrinsics.range_error().into()),
+        ProtoIntrinsics::ReferenceError => Some(intrinsics.reference_error().into()),
         #[cfg(feature = "regexp")]
-        ProtoIntrinsics::RegExp => Some(intrinsics.reg_exp().into_function()),
+        ProtoIntrinsics::RegExp => Some(intrinsics.reg_exp().into()),
         #[cfg(feature = "set")]
-        ProtoIntrinsics::Set => Some(intrinsics.set().into_function()),
+        ProtoIntrinsics::Set => Some(intrinsics.set().into()),
         #[cfg(feature = "set")]
         ProtoIntrinsics::SetIterator => None,
         #[cfg(feature = "shared-array-buffer")]
-        ProtoIntrinsics::SharedArrayBuffer => {
-            Some(intrinsics.shared_array_buffer().into_function())
-        }
-        ProtoIntrinsics::String => Some(intrinsics.string().into_function()),
+        ProtoIntrinsics::SharedArrayBuffer => Some(intrinsics.shared_array_buffer().into()),
+        ProtoIntrinsics::String => Some(intrinsics.string().into()),
         ProtoIntrinsics::StringIterator => None,
         #[cfg(feature = "regexp")]
         ProtoIntrinsics::RegExpStringIterator => None,
-        ProtoIntrinsics::Symbol => Some(intrinsics.symbol().into_function()),
-        ProtoIntrinsics::SyntaxError => Some(intrinsics.syntax_error().into_function()),
-        ProtoIntrinsics::TypeError => Some(intrinsics.type_error().into_function()),
+        ProtoIntrinsics::Symbol => Some(intrinsics.symbol().into()),
+        ProtoIntrinsics::SyntaxError => Some(intrinsics.syntax_error().into()),
+        ProtoIntrinsics::TypeError => Some(intrinsics.type_error().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Uint16Array => Some(intrinsics.uint16_array().into_function()),
+        ProtoIntrinsics::Uint16Array => Some(intrinsics.uint16_array().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Uint32Array => Some(intrinsics.uint32_array().into_function()),
+        ProtoIntrinsics::Uint32Array => Some(intrinsics.uint32_array().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Uint8Array => Some(intrinsics.uint8_array().into_function()),
+        ProtoIntrinsics::Uint8Array => Some(intrinsics.uint8_array().into()),
         #[cfg(feature = "array-buffer")]
-        ProtoIntrinsics::Uint8ClampedArray => {
-            Some(intrinsics.uint8_clamped_array().into_function())
-        }
-        ProtoIntrinsics::URIError => Some(intrinsics.uri_error().into_function()),
+        ProtoIntrinsics::Uint8ClampedArray => Some(intrinsics.uint8_clamped_array().into()),
+        ProtoIntrinsics::URIError => Some(intrinsics.uri_error().into()),
         #[cfg(feature = "weak-refs")]
-        ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into_function()),
+        ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into()),
         #[cfg(feature = "weak-refs")]
-        ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into_function()),
+        ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into()),
         #[cfg(feature = "weak-refs")]
-        ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into_function()),
+        ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into()),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalInstant => Some(intrinsics.temporal_instant().into()),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalDuration => Some(intrinsics.temporal_duration().into()),
+        #[cfg(feature = "temporal")]
+        ProtoIntrinsics::TemporalPlainTime => Some(intrinsics.temporal_plain_time().into()),
     }
 }
 
-#[cfg(feature = "array-buffer")]
 pub(crate) fn try_get_prototype_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function<'a>,

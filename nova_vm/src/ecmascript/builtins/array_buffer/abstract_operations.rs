@@ -6,18 +6,15 @@ use ecmascript_atomics::Ordering;
 
 use super::{AnyArrayBuffer, ArrayBuffer, InternalBuffer};
 #[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::types::SharedDataBlock;
+use crate::ecmascript::SharedDataBlock;
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::get, type_conversion::to_index},
-        builtins::ordinary::ordinary_create_from_constructor,
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, Function, Numeric, Object, Value, Viewable,
-            create_byte_data_block,
-        },
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, Function, JsResult, Numeric, Object,
+        ProtoIntrinsics, Value, Viewable, create_byte_data_block, get,
+        ordinary_create_from_constructor, to_index,
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
+    heap::{ArenaAccess, ArenaAccessMut},
 };
 
 // TODO: Implement the contents of the `DetachKey` struct?
@@ -84,7 +81,7 @@ pub(crate) fn allocate_array_buffer<'a>(
     };
     // 6. Set obj.[[ArrayBufferData]] to block.
     // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
-    agent[obj].buffer = buffer;
+    obj.get_mut(agent).buffer = buffer;
     // 9. Return obj.
     Ok(obj)
 }
@@ -97,7 +94,7 @@ pub(crate) fn allocate_array_buffer<'a>(
 pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
     // 1. If arrayBuffer.[[ArrayBufferData]] is null, return true.
     // 2. Return false.
-    agent[array_buffer].is_detached()
+    array_buffer.get(agent).is_detached()
 }
 
 /// ### [25.1.3.4 DetachArrayBuffer ( arrayBuffer \[ , key \] )](https://tc39.es/ecma262/#sec-detacharraybuffer)
@@ -112,8 +109,6 @@ pub(crate) fn detach_array_buffer<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
     // 1. Assert: IsSharedArrayBuffer(arrayBuffer) is false.
-    // TODO: SharedArrayBuffer that we can even take here.
-
     // 2. If key is not present, set key to undefined.
     // 3. If arrayBuffer.[[ArrayBufferDetachKey]] is not key, throw a TypeError exception.
     if array_buffer.get_detach_key(agent) != key {
@@ -126,7 +121,7 @@ pub(crate) fn detach_array_buffer<'a>(
 
     // 4. Set arrayBuffer.[[ArrayBufferData]] to null.
     // 5. Set arrayBuffer.[[ArrayBufferByteLength]] to 0.
-    agent[array_buffer].buffer.detach();
+    array_buffer.get_mut(agent).buffer.detach();
     // 6. Return UNUSED.
     Ok(())
 }
@@ -281,7 +276,7 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
         AnyArrayBuffer::ArrayBuffer(ab) => {
             let _ = order;
             // 3. Let block be arrayBuffer.[[ArrayBufferData]].
-            let block = agent[ab].get_data_block();
+            let block = ab.get(agent).get_data_block();
             // a. Let rawValue be a List whose elements are bytes from block at indices
             //    in the interval from byteIndex (inclusive) to byteIndex + elementSize
             //    (exclusive).
@@ -405,7 +400,7 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
             let _ = order;
             let _ = is_typed_array;
             // 4. Let block be arrayBuffer.[[ArrayBufferData]].
-            let block = agent[ab].get_data_block_mut();
+            let block = ab.get_mut(agent).get_data_block_mut();
             // a. Store the individual bytes of rawBytes into block, starting at block[byteIndex].
             block.set_offset_by_byte::<T>(byte_index, raw_bytes);
         }

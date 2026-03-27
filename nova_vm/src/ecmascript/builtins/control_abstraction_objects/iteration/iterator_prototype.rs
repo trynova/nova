@@ -4,28 +4,15 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, get_iterator_direct, if_abrupt_close_iterator,
-                iterator_close_with_error, iterator_close_with_value, iterator_step_value,
-            },
-            operations_on_objects::{
-                call, setter_that_ignores_prototype_properties, throw_not_callable,
-            },
-            testing_and_comparison::is_callable,
-            type_conversion::to_boolean,
-        },
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Array, Behaviour, Builtin, BuiltinGetter, BuiltinSetter},
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Object, PropertyKey, String, Value},
+        Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        BuiltinSetter, ExceptionType, IteratorRecord, JsResult, Object, PropertyKey, Realm, String,
+        Value, builders::OrdinaryObjectBuilder, call, get_iterator_direct,
+        if_abrupt_close_iterator, is_callable, iterator_close_with_error,
+        iterator_close_with_value, iterator_step_value, setter_that_ignores_prototype_properties,
+        throw_not_callable, to_boolean,
     },
-    engine::{
-        ScopableCollection,
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
-    heap::WellKnownSymbolIndexes,
+    engine::{Bindable, GcScope, Scopable, ScopableCollection},
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct IteratorPrototype;
@@ -33,8 +20,7 @@ pub(crate) struct IteratorPrototype;
 struct IteratorPrototypeIterator;
 impl Builtin for IteratorPrototypeIterator {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_iterator_;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::Iterator.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::Iterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::iterator);
 }
@@ -90,12 +76,12 @@ impl Builtin for IteratorPrototypeToArray {
 struct IteratorPrototypeToStringTag;
 impl Builtin for IteratorPrototypeToStringTag {
     const NAME: String<'static> = String::EMPTY_STRING;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(WellKnownSymbolIndexes::ToStringTag.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(WellKnownSymbols::ToStringTag.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::get_to_string_tag);
 }
 impl BuiltinGetter for IteratorPrototypeToStringTag {
+    /// Accessor property's getter function's `name` property value.
     const GETTER_NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_toStringTag_;
 }
 impl BuiltinSetter for IteratorPrototypeToStringTag {
@@ -211,12 +197,7 @@ impl IteratorPrototype {
 
             // e. If ToBoolean(result) is false, return ? IteratorClose(iterated, NormalCompletion(false)).
             if !to_boolean(agent, result) {
-                return iterator_close_with_value(
-                    agent,
-                    iterator.get(agent),
-                    false.into_value(),
-                    gc,
-                );
+                return iterator_close_with_value(agent, iterator.get(agent), false.into(), gc);
             }
 
             // f. Set counter to counter + 1.
@@ -668,12 +649,7 @@ impl IteratorPrototype {
 
             // e. If ToBoolean(result) is true, return ? IteratorClose(iterated, NormalCompletion(true)).
             if to_boolean(agent, result) {
-                return iterator_close_with_value(
-                    agent,
-                    iterator.get(agent),
-                    true.into_value(),
-                    gc,
-                );
+                return iterator_close_with_value(agent, iterator.get(agent), true.into(), gc);
             }
 
             // f. Set counter to counter + 1.
@@ -734,7 +710,7 @@ impl IteratorPrototype {
             let Some(value) = value else {
                 let gc = gc.into_nogc();
                 let items = items.take(agent).bind(gc);
-                return Ok(Array::from_slice(agent, &items, gc).into_value());
+                return Ok(Array::from_slice(agent, &items, gc).into());
             };
 
             // c. Append value to items.
@@ -749,7 +725,7 @@ impl IteratorPrototype {
         _gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
         // 1. Return "Iterator".
-        Ok(BUILTIN_STRING_MEMORY.Iterator.into_value())
+        Ok(BUILTIN_STRING_MEMORY.Iterator.into())
     }
 
     fn set_to_string_tag<'gc>(
@@ -769,9 +745,9 @@ impl IteratorPrototype {
                 .current_realm_record()
                 .intrinsics()
                 .iterator_prototype()
-                .into_object(),
+                .into(),
             // %Symbol.toStringTag%,
-            WellKnownSymbolIndexes::ToStringTag.to_property_key(),
+            WellKnownSymbols::ToStringTag.to_property_key(),
             // v
             v,
             gc,

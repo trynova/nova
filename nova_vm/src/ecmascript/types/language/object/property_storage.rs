@@ -10,26 +10,25 @@ use std::{
 use ahash::AHashMap;
 
 use crate::{
-    Heap,
     ecmascript::{
-        builtins::ordinary::caches::Caches,
-        execution::{Agent, JsResult, PrivateField, agent::ExceptionType},
-        types::{PrivateName, PropertyDescriptor, Value},
+        Agent, Caches, ExceptionType, JsResult, PrivateField, PrivateName, PropertyDescriptor,
+        Value,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{
-        element_array::{
+        ArenaAccess, ArenaAccessMut, DirectArenaAccess, ElementIndex, Heap,
+        {
             ElementDescriptor, ElementStorageMut, ElementStorageUninit, PropertyStorageMut,
             PropertyStorageRef,
         },
-        indexes::ElementIndex,
     },
 };
 
 use super::{InternalSlots, Object, OrdinaryObject, PropertyKey};
 
 #[derive(Debug, Clone, Copy)]
-pub struct PropertyStorage<'a>(OrdinaryObject<'a>);
+#[repr(transparent)]
+pub(crate) struct PropertyStorage<'a>(OrdinaryObject<'a>);
 
 fn verify_writable(
     descriptors: Entry<'_, ElementIndex<'static>, AHashMap<u32, ElementDescriptor<'static>>>,
@@ -49,7 +48,7 @@ fn verify_writable(
 }
 
 impl<'a> PropertyStorage<'a> {
-    pub fn new(object: OrdinaryObject<'a>) -> Self {
+    pub(crate) fn new(object: OrdinaryObject<'a>) -> Self {
         Self(object)
     }
 
@@ -312,7 +311,7 @@ impl<'a> PropertyStorage<'a> {
         Some((value, descriptor))
     }
 
-    pub fn get<'b>(
+    pub(crate) fn get<'b>(
         self,
         agent: &'b Agent,
         key: PropertyKey,
@@ -340,7 +339,7 @@ impl<'a> PropertyStorage<'a> {
         })
     }
 
-    pub fn set(
+    pub(crate) fn set(
         self,
         agent: &mut Agent,
         o: Object<'a>,
@@ -388,7 +387,7 @@ impl<'a> PropertyStorage<'a> {
         self.push(agent, o, key, value, element_descriptor, gc)
     }
 
-    pub fn push(
+    pub(crate) fn push(
         self,
         agent: &mut Agent,
         o: Object<'a>,
@@ -461,7 +460,7 @@ impl<'a> PropertyStorage<'a> {
         Ok(())
     }
 
-    pub fn remove(
+    pub(crate) fn remove(
         self,
         agent: &mut Agent,
         o: Object,

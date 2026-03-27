@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use core::{hash::Hash, num::NonZeroU32};
 #[cfg(feature = "weak-refs")]
 use std::ops::Range;
@@ -15,78 +19,38 @@ use hashbrown::HashTable;
 use soavec::{SoAVec, SoAble};
 use soavec_derive::SoAble;
 
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at https://mozilla.org/MPL/2.0/.
-use super::{
-    Heap,
-    element_array::ElementDescriptor,
-    indexes::{BaseIndex, ElementIndex, PropertyKeyIndex},
-};
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::Date;
+use crate::ecmascript::Date;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::VoidArray};
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::{
-    data_view::SharedDataView, shared_array_buffer::SharedArrayBuffer, typed_array::SharedVoidArray,
-};
-#[cfg(feature = "set")]
-use crate::ecmascript::builtins::{
-    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
-};
+use crate::ecmascript::{ArrayBuffer, DataView, VoidArray};
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::{
-    regexp::RegExp,
-    text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-};
+use crate::ecmascript::{RegExp, RegExpStringIterator};
+#[cfg(feature = "set")]
+use crate::ecmascript::{Set, SetIterator};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{SharedArrayBuffer, SharedDataView, SharedVoidArray};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{TemporalDuration, TemporalInstant, TemporalPlainTime};
 #[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-use crate::ecmascript::{
-    builtins::{
-        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-        async_generator_objects::AsyncGenerator,
-        bound_function::BoundFunction,
-        control_abstraction_objects::{
-            async_function_objects::await_reaction::AwaitReaction,
-            generator_objects::Generator,
-            promise_objects::promise_abstract_operations::{
-                promise_reaction_records::PromiseReaction,
-                promise_resolving_functions::BuiltinPromiseResolvingFunction,
-            },
-        },
-        embedder_object::EmbedderObject,
-        error::Error,
-        finalization_registry::FinalizationRegistry,
-        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-        keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-        map::Map,
-        module::Module,
-        ordinary::{caches::PropertyLookupCache, shape::ObjectShape},
-        primitive_objects::PrimitiveObject,
-        promise::Promise,
-        promise_objects::promise_abstract_operations::{
-            promise_finally_functions::BuiltinPromiseFinallyFunction,
-            promise_group_record::PromiseGroup,
-        },
-        proxy::Proxy,
-        text_processing::string_objects::string_iterator_objects::StringIterator,
+use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
+use crate::{
+    ecmascript::{
+        Array, ArrayIterator, AsyncGenerator, AwaitReaction, BUILTIN_STRINGS_LIST, BoundFunction,
+        BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+        BuiltinPromiseResolvingFunction, DeclarativeEnvironment, ECMAScriptFunction,
+        EmbedderObject, Error, FinalizationRegistry, FunctionEnvironment, Generator,
+        GlobalEnvironment, HeapBigInt, HeapNumber, HeapString, Map, MapIterator, Module,
+        ModuleEnvironment, ModuleRequest, ObjectEnvironment, ObjectShape, OrdinaryObject,
+        PrimitiveObject, PrivateEnvironment, Promise, PromiseGroup, PromiseReaction,
+        PropertyLookupCache, Proxy, Realm, Script, SourceCode, SourceTextModule, StringIterator,
+        Symbol, Value, WeakKey,
     },
-    execution::{
-        DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
-        ObjectEnvironment, PrivateEnvironment, Realm, WeakKey,
-    },
-    scripts_and_modules::{
-        module::module_semantics::{ModuleRequest, source_text_module_records::SourceTextModule},
-        script::Script,
-        source_code::SourceCode,
-    },
-    types::{
-        BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
-        bigint::HeapBigInt,
+    engine::Executable,
+    heap::{
+        BaseIndex, ElementIndex, Heap, HeapIndexHandle, PropertyKeyIndex,
+        element_array::ElementDescriptor,
     },
 };
-use crate::engine::Executable;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BitRange(Range<usize>);
@@ -453,6 +417,12 @@ pub(crate) struct HeapBits {
     pub(super) data_views: BitRange,
     #[cfg(feature = "date")]
     pub(super) dates: BitRange,
+    #[cfg(feature = "temporal")]
+    pub(super) instants: BitRange,
+    #[cfg(feature = "temporal")]
+    pub(super) durations: BitRange,
+    #[cfg(feature = "temporal")]
+    pub(super) plain_times: BitRange,
     pub(super) declarative_environments: BitRange,
     pub(super) ecmascript_functions: BitRange,
     pub(super) embedder_objects: BitRange,
@@ -529,6 +499,12 @@ pub(crate) struct WorkQueues<'a> {
     pub(crate) data_views: Vec<DataView<'static>>,
     #[cfg(feature = "date")]
     pub(crate) dates: Vec<Date<'static>>,
+    #[cfg(feature = "temporal")]
+    pub(crate) instants: Vec<TemporalInstant<'static>>,
+    #[cfg(feature = "temporal")]
+    pub(crate) durations: Vec<TemporalDuration<'static>>,
+    #[cfg(feature = "temporal")]
+    pub(crate) plain_times: Vec<TemporalPlainTime<'static>>,
     pub(crate) declarative_environments: Vec<DeclarativeEnvironment<'static>>,
     pub(crate) e_2_1: Vec<ElementIndex<'static>>,
     pub(crate) e_2_2: Vec<ElementIndex<'static>>,
@@ -678,6 +654,12 @@ impl HeapBits {
         let data_views = BitRange::from_bit_count_and_len(&mut bit_count, heap.data_views.len());
         #[cfg(feature = "date")]
         let dates = BitRange::from_bit_count_and_len(&mut bit_count, heap.dates.len());
+        #[cfg(feature = "temporal")]
+        let instants = BitRange::from_bit_count_and_len(&mut bit_count, heap.instants.len());
+        #[cfg(feature = "temporal")]
+        let durations = BitRange::from_bit_count_and_len(&mut bit_count, heap.durations.len());
+        #[cfg(feature = "temporal")]
+        let plain_times = BitRange::from_bit_count_and_len(&mut bit_count, heap.plain_times.len());
         let declarative_environments =
             BitRange::from_bit_count_and_len(&mut bit_count, heap.environments.declarative.len());
         let ecmascript_functions =
@@ -785,6 +767,12 @@ impl HeapBits {
             data_views,
             #[cfg(feature = "date")]
             dates,
+            #[cfg(feature = "temporal")]
+            instants,
+            #[cfg(feature = "temporal")]
+            durations,
+            #[cfg(feature = "temporal")]
+            plain_times,
             declarative_environments,
             e_2_1,
             e_2_2,
@@ -885,7 +873,7 @@ impl HeapBits {
             WeakKey::BuiltinPromiseFinallyFunction(d) => self
                 .promise_finally_functions
                 .get_bit(d.get_index(), &self.bits),
-            WeakKey::BuiltinPromiseCollectorFunction | WeakKey::BuiltinProxyRevokerFunction => {
+            WeakKey::BuiltinProxyRevokerFunction => {
                 unreachable!()
             }
             WeakKey::PrimitiveObject(d) => {
@@ -895,6 +883,12 @@ impl HeapBits {
             WeakKey::Array(d) => self.arrays.get_bit(d.get_index(), &self.bits),
             #[cfg(feature = "date")]
             WeakKey::Date(d) => self.dates.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "temporal")]
+            WeakKey::Instant(d) => self.instants.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "temporal")]
+            WeakKey::Duration(d) => self.durations.get_bit(d.get_index(), &self.bits),
+            #[cfg(feature = "temporal")]
+            WeakKey::PlainTime(d) => self.plain_times.get_bit(d.get_index(), &self.bits),
             WeakKey::Error(d) => self.errors.get_bit(d.get_index(), &self.bits),
             WeakKey::FinalizationRegistry(d) => self
                 .finalization_registrys
@@ -1032,6 +1026,12 @@ impl<'a> WorkQueues<'a> {
             data_views: Vec::with_capacity(heap.data_views.len() / 4),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(heap.dates.len() / 4),
+            #[cfg(feature = "temporal")]
+            instants: Vec::with_capacity(heap.instants.len() / 4),
+            #[cfg(feature = "temporal")]
+            durations: Vec::with_capacity(heap.durations.len() / 4),
+            #[cfg(feature = "temporal")]
+            plain_times: Vec::with_capacity(heap.plain_times.len() / 4),
             declarative_environments: Vec::with_capacity(heap.environments.declarative.len() / 4),
             e_2_1: Vec::with_capacity(heap.elements.e2pow1.values.len() / 4),
             e_2_2: Vec::with_capacity(heap.elements.e2pow2.values.len() / 4),
@@ -1138,6 +1138,12 @@ impl<'a> WorkQueues<'a> {
             data_views,
             #[cfg(feature = "date")]
             dates,
+            #[cfg(feature = "temporal")]
+            instants,
+            #[cfg(feature = "temporal")]
+            durations,
+            #[cfg(feature = "temporal")]
+            plain_times,
             declarative_environments,
             e_2_1,
             e_2_2,
@@ -1217,6 +1223,12 @@ impl<'a> WorkQueues<'a> {
             weak_sets,
         } = self;
 
+        #[cfg(not(feature = "temporal"))]
+        let instants: &[bool; 0] = &[];
+        #[cfg(not(feature = "temporal"))]
+        let durations: &[bool; 0] = &[];
+        #[cfg(not(feature = "temporal"))]
+        let plain_times: &[bool; 0] = &[];
         #[cfg(not(feature = "date"))]
         let dates: &[bool; 0] = &[];
         #[cfg(not(feature = "array-buffer"))]
@@ -1257,6 +1269,9 @@ impl<'a> WorkQueues<'a> {
             && caches.is_empty()
             && data_views.is_empty()
             && dates.is_empty()
+            && instants.is_empty()
+            && durations.is_empty()
+            && plain_times.is_empty()
             && declarative_environments.is_empty()
             && e_2_1.is_empty()
             && e_2_2.is_empty()
@@ -1440,7 +1455,7 @@ impl CompactionList {
 
     /// Shift a strongly held reference index.
     pub(crate) fn shift_index<T: ?Sized>(&self, index: &mut BaseIndex<T>) {
-        *index = BaseIndex::from_u32_index(self.shift_strong_u32_index(index.into_u32_index()));
+        *index = BaseIndex::from_index_u32(self.shift_strong_u32_index(index.get_index_u32()));
     }
 
     /// Shift a strongly held bare NonZeroU32 reference index.
@@ -1464,9 +1479,9 @@ impl CompactionList {
         &self,
         index: BaseIndex<'a, T>,
     ) -> Option<BaseIndex<'a, T>> {
-        let base_index = index.into_u32_index();
+        let base_index = index.get_index_u32();
         let base_index = self.shift_weak_u32_index(base_index)?;
-        Some(BaseIndex::from_u32_index(base_index))
+        Some(BaseIndex::from_index_u32(base_index))
     }
 
     /// Shift a weakly held non-zero reference index. Returns a new index if
@@ -1616,6 +1631,12 @@ pub(crate) struct CompactionLists {
     pub(crate) data_views: CompactionList,
     #[cfg(feature = "date")]
     pub(crate) dates: CompactionList,
+    #[cfg(feature = "temporal")]
+    pub(crate) instants: CompactionList,
+    #[cfg(feature = "temporal")]
+    pub(crate) durations: CompactionList,
+    #[cfg(feature = "temporal")]
+    pub(crate) plain_times: CompactionList,
     pub(crate) declarative_environments: CompactionList,
     pub(crate) e_2_1: CompactionList,
     pub(crate) e_2_2: CompactionList,
@@ -1771,6 +1792,12 @@ impl CompactionLists {
             source_codes: CompactionList::from_mark_bits(&bits.source_codes, &bits.bits),
             #[cfg(feature = "date")]
             dates: CompactionList::from_mark_bits(&bits.dates, &bits.bits),
+            #[cfg(feature = "temporal")]
+            instants: CompactionList::from_mark_bits(&bits.instants, &bits.bits),
+            #[cfg(feature = "temporal")]
+            durations: CompactionList::from_mark_bits(&bits.durations, &bits.bits),
+            #[cfg(feature = "temporal")]
+            plain_times: CompactionList::from_mark_bits(&bits.plain_times, &bits.bits),
             errors: CompactionList::from_mark_bits(&bits.errors, &bits.bits),
             executables: CompactionList::from_mark_bits(&bits.executables, &bits.bits),
             maps: CompactionList::from_mark_bits(&bits.maps, &bits.bits),
@@ -2364,7 +2391,7 @@ pub(crate) fn sweep_heap_elements_vector_descriptors(
     let mut keys_to_reassign = Vec::with_capacity(range.len() / 4);
     for (key, descriptor) in descriptors.iter_mut() {
         let old_key = *key;
-        if !range.get_bit(old_key.into_index(), bits) {
+        if !range.get_bit(old_key.get_index(), bits) {
             keys_to_remove.push(old_key);
         } else {
             for descriptor in descriptor.values_mut() {

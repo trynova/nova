@@ -11,43 +11,21 @@ use wtf8::{CodePoint, Wtf8Buf};
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{
-            is_trimmable_whitespace, to_int32, to_int32_number, to_number, to_number_primitive,
-            to_string,
-        },
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        execution::{
-            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
-            PrivateEnvironment, Realm, agent::ExceptionType, get_this_environment,
-            new_declarative_environment,
-        },
-        scripts_and_modules::source_code::{ParseResult, SourceCode, SourceCodeType},
-        syntax_directed_operations::{
-            miscellaneous::instantiate_function_object,
-            scope_analysis::{
-                LexicallyScopedDeclaration, VarScopedDeclaration,
-                script_lexically_scoped_declarations, script_var_declared_names,
-                script_var_scoped_declarations,
-            },
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoValue, Primitive, STRING_DISCRIMINANT, String,
-            Value,
-        },
+        Agent, BUILTIN_STRING_MEMORY, Contains, ContainsSymbol, ECMAScriptCodeEvaluationState,
+        Environment, ExceptionType, ExecutionContext, Function, JsResult,
+        LexicallyScopedDeclaration, ParseResult, Primitive, PrivateEnvironment, Realm,
+        STRING_DISCRIMINANT, SourceCode, SourceCodeType, String, Value, VarScopedDeclaration,
+        builders::BuiltinFunctionBuilder, get_this_environment, instantiate_function_object,
+        is_trimmable_whitespace, new_declarative_environment, script_lexically_scoped_declarations,
+        script_var_declared_names, script_var_scoped_declarations, to_int32, to_int32_number,
+        to_number, to_number_primitive, to_string,
     },
-    engine::{
-        Executable, Vm,
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-        string_literal_to_wtf8,
-    },
-    heap::IntrinsicFunctionIndexes,
+    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, string_literal_to_wtf8},
+    heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes},
     ndt,
 };
 
-use super::{
-    ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, ordinary::caches::PropertyLookupCache,
-};
+use super::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, ordinary::PropertyLookupCache};
 
 pub(crate) struct GlobalObject;
 
@@ -181,11 +159,12 @@ pub(crate) fn perform_eval<'gc>(
     // 3. Let evalRealm be the current Realm Record.
     let eval_realm = agent.current_realm(gc.nogc());
 
-    // 4. NOTE: In the case of a direct eval, evalRealm is the realm of both the caller of eval and of the eval function itself.
+    // 4. NOTE: In the case of a direct eval, evalRealm is the realm of both the
+    //    caller of eval and of the eval function itself.
     // 5. Perform ? HostEnsureCanCompileStrings(evalRealm, « », x, direct).
     agent
         .host_hooks
-        .ensure_can_compile_strings(&mut agent[eval_realm], gc.nogc())
+        .ensure_can_compile_strings(eval_realm, gc.nogc())
         .unbind()?;
 
     let mut id = 0;
@@ -195,56 +174,56 @@ pub(crate) fn perform_eval<'gc>(
     });
 
     // 6. Let inFunction be false.
-    let mut _in_function = false;
+    let mut in_function = false;
     // 7. Let inMethod be false.
-    let mut _in_method = false;
+    let mut in_method = false;
     // 8. Let inDerivedConstructor be false.
-    let mut _in_derived_constructor = false;
+    let mut in_derived_constructor = false;
     // 9. Let inClassFieldInitializer be false.
-    let _in_class_field_initializer = false;
+    let in_class_field_initializer = false;
 
     // 10. If direct is true, then
-    if direct {
-        // a. Let thisEnvRec be GetThisEnvironment().
-        let this_env_rec = get_this_environment(agent, gc.nogc());
-        // b. If thisEnvRec is a Function Environment Record, then
-        if let Environment::Function(this_env_rec) = this_env_rec {
-            // i. Let F be thisEnvRec.[[FunctionObject]].
-            let f = this_env_rec.get_function_object(agent);
-            // ii. Set inFunction to true.
-            _in_function = true;
-            // iii. Set inMethod to thisEnvRec.HasSuperBinding().
-            _in_method = this_env_rec.has_super_binding(agent);
-            // iv. If F.[[ConstructorKind]] is derived, set inDerivedConstructor to true.
-            _in_derived_constructor = match f {
-                Function::ECMAScriptFunction(f) => agent[f]
-                    .ecmascript_function
-                    .constructor_status
-                    .is_derived_class(),
-                Function::BuiltinConstructorFunction(f) => agent[f].is_derived,
-                _ => false,
-            };
+    //     a. Let thisEnvRec be GetThisEnvironment().
+    //     b. If thisEnvRec is a Function Environment Record, then
+    if direct && let Environment::Function(this_env_rec) = get_this_environment(agent, gc.nogc()) {
+        // i. Let F be thisEnvRec.[[FunctionObject]].
+        let f = this_env_rec.get_function_object(agent);
+        // ii. Set inFunction to true.
+        in_function = true;
+        // iii. Set inMethod to thisEnvRec.HasSuperBinding().
+        in_method = this_env_rec.has_super_binding(agent);
+        // iv. If F.[[ConstructorKind]] is derived, set inDerivedConstructor to
+        //     true.
+        in_derived_constructor = match f {
+            Function::ECMAScriptFunction(f) => f
+                .get(agent)
+                .ecmascript_function
+                .constructor_status
+                .is_derived_class(),
+            Function::BuiltinConstructorFunction(f) => f.get(agent).is_derived,
+            _ => false,
+        };
 
-            // TODO:
-            // v. Let classFieldInitializerName be F.[[ClassFieldInitializerName]].
-            // vi. If classFieldInitializerName is not empty, set inClassFieldInitializer to true.
-        }
+        // TODO:
+        // v. Let classFieldInitializerName be
+        //    F.[[ClassFieldInitializerName]].
+        // vi. If classFieldInitializerName is not empty, set
+        //     inClassFieldInitializer to true.
     }
 
-    // 11. Perform the following substeps in an implementation-defined order, possibly interleaving parsing and error detection:
+    // 11. Perform the following substeps in an implementation-defined order,
+    //     possibly interleaving parsing and error detection:
     // a. Let script be ParseText(x, Script).
-    let source_type = if strict_caller {
-        SourceCodeType::StrictScript
-    } else {
-        SourceCodeType::Script
+    let source_type = SourceCodeType::Eval {
+        direct,
+        strict: strict_caller,
     };
     // SAFETY: Script is only kept alive for the duration of this call, and any
     // references made to it by functions being created in the eval call will
     // take a copy of the SourceCode. The SourceCode is also kept in the
     // evaluation context and thus cannot be garbage collected while the eval
-    // call happens.
-    // The Program thus refers to a valid, live Allocator for the duration of
-    // this call.
+    // call happens. The Program thus refers to a valid, live Allocator for the
+    // duration of this call.
     let parse_result = unsafe {
         SourceCode::parse_source(
             agent,
@@ -281,8 +260,7 @@ pub(crate) fn perform_eval<'gc>(
         } else {
             // If directives exist, it means that the last directive gets used
             // as the eval result.
-            string_literal_to_wtf8(agent, &directives.last().unwrap().expression, gc.nogc())
-                .into_value()
+            string_literal_to_wtf8(agent, &directives.last().unwrap().expression, gc.nogc()).into()
         };
         // SAFETY: SourceCode was just parsed and found empty; even if it had
         // been executed, it would do nothing.
@@ -293,10 +271,43 @@ pub(crate) fn perform_eval<'gc>(
 
     // TODO:
     // d. Let body be the ScriptBody of script.
-    // e. If inFunction is false and body Contains NewTarget, throw a SyntaxError exception.
-    // f. If inMethod is false and body Contains SuperProperty, throw a SyntaxError exception.
-    // g. If inDerivedConstructor is false and body Contains SuperCall, throw a SyntaxError exception.
-    // h. If inClassFieldInitializer is true and ContainsArguments of body is true, throw a SyntaxError exception.
+    // e. If inFunction is false and body Contains NewTarget,
+    if !in_function && Contains::contains(body, ContainsSymbol::NewTarget) {
+        // throw a SyntaxError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "new.target only allowed within functions",
+            gc.into_nogc(),
+        ));
+    }
+    // f. If inMethod is false and body Contains SuperProperty,
+    if !in_method && Contains::contains(body, ContainsSymbol::SuperProperty) {
+        // throw a SyntaxError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "use of super property accesses only valid within methods or eval code within methods",
+            gc.into_nogc(),
+        ));
+    }
+    // g. If inDerivedConstructor is false and body Contains SuperCall,
+    if !in_derived_constructor && Contains::contains(body, ContainsSymbol::SuperCall) {
+        // throw a SyntaxError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "super() is only valid in derived class constructors",
+            gc.into_nogc(),
+        ));
+    }
+    // h. If inClassFieldInitializer is true and ContainsArguments of body is
+    //    true,
+    if in_class_field_initializer && Contains::contains(body, ContainsSymbol::Arguments) {
+        // throw a SyntaxError exception.
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::SyntaxError,
+            "arguments is not valid in fields",
+            gc.into_nogc(),
+        ));
+    }
 
     // 12. If strictCaller is true, let strictEval be true.
     // 13. Else, let strictEval be ScriptIsStrict of script.
@@ -306,8 +317,10 @@ pub(crate) fn perform_eval<'gc>(
     }
 
     // 14. Let runningContext be the running execution context.
-    // 15. NOTE: If direct is true, runningContext will be the execution context that performed the direct eval. If direct is false, runningContext will be the execution context for the invocation of the eval function.
-
+    // 15. NOTE: If direct is true, runningContext will be the execution context
+    //     that performed the direct eval. If direct is false, runningContext
+    //     will be the execution context for the invocation of the eval
+    //     function.
     // 16. If direct is true, then
     let mut ecmascript_code = if direct {
         let ECMAScriptCodeEvaluationState {
@@ -341,7 +354,8 @@ pub(crate) fn perform_eval<'gc>(
         }
     } else {
         // 17. Else,
-        let global_env = Environment::Global(agent[eval_realm].global_env.unwrap()).bind(gc.nogc());
+        let global_env =
+            Environment::Global(eval_realm.get(agent).global_env.unwrap()).bind(gc.nogc());
 
         ECMAScriptCodeEvaluationState {
             // a. Let lexEnv be NewDeclarativeEnvironment(evalRealm.[[GlobalEnv]]).
@@ -436,7 +450,7 @@ pub(crate) fn perform_eval<'gc>(
 fn create_id(x: String) -> u64 {
     match x {
         String::String(s) => {
-            let s = s.get_index() as u32;
+            let s = s.get_index_u32();
             let [a, b, c, d] = s.to_ne_bytes();
             u64::from_ne_bytes([STRING_DISCRIMINANT, 0, 0, 0, a, b, c, d])
         }
@@ -489,7 +503,7 @@ fn eval_declaration_instantiation<'a>(
                         ExceptionType::SyntaxError,
                         format!(
                             "Redeclaration of lexical declaration '{}'",
-                            name.to_string_lossy(agent)
+                            name.to_string_lossy_(agent)
                         ),
                         gc.into_nogc(),
                     ));
@@ -740,9 +754,7 @@ fn eval_declaration_instantiation<'a>(
             scoped_lex_env.get(agent).bind(gc.nogc()),
             private_env.as_ref().map(|v| v.get(agent).bind(gc.nogc())),
             gc.nogc(),
-        )
-        .into_value()
-        .unbind();
+        );
 
         // c. If varEnv is a Global Environment Record, then
         if let Environment::Global(var_env) = scoped_var_env.get(agent).bind(gc.nogc()) {
@@ -754,13 +766,14 @@ fn eval_declaration_instantiation<'a>(
                 .create_global_function_binding(
                     agent,
                     function_name.unbind(),
-                    fo.unbind(),
+                    fo.unbind().into(),
                     true,
                     gc.reborrow(),
                 )
                 .unbind()?
                 .bind(gc.nogc());
         } else {
+            let fo = fo.scope(agent, gc.nogc());
             // d. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(fn).
             let function_name = String::from_str(agent, function_name.unwrap().as_str(), gc.nogc())
@@ -790,7 +803,8 @@ fn eval_declaration_instantiation<'a>(
                         agent,
                         function_name.get(agent).unbind(),
                         None,
-                        fo,
+                        // SAFETY: not shared.
+                        unsafe { fo.take(agent) }.into(),
                         gc.reborrow(),
                     )
                     .unwrap();
@@ -805,7 +819,8 @@ fn eval_declaration_instantiation<'a>(
                         agent,
                         function_name.unbind(),
                         Some(cache.unbind()),
-                        fo,
+                        // SAFETY: not shared.
+                        unsafe { fo.take(agent) }.into(),
                         false,
                         gc.reborrow(),
                     )
@@ -885,7 +900,7 @@ impl GlobalObject {
             .bind(gc.nogc());
         // 2. If num is not finite, return false.
         // 3. Otherwise, return true.
-        Ok(num.is_finite(agent).into())
+        Ok(num.is_finite_(agent).into())
     }
 
     /// ### [19.2.3 isNaN ( number )](https://tc39.es/ecma262/#sec-isnan-number)
@@ -908,7 +923,7 @@ impl GlobalObject {
             .bind(gc.nogc());
         // 2. If num is NaN, return true.
         // 3. Otherwise, return false.
-        Ok(num.is_nan(agent).into())
+        Ok(num.is_nan_(agent).into())
     }
 
     /// ### [19.2.4 parseFloat ( string )](https://tc39.es/ecma262/#sec-parsefloat-string)
@@ -933,7 +948,7 @@ impl GlobalObject {
             .bind(gc.nogc());
 
         // 2. Let trimmedString be ! TrimString(inputString, start).
-        let trimmed_string = input_string.to_string_lossy(agent);
+        let trimmed_string = input_string.to_string_lossy_(agent);
         let trimmed_string = trimmed_string.trim_start_matches(is_trimmable_whitespace);
 
         // 3. Let trimmed be StringToCodePoints(trimmedString).
@@ -1037,7 +1052,7 @@ impl GlobalObject {
         };
 
         // 2. Let S be ! TrimString(inputString, start).
-        let s = s.to_string_lossy(agent);
+        let s = s.to_string_lossy_(agent);
         let s = s.trim_start_matches(is_trimmable_whitespace);
 
         // 3. Let sign be 1.
@@ -1212,7 +1227,7 @@ impl GlobalObject {
             preserve_escape_set,
             gc.into_nogc(),
         )
-        .map(IntoValue::into_value)
+        .map(Into::into)
     }
 
     /// ### [19.2.6.2 decodeURIComponent ( encodedURIComponent )](https://tc39.es/ecma262/#sec-decodeuricomponent-encodeduricomponent)
@@ -1246,7 +1261,7 @@ impl GlobalObject {
             preserve_escape_set,
             gc.into_nogc(),
         )
-        .map(IntoValue::into_value)
+        .map(Into::into)
     }
 
     /// ### [19.2.6.3 encodeURI ( uri )](https://tc39.es/ecma262/#sec-encodeuri-uri)
@@ -1272,7 +1287,7 @@ impl GlobalObject {
 
         // 2. Let extraUnescaped be ";/?:@&=+$,#".
         // 3. Return ? Encode(uriString, extraUnescaped).
-        encode::<true>(agent, uri_string, gc).map(|c| c.into_value())
+        encode::<true>(agent, uri_string, gc).map(|c| c.into())
     }
 
     /// ### [19.2.6.4 encodeURIComponent ( uriComponent )](https://tc39.es/ecma262/#sec-encodeuricomponent-uricomponent)
@@ -1298,7 +1313,7 @@ impl GlobalObject {
 
         // 2. Let extraUnescaped be the empty String.
         // 3. Return ? Encode(componentString, extraUnescaped).
-        encode::<false>(agent, component_string, gc).map(|c| c.into_value())
+        encode::<false>(agent, component_string, gc).map(|c| c.into())
     }
 
     /// ### [B.2.1.1 escape ( string )](https://tc39.es/ecma262/#sec-escape-string)
@@ -1331,8 +1346,8 @@ impl GlobalObject {
         let gc = gc.into_nogc();
         let string = string.bind(gc);
         // 2. Let len be the length of string.
-        let string_wtf8 = string.as_wtf8(agent);
-        let bytes = string.as_bytes(agent);
+        let string_wtf8 = string.as_wtf8_(agent);
+        let bytes = string.as_bytes_(agent);
         // 3. Let R be the empty String.
         // 4. Let unescapedSet be the string-concatenation of the ASCII word
         //    characters and "@*+-./".
@@ -1342,7 +1357,7 @@ impl GlobalObject {
 
         if bytes.iter().all(unescape_set) {
             // Nothing to escape.
-            return Ok(string.into_value());
+            return Ok(string.into());
         }
         let mut r = Wtf8Buf::with_capacity(bytes.len() + (bytes.len() >> 2));
 
@@ -1390,7 +1405,7 @@ impl GlobalObject {
             // e. Set k to k + 1.
         }
         // 7. Return R.
-        Ok(String::from_wtf8_buf(agent, r, gc).into_value())
+        Ok(String::from_wtf8_buf(agent, r, gc).into())
     }
 
     /// ### [B.2.1.2 unescape ( string )](https://tc39.es/ecma262/#sec-unescape-string)
@@ -1413,8 +1428,8 @@ impl GlobalObject {
         let string = to_string(agent, string.unbind(), gc.reborrow()).unbind()?;
         let gc = gc.into_nogc();
         let string = string.bind(gc);
-        let string_wtf8 = string.as_wtf8(agent);
-        let bytes = string.as_bytes(agent);
+        let string_wtf8 = string.as_wtf8_(agent);
+        let bytes = string.as_bytes_(agent);
         // 2. Let len be the length of string.
         let len = bytes.len();
         // 3. Let R be the empty String.
@@ -1475,12 +1490,12 @@ impl GlobalObject {
         }
         if previous_k == 0 {
             // Nothing to unescape
-            Ok(string.into_value())
+            Ok(string.into())
         } else {
             // Push the rest of the string into r.
             // 6. Return R.
             r.push_wtf8(string_wtf8.slice_from(previous_k));
-            Ok(String::from_wtf8_buf(agent, r, gc).into_value())
+            Ok(String::from_wtf8_buf(agent, r, gc).into())
         }
     }
 
@@ -1532,8 +1547,8 @@ fn encode<'a, const EXTRA_UNESCAPED: bool>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<'a, String<'a>> {
     // 1. Let len be the length of string.
-    let len = string.len(agent);
-    let Some(s) = string.as_str(agent) else {
+    let len = string.len_(agent);
+    let Some(s) = string.as_str_(agent) else {
         // i. Let cp be CodePointAt(string, k).
         // ii. If cp.[[IsUnpairedSurrogate]] is true, throw a URIError exception.
         return Err(agent.throw_exception_with_static_message(
@@ -1616,9 +1631,9 @@ where
     F: Fn(u8) -> bool,
 {
     // 1. Let strLen be the length of string.
-    let str_len = string.utf16_len(agent);
+    let str_len = string.utf16_len_(agent);
     // 2. Let R be the empty String.
-    let mut r = Wtf8Buf::with_capacity(string.len(agent));
+    let mut r = Wtf8Buf::with_capacity(string.len_(agent));
     let mut octets = Vec::with_capacity(4);
 
     // 3. Let k be 0.
@@ -1631,7 +1646,7 @@ where
         }
 
         // b. Let C be the code unit at index k within string.
-        let c = string.char_code_at(agent, k);
+        let c = string.char_code_at_(agent, k);
 
         // c. If C is not the code unit 0x0025 (PERCENT SIGN), then
         if c != CodePoint::from_char('%') {
@@ -1655,8 +1670,8 @@ where
             // hexadecimal digits, throw a URIError exception.
             // iv. Let B be the 8-bit value represented by the two hexadecimal digits at index (k + 1) and (k + 2).
             let Some(b) = decode_hex_byte(
-                string.char_code_at(agent, k + 1),
-                string.char_code_at(agent, k + 2),
+                string.char_code_at_(agent, k + 1),
+                string.char_code_at_(agent, k + 2),
             ) else {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::UriError,
@@ -1682,9 +1697,9 @@ where
                 } else {
                     // 3. Else,
                     // a. Let S be the substring of string from start to k + 1.
-                    let start = string.utf8_index(agent, start).unwrap();
-                    let k = string.utf8_index(agent, k).unwrap();
-                    r.push_str(&string.to_string_lossy(agent)[start..=k])
+                    let start = string.utf8_index_(agent, start).unwrap();
+                    let k = string.utf8_index_(agent, k).unwrap();
+                    r.push_str(&string.to_string_lossy_(agent)[start..=k])
                 }
             } else {
                 // viii. Else,
@@ -1716,7 +1731,7 @@ where
                     k += 1;
 
                     // b. If the code unit at index k within string is not the code unit 0x0025 (PERCENT SIGN), throw a URIError exception.
-                    if string.char_code_at(agent, k) != CodePoint::from_char('%') {
+                    if string.char_code_at_(agent, k) != CodePoint::from_char('%') {
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,
                             "escape characters must be preceded with a % sign",
@@ -1727,8 +1742,8 @@ where
                     // c. If the code units at index (k + 1) and (k + 2) within string do not represent hexadecimal digits, throw a URIError exception.
                     // d. Let B be the 8-bit value represented by the two hexadecimal digits at index (k + 1) and (k + 2).
                     let Some(b) = decode_hex_byte(
-                        string.char_code_at(agent, k + 1),
-                        string.char_code_at(agent, k + 2),
+                        string.char_code_at_(agent, k + 1),
+                        string.char_code_at_(agent, k + 2),
                     ) else {
                         return Err(agent.throw_exception_with_static_message(
                             ExceptionType::UriError,

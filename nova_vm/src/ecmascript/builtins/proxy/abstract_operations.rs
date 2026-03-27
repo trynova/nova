@@ -3,11 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{
-        execution::{Agent, JsResult, agent::ExceptionType},
-        types::Object,
-    },
-    engine::context::{Bindable, NoGcScope, bindable_handle},
+    ecmascript::{Agent, ExceptionType, JsResult, Object},
+    engine::{Bindable, NoGcScope, bindable_handle},
+    heap::ArenaAccess,
 };
 
 use super::{Proxy, data::ProxyHeapData};
@@ -34,7 +32,7 @@ pub(crate) fn validate_non_revoked_proxy<'a>(
     let ProxyHeapData::NonRevoked {
         proxy_handler: handler,
         proxy_target: target,
-    } = agent[proxy]
+    } = proxy.get(agent)
     else {
         // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
         // 2. Assert: proxy.[[ProxyHandler]] is not null.
@@ -67,7 +65,7 @@ pub(crate) fn try_validate_non_revoked_proxy<'a>(
     let ProxyHeapData::NonRevoked {
         proxy_handler: handler,
         proxy_target: target,
-    } = agent[proxy]
+    } = proxy.get(agent)
     else {
         // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
         // 2. Assert: proxy.[[ProxyHandler]] is not null.

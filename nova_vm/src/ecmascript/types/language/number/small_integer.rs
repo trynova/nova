@@ -2,13 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::small_bigint::SmallBigInt;
+use crate::ecmascript::{SmallBigInt, number_value};
 
-/// 56-bit signed integer.
+/// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
+///
+/// Stack-allocated integer [`Number`] data. Internally, the value is a 54-bit
+/// signed integer stored in 56 bits, filling in the entire safe integer range.
+///
+/// [`Number`]: crate::ecmascript::Number
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SmallInteger {
-    pub(super) data: [u8; 7],
+    pub(crate) data: [u8; 7],
 }
+number_value!(SmallInteger, Integer);
 
 impl core::fmt::Debug for SmallInteger {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -23,9 +29,16 @@ impl core::hash::Hash for SmallInteger {
 }
 
 impl SmallInteger {
+    /// Minimum value that can be represented as a SmallInteger.
+    ///
+    /// This corresponds with `Number.MIN_SAFE_INTEGER`.
     pub const MIN: i64 = -(2i64.pow(53)) + 1;
+    /// Maximum value that can be represented as a SmallInteger.
+    ///
+    /// This corresponds with `Number.MAX_SAFE_INTEGER`.
     pub const MAX: i64 = 2i64.pow(53) - 1;
 
+    /// Returns the contained value as an i64.
     #[inline]
     pub const fn into_i64(self) -> i64 {
         let SmallInteger { data } = self;
@@ -46,6 +59,7 @@ impl SmallInteger {
         }
     }
 
+    /// Returns the `0` value.
     pub const fn zero() -> Self {
         Self {
             data: [0, 0, 0, 0, 0, 0, 0],
@@ -59,7 +73,7 @@ impl SmallInteger {
     /// If the value is outside the SmallInteger range, the method panics
     /// in debug mode. In release mode, data may be lost and an invalid
     /// variant may be created.
-    pub unsafe fn from_i64_unchecked(value: i64) -> Self {
+    pub(crate) unsafe fn from_i64_unchecked(value: i64) -> Self {
         debug_assert!((Self::MIN..=Self::MAX).contains(&value));
         let bytes = i64::to_ne_bytes(value);
 
@@ -82,7 +96,7 @@ impl SmallInteger {
     ///
     /// If the value is outside the SmallInteger range, an invalid variant is
     /// created.
-    pub unsafe fn from_small_bigint_unchecked(value: SmallBigInt) -> Self {
+    pub(crate) unsafe fn from_small_bigint_unchecked(value: SmallBigInt) -> Self {
         Self { data: value.data }
     }
 }

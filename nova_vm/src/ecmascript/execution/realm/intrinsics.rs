@@ -5,151 +5,60 @@
 use std::num::NonZeroU32;
 
 use super::Realm;
-#[cfg(feature = "set")]
-use crate::ecmascript::builtins::keyed_collections::set_objects::{
-    set_constructor::SetConstructor,
-    set_iterator_objects::set_iterator_prototype::SetIteratorPrototype,
-    set_prototype::SetPrototype,
-};
-#[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::keyed_collections::{
-    weak_map_objects::{
-        weak_map_constructor::WeakMapConstructor, weak_map_prototype::WeakMapPrototype,
-    },
-    weak_set_objects::{
-        weak_set_constructor::WeakSetConstructor, weak_set_prototype::WeakSetPrototype,
-    },
-};
-#[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::managing_memory::weak_ref_objects::{
-    weak_ref_constructor::WeakRefConstructor, weak_ref_prototype::WeakRefPrototype,
+#[cfg(feature = "atomics")]
+use crate::ecmascript::AtomicsObject;
+#[cfg(feature = "json")]
+use crate::ecmascript::JSONObject;
+#[cfg(feature = "math")]
+use crate::ecmascript::MathObject;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::{
+    ArrayBufferConstructor, ArrayBufferPrototype, DataViewConstructor, DataViewPrototype,
+    TypedArrayConstructors, TypedArrayIntrinsicObject, TypedArrayPrototype, TypedArrayPrototypes,
 };
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::numbers_and_dates::date_objects::{
-    date_constructor::DateConstructor, date_prototype::DatePrototype,
-};
-#[cfg(feature = "math")]
-use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
-#[cfg(feature = "atomics")]
-use crate::ecmascript::builtins::structured_data::atomics_object::AtomicsObject;
-#[cfg(feature = "json")]
-use crate::ecmascript::builtins::structured_data::json_object::JSONObject;
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::structured_data::shared_array_buffer_objects::{
-    shared_array_buffer_constructor::SharedArrayBufferConstructor,
-    shared_array_buffer_prototype::SharedArrayBufferPrototype,
-};
+use crate::ecmascript::{DateConstructor, DatePrototype};
 #[cfg(feature = "regexp")]
-use crate::ecmascript::builtins::text_processing::regexp_objects::{
-    regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
-    regexp_string_iterator_prototype::RegExpStringIteratorPrototype,
+use crate::ecmascript::{RegExpConstructor, RegExpPrototype, RegExpStringIteratorPrototype};
+#[cfg(feature = "set")]
+use crate::ecmascript::{SetConstructor, SetIteratorPrototype, SetPrototype};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{SharedArrayBufferConstructor, SharedArrayBufferPrototype};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{
+    TemporalDurationConstructor, TemporalDurationPrototype, TemporalInstantConstructor,
+    TemporalInstantPrototype, TemporalObject, TemporalPlainTimeConstructor,
+    TemporalPlainTimePrototype,
 };
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{
-    indexed_collections::typed_array_objects::{
-        typed_array_constructors::{TypedArrayConstructors, TypedArrayPrototypes},
-        typed_array_intrinsic_object::{TypedArrayIntrinsicObject, TypedArrayPrototype},
-    },
-    structured_data::{
-        array_buffer_objects::{
-            array_buffer_constructor::ArrayBufferConstructor,
-            array_buffer_prototype::ArrayBufferPrototype,
-        },
-        data_view_objects::{
-            data_view_constructor::DataViewConstructor, data_view_prototype::DataViewPrototype,
-        },
-    },
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{
+    WeakMapConstructor, WeakMapPrototype, WeakSetConstructor, WeakSetPrototype,
 };
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{WeakRefConstructor, WeakRefPrototype};
 use crate::{
     ecmascript::{
-        builtins::{
-            Array, BuiltinFunction,
-            control_abstraction_objects::{
-                async_function_objects::{
-                    async_function_constructor::AsyncFunctionConstructor,
-                    async_function_prototype::AsyncFunctionPrototype,
-                },
-                async_generator_function_objects::{
-                    async_generator_function_constructor::AsyncGeneratorFunctionConstructor,
-                    async_generator_function_prototype::AsyncGeneratorFunctionPrototype,
-                },
-                async_generator_objects::AsyncGeneratorPrototype,
-                generator_function_objects::{
-                    generator_function_constructor::GeneratorFunctionConstructor,
-                    generator_function_prototype::GeneratorFunctionPrototype,
-                },
-                generator_prototype::GeneratorPrototype,
-                iteration::{
-                    async_iterator_prototype::AsyncIteratorPrototype,
-                    iterator_prototype::IteratorPrototype,
-                },
-                promise_objects::{
-                    promise_constructor::PromiseConstructor, promise_prototype::PromisePrototype,
-                },
-            },
-            global_object::GlobalObject,
-            indexed_collections::array_objects::{
-                array_constructor::ArrayConstructor,
-                array_iterator_objects::array_iterator_prototype::ArrayIteratorPrototype,
-                array_prototype::ArrayPrototype,
-            },
-            iteration::iterator_constructor::IteratorConstructor,
-            keyed_collections::map_objects::{
-                map_constructor::MapConstructor,
-                map_iterator_objects::map_iterator_prototype::MapIteratorPrototype,
-                map_prototype::MapPrototype,
-            },
-            managing_memory::finalization_registry_objects::{
-                finalization_registry_constructor::FinalizationRegistryConstructor,
-                finalization_registry_prototype::FinalizationRegistryPrototype,
-            },
-            ordinary::shape::ObjectShape,
-            primitive_objects::{PrimitiveObject, PrimitiveObjectRecord},
-            reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
-            text_processing::string_objects::{
-                string_constructor::StringConstructor,
-                string_iterator_objects::StringIteratorPrototype,
-                string_prototype::StringPrototype,
-            },
-        },
-        execution::Agent,
-        fundamental_objects::{
-            boolean_objects::{
-                boolean_constructor::BooleanConstructor, boolean_prototype::BooleanPrototype,
-            },
-            error_objects::{
-                aggregate_error_constructors::AggregateErrorConstructor,
-                aggregate_error_prototypes::AggregateErrorPrototype,
-                error_constructor::ErrorConstructor, error_prototype::ErrorPrototype,
-                native_error_constructors::NativeErrorConstructors,
-                native_error_prototypes::NativeErrorPrototypes,
-            },
-            function_objects::{
-                function_constructor::FunctionConstructor, function_prototype::FunctionPrototype,
-            },
-            object_objects::{
-                object_constructor::ObjectConstructor, object_prototype::ObjectPrototype,
-            },
-            symbol_objects::{
-                symbol_constructor::SymbolConstructor, symbol_prototype::SymbolPrototype,
-            },
-        },
-        numbers_and_dates::{
-            bigint_objects::{
-                bigint_constructor::BigIntConstructor, bigint_prototype::BigIntPrototype,
-            },
-            number_objects::{
-                number_constructor::NumberConstructor, number_prototype::NumberPrototype,
-            },
-        },
-        types::{BuiltinFunctionHeapData, Function, Object, ObjectRecord, OrdinaryObject},
+        Agent, AggregateErrorConstructor, AggregateErrorPrototype, Array, ArrayConstructor,
+        ArrayIteratorPrototype, ArrayPrototype, AsyncFunctionConstructor, AsyncFunctionPrototype,
+        AsyncGeneratorFunctionConstructor, AsyncGeneratorFunctionPrototype,
+        AsyncGeneratorPrototype, AsyncIteratorPrototype, BigIntConstructor, BigIntPrototype,
+        BooleanConstructor, BooleanPrototype, BuiltinFunction, BuiltinFunctionHeapData,
+        ErrorConstructor, ErrorPrototype, FinalizationRegistryConstructor,
+        FinalizationRegistryPrototype, Function, FunctionConstructor, FunctionPrototype,
+        GeneratorFunctionConstructor, GeneratorFunctionPrototype, GeneratorPrototype, GlobalObject,
+        IteratorConstructor, IteratorPrototype, MapConstructor, MapIteratorPrototype, MapPrototype,
+        NativeErrorConstructors, NativeErrorPrototypes, NumberConstructor, NumberPrototype, Object,
+        ObjectConstructor, ObjectPrototype, ObjectRecord, ObjectShape, OrdinaryObject,
+        PrimitiveObject, PrimitiveObjectRecord, PromiseConstructor, PromisePrototype,
+        ProxyConstructor, ReflectObject, StringConstructor, StringIteratorPrototype,
+        StringPrototype, SymbolConstructor, SymbolPrototype,
     },
-    engine::context::NoGcScope,
+    engine::NoGcScope,
     heap::{
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         IntrinsicObjectIndexes, IntrinsicObjectShapes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
-        indexes::BaseIndex, intrinsic_function_count, intrinsic_object_count,
-        intrinsic_primitive_object_count,
+        intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
+        {BaseIndex, HeapIndexHandle},
     },
 };
 #[derive(Debug, Clone)]
@@ -166,82 +75,254 @@ pub(crate) struct Intrinsics {
 /// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
 /// an object. Used in GetPrototypeFromConstructor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ProtoIntrinsics {
+    /// ```javascript
+    /// AggregateError.prototype
+    /// ```
     AggregateError,
+    /// ```javascript
+    /// Array.prototype
+    /// ```
     Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// ArrayBuffer.prototype
+    /// ```
     ArrayBuffer,
+    /// ```javascript
+    /// Object.getPrototypeOf([].values())
+    /// ```
     ArrayIterator,
+    /// ```javascript
+    /// Object.getPrototypeOf(async () => {})
+    /// ```
     AsyncFunction,
+    /// ```javascript
+    /// Object.getPrototypeOf(Object.getPrototypeOf(async function*() {}()))
+    /// ```
     AsyncGenerator,
+    /// ```javascript
+    /// Object.getPrototypeOf(async function*() {})
+    /// ```
     AsyncGeneratorFunction,
+    /// ```javascript
+    /// BigInt.prototype
+    /// ```
     BigInt,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// BigInt64Array.prototype
+    /// ```
     BigInt64Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// BigUint64Array.prototype
+    /// ```
     BigUint64Array,
+    /// ```javascript
+    /// Boolean.prototype
+    /// ```
     Boolean,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// DataView.prototype
+    /// ```
     DataView,
     #[cfg(feature = "shared-array-buffer")]
+    /// ```javascript
+    /// DataView.prototype
+    /// ```
     SharedDataView,
     #[cfg(feature = "date")]
+    /// ```javascript
+    /// Date.prototype
+    /// ```
     Date,
+    /// ```javascript
+    /// Error.prototype
+    /// ```
     Error,
+    /// ```javascript
+    /// EvalError.prototype
+    /// ```
     EvalError,
+    /// ```javascript
+    /// FinalizationRegistry.prototype
+    /// ```
     FinalizationRegistry,
     #[cfg(feature = "proposal-float16array")]
+    /// ```javascript
+    /// Float16Array.prototype
+    /// ```
     Float16Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Float32Array.prototype
+    /// ```
     Float32Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Float64Array.prototype
+    /// ```
     Float64Array,
+    /// ```javascript
+    /// Function.prototype
+    /// ```
     Function,
+    /// ```javascript
+    /// Generator.prototype
+    /// ```
     Generator,
+    /// ```javascript
+    /// GeneratorFunction.prototype
+    /// ```
     GeneratorFunction,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Int16Array.prototype
+    /// ```
     Int16Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Int32Array.prototype
+    /// ```
     Int32Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Int8Array.prototype
+    /// ```
     Int8Array,
+    /// ```javascript
+    /// Iterator.prototype
+    /// ```
     Iterator,
+    /// ```javascript
+    /// Map.prototype
+    /// ```
     Map,
+    /// ```javascript
+    /// Object.getPrototypeOf(new Map().values())
+    /// ```
     MapIterator,
+    /// ```javascript
+    /// Number.prototype
+    /// ```
     Number,
+    /// ```javascript
+    /// Object.prototype
+    /// ```
     Object,
+    /// ```javascript
+    /// Promise.prototype
+    /// ```
     Promise,
+    /// ```javascript
+    /// RangeError.prototype
+    /// ```
     RangeError,
+    /// ```javascript
+    /// ReferenceError.prototype
+    /// ```
     ReferenceError,
     #[cfg(feature = "regexp")]
+    /// ```javascript
+    /// RegExp.prototype
+    /// ```
     RegExp,
     #[cfg(feature = "set")]
+    /// ```javascript
+    /// Set.prototype
+    /// ```
     Set,
     #[cfg(feature = "set")]
+    /// ```javascript
+    /// Object.getPrototypeOf(new Set().values())
+    /// ```
     SetIterator,
     #[cfg(feature = "shared-array-buffer")]
+    /// ```javascript
+    /// SharedArrayBuffer.prototype
+    /// ```
     SharedArrayBuffer,
+    /// ```javascript
+    /// String.prototype
+    /// ```
     String,
+    /// ```javascript
+    /// Object.getPrototypeOf(""[Symbol.iterator]())
+    /// ```
     StringIterator,
     #[cfg(feature = "regexp")]
+    /// ```javascript
+    /// Object.getPrototypeOf("".matchAll(/./g))
+    /// ```
     RegExpStringIterator,
+    /// ```javascript
+    /// Symbol.prototype
+    /// ```
     Symbol,
+    /// ```javascript
+    /// SyntaxError.prototype
+    /// ```
     SyntaxError,
+    #[cfg(feature = "temporal")]
+    /// ```javascript
+    /// TemporalInstant.prototype
+    /// ```
+    TemporalInstant,
+    #[cfg(feature = "temporal")]
+    /// ```javascript
+    /// TemporalDuration.prototype
+    /// ```
+    TemporalDuration,
+    #[cfg(feature = "temporal")]
+    /// ```javascript
+    /// TemporalPlainTime.prototype
+    /// ```
+    TemporalPlainTime,
+    /// ```javascript
+    /// TypeError.prototype
+    /// ```
     TypeError,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Uint16Array.prototype
+    /// ```
     Uint16Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Uint32Array.prototype
+    /// ```
     Uint32Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Uint8Array.prototype
+    /// ```
     Uint8Array,
     #[cfg(feature = "array-buffer")]
+    /// ```javascript
+    /// Uint8ClampedArray.prototype
+    /// ```
     Uint8ClampedArray,
+    /// ```javascript
+    /// URIError.prototype
+    /// ```
     URIError,
     #[cfg(feature = "weak-refs")]
+    /// ```javascript
+    /// WeakMap.prototype
+    /// ```
     WeakMap,
     #[cfg(feature = "weak-refs")]
+    /// ```javascript
+    /// WeakRef.prototype
+    /// ```
     WeakRef,
     #[cfg(feature = "weak-refs")]
+    /// ```javascript
+    /// WeakSet.prototype
+    /// ```
     WeakSet,
 }
 
@@ -307,6 +388,16 @@ impl Intrinsics {
         BigIntConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "math")]
         MathObject::create_intrinsic(agent, realm, gc);
+        #[cfg(feature = "temporal")]
+        {
+            TemporalObject::create_intrinsic(agent, realm, gc);
+            TemporalInstantPrototype::create_intrinsic(agent, realm, gc);
+            TemporalInstantConstructor::create_intrinsic(agent, realm, gc);
+            TemporalDurationPrototype::create_intrinsic(agent, realm, gc);
+            TemporalDurationConstructor::create_intrinsic(agent, realm, gc);
+            TemporalPlainTimePrototype::create_intrinsic(agent, realm, gc);
+            TemporalPlainTimeConstructor::create_intrinsic(agent, realm, gc);
+        }
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "date")]
@@ -416,6 +507,12 @@ impl Intrinsics {
             ProtoIntrinsics::String => self.string().into(),
             ProtoIntrinsics::Symbol => self.symbol().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalInstant => self.temporal_instant().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalDuration => self.temporal_duration().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalPlainTime => self.temporal_plain_time().into(),
             ProtoIntrinsics::TypeError => self.type_error().into(),
             ProtoIntrinsics::URIError => self.uri_error().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error().into(),
@@ -505,6 +602,12 @@ impl Intrinsics {
             ProtoIntrinsics::String => self.string_prototype().into(),
             ProtoIntrinsics::Symbol => self.symbol_prototype().into(),
             ProtoIntrinsics::SyntaxError => self.syntax_error_prototype().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalInstant => self.temporal_instant_prototype().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalDuration => self.temporal_duration_prototype().into(),
+            #[cfg(feature = "temporal")]
+            ProtoIntrinsics::TemporalPlainTime => self.temporal_plain_time_prototype().into(),
             ProtoIntrinsics::TypeError => self.type_error_prototype().into(),
             ProtoIntrinsics::URIError => self.uri_error_prototype().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error_prototype().into(),
@@ -1011,6 +1114,44 @@ impl Intrinsics {
         IntrinsicObjectIndexes::MathObject.get_backing_object(self.object_index_base)
     }
 
+    /// %Temporal%
+    pub(crate) const fn temporal(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::Temporal.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Duration.Prototype%
+    pub(crate) const fn temporal_duration_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalDurationPrototype.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Duration%
+    pub(crate) const fn temporal_duration(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalDuration
+            .get_builtin_function(self.builtin_function_index_base)
+    }
+
+    /// %Temporal.Instant.Prototype%
+    pub(crate) const fn temporal_instant_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalInstantPrototype.get_backing_object(self.object_index_base)
+    }
+
+    /// %Temporal.Instant%
+    pub(crate) const fn temporal_instant(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalInstant
+            .get_builtin_function(self.builtin_function_index_base)
+    }
+
+    /// %Temporal.PlainTime%
+    pub(crate) const fn temporal_plain_time(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::TemporalPlainTime
+            .get_builtin_function(self.builtin_function_index_base)
+    }
+
+    /// %Temporal.PlainTime.Prototype%
+    pub(crate) const fn temporal_plain_time_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::TemporalPlainTimePrototype
+            .get_backing_object(self.object_index_base)
+    }
     /// %Number.prototype%
     pub(crate) fn number_prototype(&self) -> PrimitiveObject<'static> {
         IntrinsicPrimitiveObjectIndexes::NumberPrototype

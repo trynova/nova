@@ -4,12 +4,12 @@
 
 use crate::{
     ecmascript::types::Object,
-    engine::context::bindable_handle,
+    engine::bindable_handle,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone)]
-pub enum ProxyHeapData<'a> {
+pub(crate) enum ProxyHeapData<'a> {
     /// Proxy has not been revoked.
     NonRevoked {
         /// [[ProxyTarget]]
@@ -18,9 +18,9 @@ pub enum ProxyHeapData<'a> {
         proxy_handler: Object<'a>,
     },
     /// A callable Proxy was revoked.
-    RevokedCallable,
+    _RevokedCallable,
     /// A non-callable Proxy was revoked.
-    Revoked,
+    _Revoked,
 }
 
 bindable_handle!(ProxyHeapData);

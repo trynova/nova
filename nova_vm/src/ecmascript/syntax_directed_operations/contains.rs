@@ -5,6 +5,7 @@
 //! ## [8.5 Contains](https://tc39.es/ecma262/#sec-static-semantics-contains)
 
 use oxc_ast::ast;
+use oxc_span::Ident;
 
 use crate::ecmascript::builtins::FunctionAstRef;
 
@@ -13,7 +14,8 @@ pub(crate) enum ContainsSymbol {
     Arguments,
     Await,
     NewTarget,
-    Super,
+    SuperCall,
+    SuperProperty,
     This,
     Yield,
 }
@@ -96,7 +98,7 @@ impl Contains for ast::ArrowFunctionExpression<'_> {
             symbol,
             ContainsSymbol::Arguments
                 | ContainsSymbol::NewTarget
-                | ContainsSymbol::Super
+                | ContainsSymbol::SuperCall
                 | ContainsSymbol::This
         ) {
             // return false.
@@ -114,24 +116,28 @@ impl Contains for ast::ArrowFunctionExpression<'_> {
 impl Contains for ast::FormalParameter<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
         self.pattern.contains(symbol)
+            || self
+                .initializer
+                .as_ref()
+                .is_some_and(|init| init.contains(symbol))
     }
 }
 
 impl Contains for ast::BindingPattern<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        match &self.kind {
-            ast::BindingPatternKind::BindingIdentifier(_) => false,
-            ast::BindingPatternKind::ObjectPattern(e) => {
+        match self {
+            ast::BindingPattern::BindingIdentifier(_) => false,
+            ast::BindingPattern::ObjectPattern(e) => {
                 e.properties
                     .iter()
                     .any(|p| p.key.contains(symbol) || p.value.contains(symbol))
                     || e.rest.as_ref().is_some_and(|e| e.argument.contains(symbol))
             }
-            ast::BindingPatternKind::ArrayPattern(e) => e
+            ast::BindingPattern::ArrayPattern(e) => e
                 .elements
                 .iter()
                 .any(|e| e.as_ref().is_some_and(|e| e.contains(symbol))),
-            ast::BindingPatternKind::AssignmentPattern(e) => {
+            ast::BindingPattern::AssignmentPattern(e) => {
                 e.left.contains(symbol) || e.right.contains(symbol)
             }
         }
@@ -158,13 +164,17 @@ impl Contains for ast::MethodDefinition<'_> {
 
 impl Contains for ast::StaticMemberExpression<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        self.object.contains(symbol)
+        if symbol == ContainsSymbol::SuperProperty && self.object.is_super() {
+            true
+        } else {
+            self.object.contains(symbol)
+        }
     }
 }
 
 impl Contains for ast::Super {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        symbol == ContainsSymbol::Super
+        symbol == ContainsSymbol::SuperCall
     }
 }
 
@@ -442,13 +452,21 @@ impl Contains for ast::V8IntrinsicExpression<'_> {
 
 impl Contains for ast::ComputedMemberExpression<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        self.object.contains(symbol) || self.expression.contains(symbol)
+        if symbol == ContainsSymbol::SuperProperty && self.object.is_super() {
+            true
+        } else {
+            self.object.contains(symbol) || self.expression.contains(symbol)
+        }
     }
 }
 
 impl Contains for ast::PrivateFieldExpression<'_> {
     fn contains(&self, symbol: ContainsSymbol) -> bool {
-        self.object.contains(symbol)
+        if symbol == ContainsSymbol::SuperProperty && self.object.is_super() {
+            true
+        } else {
+            self.object.contains(symbol)
+        }
     }
 }
 
@@ -462,18 +480,16 @@ impl Contains for ast::Expression<'_> {
             | ast::Expression::RegExpLiteral(_)
             | ast::Expression::StringLiteral(_) => false,
             ast::Expression::TemplateLiteral(e) => e.contains(symbol),
-            ast::Expression::Identifier(i)
-                if symbol == ContainsSymbol::Arguments && i.name.as_str() == "arguments" =>
-            {
-                true
+            ast::Expression::Identifier(i) => {
+                symbol == ContainsSymbol::Arguments && i.name == Ident::new_const("arguments")
             }
-            ast::Expression::Identifier(_) | ast::Expression::MetaProperty(_) => false,
+            ast::Expression::MetaProperty(e) => e.contains(symbol),
             ast::Expression::Super(e) => e.contains(symbol),
             ast::Expression::ArrayExpression(e) => e.contains(symbol),
             ast::Expression::ArrowFunctionExpression(f) if symbol == ContainsSymbol::Arguments => {
                 f.contains(symbol)
             }
-            ast::Expression::ArrowFunctionExpression(_) => false,
+            ast::Expression::ArrowFunctionExpression(e) => e.contains(symbol),
             ast::Expression::AssignmentExpression(e) => e.contains(symbol),
             ast::Expression::AwaitExpression(e) => e.contains(symbol),
             ast::Expression::BinaryExpression(e) => e.contains(symbol),

@@ -4,21 +4,12 @@
 
 use crate::{
     ecmascript::{
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{
-            Agent, JsResult, ProtoIntrinsics, Realm, add_to_kept_objects, agent::ExceptionType,
-            can_be_held_weakly, throw_not_weak_key_error,
-        },
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
+        Realm, String, Value, add_to_kept_objects, builders::BuiltinFunctionBuilder,
+        can_be_held_weakly, ordinary_create_from_constructor, throw_not_weak_key_error,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable},
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -83,7 +74,7 @@ impl WeakRefConstructor {
         // 5. Set weakRef.[[WeakRefTarget]] to target.
         weak_ref.set_target(agent, target);
         // 6. Return weakRef.
-        Ok(weak_ref.into_value())
+        Ok(weak_ref.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -92,7 +83,7 @@ impl WeakRefConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<WeakRefConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype_property(weak_ref_prototype.into_object())
+            .with_prototype_property(weak_ref_prototype.into())
             .build();
     }
 }

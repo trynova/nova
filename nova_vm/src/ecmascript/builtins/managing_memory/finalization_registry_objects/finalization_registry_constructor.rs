@@ -6,20 +6,13 @@ use std::hint::unreachable_unchecked;
 
 use crate::{
     ecmascript::{
-        abstract_operations::testing_and_comparison::is_callable,
-        builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ordinary::ordinary_create_from_constructor,
-        },
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin,
+        BuiltinIntrinsicConstructor, ExceptionType, Function, JsResult, Object, ProtoIntrinsics,
+        Realm, String, Value, builders::BuiltinFunctionBuilder, is_callable,
+        ordinary_create_from_constructor,
     },
-    engine::{
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
-    heap::IntrinsicConstructorIndexes,
+    engine::{Bindable, GcScope, Scopable},
+    heap::{ArenaAccess, IntrinsicConstructorIndexes},
 };
 
 pub(crate) struct FinalizationRegistryConstructor;
@@ -96,16 +89,15 @@ impl FinalizationRegistryConstructor {
             Function::BoundFunction(_) => {
                 unreachable!("bound function constructing FinalizationRegistry")
             }
-            Function::BuiltinFunction(f) => agent[f].realm.bind(gc),
-            Function::ECMAScriptFunction(f) => agent[f].ecmascript_function.realm.bind(gc),
-            Function::BuiltinConstructorFunction(f) => agent[f].realm.bind(gc),
+            Function::BuiltinFunction(f) => f.get(agent).realm.bind(gc),
+            Function::ECMAScriptFunction(f) => f.get(agent).ecmascript_function.realm.bind(gc),
+            Function::BuiltinConstructorFunction(f) => f.get(agent).realm.bind(gc),
             Function::BuiltinPromiseResolvingFunction(_) => {
                 unreachable!("builtin promise resolving function constructing FinalizationRegistry")
             }
             Function::BuiltinPromiseFinallyFunction(_) => {
                 unreachable!("builtin promise finally function constructing FinalizationRegistry")
             }
-            Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         };
         // 6. Set finalizationRegistry.[[CleanupCallback]] to
@@ -114,7 +106,7 @@ impl FinalizationRegistryConstructor {
         // SAFETY: initialising new FR.
         unsafe { finalization_registry.initialise(agent, realm, cleanup_callback) };
         // 8. Return finalizationRegistry.
-        Ok(finalization_registry.into_value())
+        Ok(finalization_registry.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -125,7 +117,7 @@ impl FinalizationRegistryConstructor {
             agent, realm,
         )
         .with_property_capacity(1)
-        .with_prototype_property(finalization_registry_prototype.into_object())
+        .with_prototype_property(finalization_registry_prototype.into())
         .build();
     }
 }

@@ -4,52 +4,55 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_iterator_objects::create_iter_result_object,
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{Agent, JsResult, ProtoIntrinsics, Realm, agent::ExceptionType},
-        types::{
-            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, Object,
-            OrdinaryObject, String, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType,
+        InternalMethods, InternalSlots, JsResult, OrdinaryObject, ProtoIntrinsics, Realm, String,
+        Value, builders::OrdinaryObjectBuilder, create_iter_result_object, object_handle,
     },
-    engine::context::{Bindable, GcScope, NoGcScope, bindable_handle},
+    engine::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WellKnownSymbolIndexes, WorkQueues, indexes::BaseIndex,
+        WellKnownSymbols, WorkQueues, arena_vec_access, {BaseIndex, HeapIndexHandle},
     },
 };
 
+/// ### [22.1.5 String Iterator Objects](https://tc39.es/ecma262/#sec-string-iterator-objects)
+///
+/// A _String Iterator_ is an object that represents a specific iteration over
+/// some specific String instance object. There is not a named constructor for
+/// String Iterator objects. Instead, String Iterator objects are created by
+/// calling certain methods of String instance objects.
+///
+/// #### Example
+///
+/// ```javascript
+/// ""[Symbol.iterator]()
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct StringIterator<'a>(BaseIndex<'a, StringIteratorHeapData<'static>>);
+object_handle!(StringIterator);
+arena_vec_access!(StringIterator, 'a, StringIteratorHeapData, string_iterators);
 
 impl<'a> StringIterator<'a> {
-    pub fn create(agent: &mut Agent, string: String, gc: NoGcScope<'a, '_>) -> StringIterator<'a> {
+    pub(crate) fn create(
+        agent: &mut Agent,
+        string: String,
+        gc: NoGcScope<'a, '_>,
+    ) -> StringIterator<'a> {
         agent
             .heap
             .create(StringIteratorHeapData::new(string))
             .bind(gc)
     }
 
-    pub fn is_completed(self, agent: &Agent) -> bool {
+    pub(crate) fn is_completed(self, agent: &Agent) -> bool {
         // a. Let len be the length of s.
         // b. Let position be 0.
         // c. Repeat, while position < len,
         // d. Return undefined.
         let StringIteratorHeapData { s, position, .. } = self.get_data(agent);
-        let len = s.len(agent);
+        let len = s.len_(agent);
         *position >= len
-    }
-
-    /// # Do not use this
-    /// This is only for Value discriminant creation.
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
     }
 
     pub(crate) fn get_data(self, agent: &Agent) -> &StringIteratorHeapData<'a> {
@@ -68,42 +71,6 @@ impl<'a> StringIterator<'a> {
             .expect("StringIterator use-after-free")
     }
 }
-
-impl<'a> From<StringIterator<'a>> for Object<'a> {
-    fn from(iter: StringIterator<'a>) -> Self {
-        Object::StringIterator(iter)
-    }
-}
-
-impl<'a> From<StringIterator<'a>> for Value<'a> {
-    fn from(iter: StringIterator<'a>) -> Self {
-        Value::StringIterator(iter)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for StringIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Value::StringIterator(iter) => Ok(iter),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for StringIterator<'a> {
-    type Error = ();
-
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        match value {
-            Object::StringIterator(iter) => Ok(iter),
-            _ => Err(()),
-        }
-    }
-}
-
-bindable_handle!(StringIterator);
 
 impl<'a> InternalSlots<'a> for StringIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::StringIterator;
@@ -177,14 +144,14 @@ impl StringIteratorPrototype {
         // 2. If state is completed, return CreateIteratorResultObject(undefined, true).
         if generator.is_completed(agent) {
             return create_iter_result_object(agent, Value::Undefined, true, gc.into_nogc())
-                .map(|o| o.into_value());
+                .map(|o| o.into());
         }
         let StringIteratorHeapData { s, position, .. } = generator.get_data(agent);
         let position = *position;
         // 3. Assert: state is either suspended-start or suspended-yield.
         // i. Let cp be CodePointAt(s, position).
         let cp = s
-            .as_wtf8(agent)
+            .as_wtf8_(agent)
             .slice_from(position)
             .code_points()
             .next()
@@ -192,13 +159,13 @@ impl StringIteratorPrototype {
         // iii. Let resultString be the substring of s from position to nextIndex.
         let result_string = String::from_code_point(cp);
         // ii. Let nextIndex be position + cp.[[CodeUnitCount]].
-        let next_index = position + result_string.len(agent);
+        let next_index = position + result_string.len_(agent);
         // iv. Set position to nextIndex.
         generator.get_data_mut(agent).position = next_index;
         // v. Perform ? GeneratorYield(CreateIteratorResultObject(resultString, false)).
         // 11. Return ? result.
-        create_iter_result_object(agent, result_string.into_value(), false, gc.into_nogc())
-            .map(|o| o.into_value())
+        create_iter_result_object(agent, result_string.into(), false, gc.into_nogc())
+            .map(|o| o.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>) {
@@ -212,8 +179,8 @@ impl StringIteratorPrototype {
             .with_builtin_function_property::<StringIteratorPrototypeNext>()
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.String_Iterator.into_value())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.String_Iterator.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
@@ -223,7 +190,7 @@ impl StringIteratorPrototype {
 }
 
 #[derive(Debug)]
-pub struct StringIteratorHeapData<'a> {
+pub(crate) struct StringIteratorHeapData<'a> {
     backing_object: Option<OrdinaryObject<'a>>,
     s: String<'a>,
     /// UTF-8 index into s.

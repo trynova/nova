@@ -2,38 +2,48 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod data;
+
+pub(crate) use data::*;
+
 use ecmascript_atomics::{Ordering, RacySlice};
 
 use crate::{
     ecmascript::{
-        builtins::array_buffer::AnyArrayBuffer,
-        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
-        types::{
-            InternalMethods, InternalSlots, Object, OrdinaryObject, SharedDataBlock, Value,
-            create_shared_byte_data_block,
-        },
+        Agent, ExceptionType, InternalMethods, InternalSlots, JsResult, OrdinaryObject,
+        ProtoIntrinsics, SharedDataBlock, array_buffer_handle, create_shared_byte_data_block,
     },
-    engine::{
-        context::{Bindable, NoGcScope, bindable_handle},
-        rootable::HeapRootData,
-    },
+    engine::{Bindable, NoGcScope},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
-use self::data::SharedArrayBufferRecord;
-
-pub mod data;
-
+/// ## [25.2 SharedArrayBuffer Objects](https://tc39.es/ecma262/#sec-sharedarraybuffer-objects)
+///
+/// _SharedArrayBuffer_ objects are byte buffers that be accessed concurrently
+/// from multiple Nova JavaScript engines. They are the main building block of
+/// true multi-threaded concurrency in JavaScript.
+///
+/// ### Memory model
+///
+/// The [ECMAScript memory model](https://tc39.es/ecma262/#sec-memory-model) is
+/// sequentially consistent when the program as no data races, but data races
+/// are allowed by the model. This makes the model strictly weaker than the Rust
+/// memory model, which decrees all data races to be undefined behaviour. Thus,
+/// it is not possible to access the backing bytes of a [`SharedArrayBuffer`]
+/// from Rust under any circumstances.
+///
+/// [`SharedArrayBuffer`]: SharedArrayBuffer
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct SharedArrayBuffer<'a>(BaseIndex<'a, SharedArrayBufferRecord<'static>>);
-
-bindable_handle!(SharedArrayBuffer);
+array_buffer_handle!(SharedArrayBuffer);
+arena_vec_access!(SharedArrayBuffer, 'a, SharedArrayBufferRecord, shared_array_buffers);
 
 impl<'sab> SharedArrayBuffer<'sab> {
+    /// Create a new ungrowable SharedArrayBuffer with the given byte length.
     pub fn new<'gc>(
         agent: &mut Agent,
         byte_length: usize,
@@ -47,16 +57,16 @@ impl<'sab> SharedArrayBuffer<'sab> {
             .bind(gc))
     }
 
-    /// Constant to be used only for creating a build-time Self.
-    pub(crate) const _DEF: Self = Self(BaseIndex::ZERO);
-
     pub(crate) fn as_slice(self, agent: &Agent) -> RacySlice<'_, u8> {
         self.get_data_block(agent).as_racy_slice()
     }
 
-    #[inline]
-    pub fn is_detached(self, agent: &Agent) -> bool {
-        self.get(agent).data_block.is_dangling()
+    /// Returns `true` if the SharedArrayBuffer has a 0 length.
+    ///
+    /// Note: this is wrong and will be going away.
+    #[inline(always)]
+    pub fn is_detached(self) -> bool {
+        false
     }
 
     /// Returns true if the SharedArrayBuffer is growable.
@@ -99,27 +109,12 @@ impl<'sab> SharedArrayBuffer<'sab> {
             .bind(gc)
     }
 
-    #[inline(always)]
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
-    fn get(self, agent: &Agent) -> &SharedArrayBufferRecord<'sab> {
-        agent
-            .heap
-            .shared_array_buffers
-            .get(self.get_index())
-            .expect("Invalid SharedArrayBuffer")
-    }
-
-    fn get_mut(self, agent: &mut Agent) -> &mut SharedArrayBufferRecord<'static> {
-        agent
-            .heap
-            .shared_array_buffers
-            .get_mut(self.get_index())
-            .expect("Invalid SharedArrayBuffer")
-    }
-
+    /// Grows the SharedArrayBuffer.
+    ///
+    /// # Errors
+    ///
+    /// Throws an error if the new byte length is smaller than the current byte
+    /// length, or if it is greater than the maximum byte length.
     pub fn grow<'gc>(
         self,
         agent: &mut Agent,
@@ -163,70 +158,6 @@ impl<'sab> SharedArrayBuffer<'sab> {
         let data = self.get_mut(agent);
         debug_assert!(data.data_block.is_dangling());
         data.data_block = data_block;
-    }
-}
-
-impl<'a> From<SharedArrayBuffer<'a>> for Value<'a> {
-    fn from(value: SharedArrayBuffer<'a>) -> Self {
-        Value::SharedArrayBuffer(value)
-    }
-}
-
-impl<'a> From<SharedArrayBuffer<'a>> for Object<'a> {
-    fn from(value: SharedArrayBuffer<'a>) -> Self {
-        Object::SharedArrayBuffer(value)
-    }
-}
-
-impl<'a> TryFrom<Value<'a>> for SharedArrayBuffer<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
-        if let Value::SharedArrayBuffer(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<Object<'a>> for SharedArrayBuffer<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
-        if let Object::SharedArrayBuffer(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<'a> TryFrom<AnyArrayBuffer<'a>> for SharedArrayBuffer<'a> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: AnyArrayBuffer<'a>) -> Result<Self, Self::Error> {
-        if let AnyArrayBuffer::SharedArrayBuffer(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<HeapRootData> for SharedArrayBuffer<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::SharedArrayBuffer(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
     }
 }
 

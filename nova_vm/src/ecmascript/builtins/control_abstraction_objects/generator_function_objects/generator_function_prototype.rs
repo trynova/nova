@@ -3,12 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        execution::{Agent, Realm},
-        types::{BUILTIN_STRING_MEMORY, IntoValue},
-    },
-    heap::WellKnownSymbolIndexes,
+    ecmascript::{Agent, BUILTIN_STRING_MEMORY, Realm, builders::OrdinaryObjectBuilder},
+    heap::WellKnownSymbols,
 };
 
 pub(crate) struct GeneratorFunctionPrototype;
@@ -26,7 +22,7 @@ impl GeneratorFunctionPrototype {
             .with_prototype(function_prototype)
             .with_property(|builder| {
                 builder
-                    .with_value_readonly(generator_function_constructor.into_value())
+                    .with_value_readonly(generator_function_constructor.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .with_key(BUILTIN_STRING_MEMORY.constructor.into())
@@ -35,15 +31,15 @@ impl GeneratorFunctionPrototype {
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.prototype.into())
-                    .with_value_readonly(generator_prototype.into_value())
+                    .with_value_readonly(generator_prototype.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
             })
             .with_property(|builder| {
                 builder
-                    .with_key(WellKnownSymbolIndexes::ToStringTag.into())
-                    .with_value_readonly(BUILTIN_STRING_MEMORY.GeneratorFunction.into_value())
+                    .with_key(WellKnownSymbols::ToStringTag.into())
+                    .with_value_readonly(BUILTIN_STRING_MEMORY.GeneratorFunction.into())
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()

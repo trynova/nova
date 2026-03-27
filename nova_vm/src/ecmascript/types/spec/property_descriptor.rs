@@ -6,26 +6,11 @@ use std::ops::ControlFlow;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{get, has_property, try_get, try_has_property},
-            testing_and_comparison::is_callable,
-            type_conversion::to_boolean,
-        },
-        builtins::ordinary::caches::PropertyLookupCache,
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, TryHasResult, Value, try_get_result_into_value,
-        },
+        Agent, BUILTIN_STRING_MEMORY, ExceptionType, Function, JsResult, Object, OrdinaryObject,
+        PropertyLookupCache, TryError, TryHasResult, TryResult, Value, get, has_property,
+        is_callable, to_boolean, try_get, try_get_result_into_value, try_has_property,
     },
-    engine::{
-        Scoped,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle},
     heap::ObjectEntry,
 };
 
@@ -58,7 +43,7 @@ pub struct PropertyDescriptor<'a> {
 }
 
 #[derive(Debug)]
-pub struct ScopedPropertyDescriptor<'a> {
+pub(crate) struct ScopedPropertyDescriptor<'a> {
     /// \[\[Value]]
     pub value: Option<Scoped<'a, Value<'static>>>,
 
@@ -140,9 +125,12 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
-    pub fn new_data_descriptor(value: impl IntoValue<'a>) -> Self {
+    /// Creates a new data descriptor from a [Value].
+    ///
+    /// Data descriptors are writable, enumerable, and configurable.
+    pub fn new_data_descriptor(value: impl Into<Value<'a>>) -> Self {
         Self {
-            value: Some(value.into_value()),
+            value: Some(value.into()),
             writable: Some(true),
             get: None,
             set: None,
@@ -151,14 +139,21 @@ impl<'a> PropertyDescriptor<'a> {
         }
     }
 
-    pub fn new_prototype_method_descriptor(function: impl IntoFunction<'a>) -> Self {
+    /// Creates a new non-enumerable data descriptor from a [Value].
+    pub fn non_enumerable_data_descriptor(value: impl Into<Value<'a>>) -> Self {
         Self {
-            value: Some(function.into_function().into_value().unbind()),
+            value: Some(value.into()),
             writable: Some(true),
+            get: None,
+            set: None,
             enumerable: Some(false),
             configurable: Some(true),
-            ..Default::default()
         }
+    }
+
+    /// Creates a new non-enumerable data descriptor from a [Function].
+    pub fn new_prototype_method_descriptor(function: impl Into<Function<'a>>) -> Self {
+        Self::non_enumerable_data_descriptor(function.into())
     }
 
     /// ### [6.2.6.1 IsAccessorDescriptor ( Desc )](https://tc39.es/ecma262/#sec-isaccessordescriptor)
@@ -234,7 +229,7 @@ impl<'a> PropertyDescriptor<'a> {
             // a. Perform ! CreateDataPropertyOrThrow(obj, "get", Desc.[[Get]]).
             entries.push(ObjectEntry::new_data_entry(
                 BUILTIN_STRING_MEMORY.get.into(),
-                get.into_value(),
+                get.into(),
             ));
         }
 
@@ -243,7 +238,7 @@ impl<'a> PropertyDescriptor<'a> {
             // a. Perform ! CreateDataPropertyOrThrow(obj, "set", Desc.[[Set]]).
             entries.push(ObjectEntry::new_data_entry(
                 BUILTIN_STRING_MEMORY.set.into(),
-                set.into_value(),
+                set.into(),
             ));
         }
 
@@ -276,7 +271,7 @@ impl<'a> PropertyDescriptor<'a> {
                     .current_realm_record()
                     .intrinsics()
                     .object_prototype()
-                    .into_object(),
+                    .into(),
             ),
             &entries,
         )
@@ -303,7 +298,7 @@ impl<'a> PropertyDescriptor<'a> {
             let obj_repr = obj.unbind().string_repr(agent, gc.reborrow());
             let error_message = format!(
                 "Property descriptor must be an object, got '{}'.",
-                obj_repr.to_string_lossy(agent)
+                obj_repr.to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(
                 ExceptionType::TypeError,
@@ -721,6 +716,9 @@ impl<'a> PropertyDescriptor<'a> {
         Ok(())
     }
 
+    /// Returns `true` if this property descriptor has been fully populated with
+    /// enumerable and configurable bits, and either a value and a writable bit
+    /// OR at least a getter or setter function.
     pub fn is_fully_populated(&self) -> bool {
         ((self.value.is_some() && self.writable.is_some())
             // A property descriptor can contain just get or set.
@@ -729,6 +727,7 @@ impl<'a> PropertyDescriptor<'a> {
             && self.configurable.is_some()
     }
 
+    /// Returns `true` if this property descriptor has any fields populated.
     pub fn has_fields(&self) -> bool {
         self.value.is_some()
             || self.writable.is_some()

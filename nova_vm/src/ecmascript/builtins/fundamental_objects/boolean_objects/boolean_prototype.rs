@@ -4,15 +4,12 @@
 
 use crate::{
     ecmascript::{
-        builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{
-            ArgumentsList, Behaviour, Builtin,
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectRecord},
-        },
-        execution::{Agent, JsResult, Realm, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, String, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, ExceptionType, JsResult,
+        PrimitiveObjectData, PrimitiveObjectRecord, Realm, String, Value,
+        builders::OrdinaryObjectBuilder,
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::{GcScope, NoGcScope},
+    heap::{ArenaAccess, HeapIndexHandle},
 };
 
 pub(crate) struct BooleanPrototype;
@@ -101,7 +98,7 @@ fn this_boolean_value<'a>(
         return Ok(value);
     } else if let Value::PrimitiveObject(value) = value {
         // 2. If value is an Object and value has a [[BooleanData]] internal slot, then
-        if let PrimitiveObjectData::Boolean(b) = agent[value].data {
+        if let PrimitiveObjectData::Boolean(b) = value.get(agent).data {
             // a. Let b be value.[[BooleanData]].
             // b. Assert: b is a Boolean.
             // c. Return b.

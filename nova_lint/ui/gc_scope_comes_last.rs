@@ -1,7 +1,13 @@
-#![allow(dead_code, unused_variables, clippy::disallowed_names)]
+#![allow(
+    dead_code,
+    unused_variables,
+    clippy::disallowed_names,
+    unknown_lints,
+    can_use_no_gc_scope
+)]
 
-type GcScope<'a, 'b> = nova_vm::engine::context::GcScope<'a, 'b>;
-type NoGcScope<'a, 'b> = nova_vm::engine::context::NoGcScope<'a, 'b>;
+type GcScope<'a, 'b> = nova_vm::engine::GcScope<'a, 'b>;
+type NoGcScope<'a, 'b> = nova_vm::engine::NoGcScope<'a, 'b>;
 
 fn test_no_params() {
     unimplemented!()
@@ -11,7 +17,7 @@ fn test_one_param(_foo: ()) {
     unimplemented!()
 }
 
-fn test_owned_qualified_gc_scope_only(gc_scope: nova_vm::engine::context::GcScope<'_, '_>) {
+fn test_owned_qualified_gc_scope_only(gc_scope: nova_vm::engine::GcScope<'_, '_>) {
     unimplemented!()
 }
 

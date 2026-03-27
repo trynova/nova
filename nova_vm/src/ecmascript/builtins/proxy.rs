@@ -2,95 +2,64 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Index, IndexMut};
+mod abstract_operations;
+mod data;
+
+pub(crate) use abstract_operations::*;
+pub(crate) use data::*;
+
 use std::collections::VecDeque;
 
-use abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy};
 use ahash::AHashSet;
-use data::ProxyHeapData;
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::{
-                call, call_function, construct, create_array_from_list,
-                create_property_key_list_from_array_like, get_object_method, try_get_object_method,
-            },
-            testing_and_comparison::{is_callable, is_constructor, is_extensible, same_value},
-            type_conversion::to_boolean,
-        },
-        builtins::ArgumentsList,
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, TryError, TryResult, try_result_into_js},
-        },
-        types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, SetCachedProps, SetResult, String,
-            TryGetResult, TryHasResult, Value,
-        },
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, Function, InternalMethods,
+        InternalSlots, JsResult, Object, ObjectShape, OrdinaryObject, PropertyDescriptor,
+        PropertyKey, PropertyLookupCache, PropertyOffset, SetAtOffsetProps, SetResult, String,
+        TryError, TryGetResult, TryHasResult, TryResult, Value, call, call_function, construct,
+        create_array_from_list, create_property_key_list_from_array_like, get_object_method,
+        is_callable, is_compatible_property_descriptor, is_constructor, is_extensible,
+        object_handle, same_value, to_boolean, try_get_object_method, try_result_into_js,
     },
-    engine::{
-        ScopableCollection,
-        context::{Bindable, GcScope, NoGcScope, bindable_handle},
-        rootable::{HeapRootData, Scopable},
-    },
+    engine::{Bindable, GcScope, NoGcScope, Scopable, ScopableCollection},
     heap::{
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
-        WorkQueues, indexes::BaseIndex,
+        ArenaAccess, BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        HeapSweepWeakReference, WorkQueues, arena_vec_access,
     },
 };
 
-use super::ordinary::{
-    caches::{PropertyLookupCache, PropertyOffset},
-    is_compatible_property_descriptor,
-    shape::ObjectShape,
-};
-
-pub(crate) mod abstract_operations;
-pub mod data;
-
+/// ## [28.2 Proxy Objects](https://tc39.es/ecma262/#sec-proxy-objects)
+///
+/// A Proxy object is an exotic object whose essential internal methods are
+/// partially implemented using ECMAScript code. Every Proxy object has an
+/// internal slot called \[\[ProxyHandler]]. The value of \[\[ProxyHandler]] is
+/// an object, called the proxy's _handler object_, or **`null`**. Methods (see
+/// Table 29) of a handler object may be used to augment the implementation for
+/// one or more of the Proxy object's internal methods. Every Proxy object also
+/// has an internal slot called \[\[ProxyTarget]] whose value is either an
+/// object or **`null`**. This object is called the proxy's target object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Proxy<'a>(BaseIndex<'a, ProxyHeapData<'static>>);
+object_handle!(Proxy);
+arena_vec_access!(Proxy, 'a, ProxyHeapData, proxies);
 
 impl Proxy<'_> {
-    pub(crate) const fn _def() -> Self {
-        Self(BaseIndex::from_u32_index(0))
-    }
-
-    pub(crate) const fn get_index(self) -> usize {
-        self.0.into_index()
-    }
-
     pub(crate) fn is_callable(self, agent: &Agent, gc: NoGcScope) -> bool {
-        match agent[self] {
+        match self.get(agent) {
             ProxyHeapData::NonRevoked { proxy_target, .. } => {
                 if let Object::Proxy(proxy_target) = proxy_target {
                     // TODO: Remove this once is_callable handles callable
                     // Proxies.
                     proxy_target.is_callable(agent, gc)
                 } else {
-                    is_callable(proxy_target, gc).is_some()
+                    is_callable(*proxy_target, gc).is_some()
                 }
             }
-            ProxyHeapData::RevokedCallable => true,
-            ProxyHeapData::Revoked => false,
+            ProxyHeapData::_RevokedCallable => true,
+            ProxyHeapData::_Revoked => false,
         }
-    }
-}
-
-bindable_handle!(Proxy);
-
-impl<'a> From<Proxy<'a>> for Value<'a> {
-    fn from(value: Proxy<'a>) -> Self {
-        Value::Proxy(value)
-    }
-}
-
-impl<'a> From<Proxy<'a>> for Object<'a> {
-    fn from(value: Proxy<'a>) -> Self {
-        Object::Proxy(value)
     }
 }
 
@@ -197,7 +166,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let handler_proto = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [target
                 .get(agent)
                 .into()])),
@@ -258,9 +227,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         TryError::GcError.into()
     }
 
-    /// ### 0.5.2 [[[SetPrototypeOf]] ( V )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-setprototypeof-v)
+    /// ### [10.5.2 \[\[SetPrototypeOf\]\] ( V )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-setprototypeof-v)
     ///
-    /// The [[SetPrototypeOf]] internal method of a Proxy exotic object O takes
+    /// The \[\[SetPrototypeOf]] internal method of a Proxy exotic object O takes
     /// argument V (an Object or null) and returns either a normal completion
     /// containing a Boolean or a throw completion.
     fn internal_set_prototype_of<'gc>(
@@ -327,10 +296,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                prototype.map_or(Value::Null, |p| p.into_value().unbind()),
+                target.unbind().into(),
+                prototype.map_or(Value::Null, |p| p.unbind().into()),
             ])),
             gc.reborrow(),
         )
@@ -422,7 +391,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [target
                 .get(agent)
                 .into()])),
@@ -508,7 +477,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [target
                 .get(agent)
                 .into()])),
@@ -549,9 +518,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         TryError::GcError.into()
     }
 
-    /// ### 10.5.5 [[[GetOwnProperty]] ( P )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-getownproperty-p)
+    /// ### [10.5.5 \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-getownproperty-p)
     ///
-    /// The [[GetOwnProperty]] internal method of a Proxy exotic object O takes
+    /// The \[\[GetOwnProperty]] internal method of a Proxy exotic object O takes
     /// argument P (a property key) and returns either a normal completion
     /// containing either a Property Descriptor or undefined, or a throw completion.
     fn internal_get_own_property<'gc>(
@@ -616,10 +585,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let trap_result_obj = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.unbind().into_value(),
-                p.unbind().into_value(),
+                target.unbind().into(),
+                p.unbind().into(),
             ])),
             gc.reborrow(),
         )
@@ -816,11 +785,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            scoped_handler.get(agent).into_value(),
+            scoped_handler.get(agent).into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                scoped_target.get(agent).into_value(),
-                p.into_value().unbind(),
-                desc_obj.map_or(Value::Null, |d| d.into_value().unbind()),
+                scoped_target.get(agent).into(),
+                p.unbind().into(),
+                desc_obj.map_or(Value::Null, |d| d.unbind().into()),
             ])),
             gc.reborrow(),
         )
@@ -988,10 +957,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                p.into_value().unbind(),
+                target.unbind().into(),
+                p.unbind().into(),
             ])),
             gc.reborrow(),
         )
@@ -1055,7 +1024,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         TryGetResult::Proxy(self.bind(gc)).into()
     }
 
-    /// ### [10.5.8 [[Get]] ( P, Receiver )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-get-p-receiver)
+    /// ### [10.5.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-get-p-receiver)
     ///
     /// The \[\[Get]] internal method of a Proxy exotic object O takes
     /// arguments P (a property key) and Receiver (an ECMAScript language
@@ -1137,10 +1106,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let trap_result = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                p.into_value().unbind(),
+                target.unbind().into(),
+                p.unbind().into(),
                 receiver.unbind(),
             ])),
             gc.reborrow(),
@@ -1200,9 +1169,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         SetResult::Proxy(self.bind(gc)).into()
     }
 
-    /// ### [10.5.9 [[Set]] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-set-p-v-receiver)
+    /// ### [10.5.9 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-set-p-v-receiver)
     ///
-    /// The [[Set]] internal method of a Proxy exotic object O takes
+    /// The \[\[Set]] internal method of a Proxy exotic object O takes
     /// arguments P (a property key), V (an ECMAScript language
     /// value), and Receiver (an ECMAScript language value) and returns either a normal completion containing
     /// a Boolean or a throw completion.
@@ -1278,10 +1247,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                p.into_value().unbind(),
+                target.unbind().into(),
+                p.unbind().into(),
                 value.unbind(),
                 receiver.unbind(),
             ])),
@@ -1407,10 +1376,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                p.into_value().unbind(),
+                target.unbind().into(),
+                p.unbind().into(),
             ])),
             gc.reborrow(),
         )
@@ -1517,10 +1486,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let trap_result_array = call_function(
             agent,
             trap.unbind(),
-            handler.unbind().into_value(),
-            Some(ArgumentsList::from_mut_slice(&mut [target
-                .unbind()
-                .into_value()])),
+            handler.unbind().into(),
+            Some(ArgumentsList::from_mut_slice(&mut [target.unbind().into()])),
             gc.reborrow(),
         )
         .unbind()?
@@ -1683,7 +1650,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     fn set_at_offset<'gc>(
         self,
         _: &mut Agent,
-        _: &SetCachedProps,
+        _: &SetAtOffsetProps,
         _: PropertyOffset,
         gc: NoGcScope<'gc, '_>,
     ) -> TryResult<'gc, SetResult<'gc>> {
@@ -1692,9 +1659,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         SetResult::Proxy(self.bind(gc)).into()
     }
 
-    /// ### [10.5.12 [[Call]] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)
+    /// ### [10.5.12 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)
     ///
-    /// The [[Call]] internal method of a Proxy exotic object O takes
+    /// The \[\[Call]] internal method of a Proxy exotic object O takes
     /// arguments thisArgument (an ECMAScript language value)
     /// and argumentsList (a List of ECMAScript language values)
     /// and returns either a normal completion containing an ECMAScript
@@ -1759,7 +1726,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             // a. Return ? Call(target, thisArgument, argumentsList).
             return call(
                 agent,
-                target.into_value().unbind(),
+                target.unbind().into(),
                 this_argument.unbind(),
                 Some(arguments_list.unbind()),
                 gc,
@@ -1771,11 +1738,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
+                target.unbind().into(),
                 this_argument.unbind(),
-                arg_array.into_value().unbind(),
+                arg_array.unbind().into(),
             ])),
             gc,
         )
@@ -1860,11 +1827,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let new_obj = call_function(
             agent,
             trap.unbind(),
-            handler.into_value().unbind(),
+            handler.unbind().into(),
             Some(ArgumentsList::from_mut_slice(&mut [
-                target.into_value().unbind(),
-                arg_array.into_value().unbind(),
-                new_target.into_value().unbind(),
+                target.unbind().into(),
+                arg_array.unbind().into(),
+                new_target.unbind().into(),
             ])),
             gc.reborrow(),
         )
@@ -1927,48 +1894,6 @@ pub(crate) fn proxy_create<'a>(
     // 7. Set P.[[ProxyHandler]] to handler.
     // 8. Return P.
     Ok(p)
-}
-
-impl Index<Proxy<'_>> for Agent {
-    type Output = ProxyHeapData<'static>;
-
-    fn index(&self, index: Proxy) -> &Self::Output {
-        &self.heap.proxies[index]
-    }
-}
-
-impl IndexMut<Proxy<'_>> for Agent {
-    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
-        &mut self.heap.proxies[index]
-    }
-}
-
-impl Index<Proxy<'_>> for Vec<ProxyHeapData<'static>> {
-    type Output = ProxyHeapData<'static>;
-
-    fn index(&self, index: Proxy) -> &Self::Output {
-        self.get(index.get_index()).expect("Proxy out of bounds")
-    }
-}
-
-impl IndexMut<Proxy<'_>> for Vec<ProxyHeapData<'static>> {
-    fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
-        self.get_mut(index.get_index())
-            .expect("Proxy out of bounds")
-    }
-}
-
-impl TryFrom<HeapRootData> for Proxy<'_> {
-    type Error = ();
-
-    #[inline]
-    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
-        if let HeapRootData::Proxy(value) = value {
-            Ok(value)
-        } else {
-            Err(())
-        }
-    }
 }
 
 impl<'a> CreateHeapData<ProxyHeapData<'a>, Proxy<'a>> for Heap {

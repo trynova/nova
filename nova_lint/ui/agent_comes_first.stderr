@@ -1,35 +1,35 @@
-warning: the `nova_vm::ecmascript::execution::agent::Agent` should be the first parameter of any function using it
+warning: the `nova_vm::ecmascript::Agent` should be the first parameter of any function using it
   --> $DIR/agent_comes_first.rs:33:46
    |
 LL | fn test_something_else_before_agent(foo: (), agent: Agent) {
    |                                              ^^^^^^^^^^^^
    |
-   = help: consider moving the `nova_vm::ecmascript::execution::agent::Agent` to the first parameter
+   = help: consider moving the `nova_vm::ecmascript::Agent` to the first parameter
    = note: `#[warn(agent_comes_first)]` on by default
 
-warning: the `nova_vm::ecmascript::execution::agent::Agent` should be the first parameter of any function using it
+warning: the `nova_vm::ecmascript::Agent` should be the first parameter of any function using it
   --> $DIR/agent_comes_first.rs:37:75
    |
 LL | fn test_multiple_agents_with_something_in_between(agent1: Agent, foo: (), agent2: Agent) {
    |                                                                           ^^^^^^^^^^^^^
    |
-   = help: consider moving the `nova_vm::ecmascript::execution::agent::Agent` to the first parameter
+   = help: consider moving the `nova_vm::ecmascript::Agent` to the first parameter
 
-warning: the `nova_vm::ecmascript::execution::agent::Agent` should be the first parameter of any function using it
+warning: the `nova_vm::ecmascript::Agent` should be the first parameter of any function using it
   --> $DIR/agent_comes_first.rs:64:61
    |
 LL |     fn test_self_and_something_before_agent(&self, foo: (), agent: &Agent) {
    |                                                             ^^^^^^^^^^^^^
    |
-   = help: consider moving the `nova_vm::ecmascript::execution::agent::Agent` to the first parameter
+   = help: consider moving the `nova_vm::ecmascript::Agent` to the first parameter
 
-warning: the `nova_vm::ecmascript::execution::agent::Agent` should be the first parameter of any function using it
+warning: the `nova_vm::ecmascript::Agent` should be the first parameter of any function using it
   --> $DIR/agent_comes_first.rs:68:45
    |
 LL |     fn test_something_before_agent(foo: (), agent: &Agent) {
    |                                             ^^^^^^^^^^^^^
    |
-   = help: consider moving the `nova_vm::ecmascript::execution::agent::Agent` to the first parameter
+   = help: consider moving the `nova_vm::ecmascript::Agent` to the first parameter
 
 warning: 4 warnings emitted
 

@@ -6,16 +6,10 @@ use ahash::AHashMap;
 
 use crate::{
     ecmascript::{
-        execution::{
-            Agent, JsResult,
-            agent::{ExceptionType, JsError, TryResult},
-        },
-        scripts_and_modules::module::module_semantics::abstract_module_records::{
-            AbstractModule, AbstractModuleSlots,
-        },
-        types::{String, Value},
+        AbstractModule, AbstractModuleSlots, Agent, ExceptionType, JsError, JsResult, String,
+        TryResult, Value,
     },
-    engine::context::{Bindable, NoGcScope},
+    engine::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -35,12 +29,12 @@ use super::{
 /// and share the same specifications for all of those methods except for
 /// GetBindingValue, DeleteBinding, HasThisBinding and GetThisBinding. In
 /// addition, Module Environment Records support the methods listed in
-///# [Table 22](https://tc39.es/ecma262/#table-additional-methods-of-module-environment-records).
+/// # [Table 22](https://tc39.es/ecma262/#table-additional-methods-of-module-environment-records).
 ///
 /// NOTE: There is no data-wise difference between a DeclarativeEnvironment and
 /// a ModuleEnvironment, so we treat them exactly the same way.
 #[derive(Debug)]
-pub struct ModuleEnvironmentRecord {
+pub(crate) struct ModuleEnvironmentRecord {
     /// Module Environment Records support all of the Declarative Environment
     /// Record methods listed in [Table 16](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     /// and share the same specifications for all of those methods except for
@@ -129,7 +123,12 @@ impl<'e> ModuleEnvironment<'e> {
     /// Create a new but uninitialized mutable binding in an Environment
     /// Record. The String value N is the text of the bound name. If the
     /// Boolean argument D is true the binding may be subsequently deleted.
-    pub fn create_mutable_binding(self, agent: &mut Agent, name: String, is_deletable: bool) {
+    pub(crate) fn create_mutable_binding(
+        self,
+        agent: &mut Agent,
+        name: String,
+        is_deletable: bool,
+    ) {
         self.get_declarative_env(agent)
             .create_mutable_binding(agent, name, is_deletable);
     }
@@ -194,7 +193,7 @@ impl<'e> ModuleEnvironment<'e> {
         if env_rec.has_indirect_binding(name) {
             let error_message = format!(
                 "Cannot assign to immutable binding '{}'.",
-                name.to_string_lossy(agent)
+                name.to_string_lossy_(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
         }
@@ -283,7 +282,7 @@ pub(crate) fn throw_uninitialized_binding<'a>(
     name: String,
     gc: NoGcScope<'a, '_>,
 ) -> JsError<'a> {
-    let name = name.to_string_lossy(agent);
+    let name = name.to_string_lossy_(agent);
     agent.throw_exception(
         ExceptionType::ReferenceError,
         format!("attempted to access uninitialized binding {name}"),
@@ -429,9 +428,7 @@ impl HeapMarkAndSweep for ModuleEnvironment<'static> {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions
-            .module_environments
-            .shift_non_zero_u32_index(&mut self.0);
+        compactions.module_environments.shift_index(&mut self.0);
     }
 }
 

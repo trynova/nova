@@ -9,35 +9,13 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{
-                IteratorRecord, MaybeInvalidIteratorRecord, create_iter_result_object,
-                iterator_close_with_value, iterator_complete, iterator_next, iterator_value,
-            },
-            operations_on_objects::{call_function, get_object_method},
-        },
-        builtins::{
-            ArgumentsList,
-            promise::Promise,
-            promise_objects::{
-                promise_abstract_operations::{
-                    promise_capability_records::{PromiseCapability, if_abrupt_reject_promise_m},
-                    promise_reaction_records::PromiseReactionHandler,
-                },
-                promise_prototype::inner_promise_then,
-            },
-        },
-        execution::{
-            Agent,
-            agent::{ExceptionType, unwrap_try},
-        },
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, Value},
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, ExceptionType, IteratorRecord,
+        MaybeInvalidIteratorRecord, Object, Promise, PromiseCapability, PromiseReactionHandler,
+        Value, call_function, create_iter_result_object, get_object_method,
+        if_abrupt_reject_promise_m, inner_promise_then, iterator_close_with_error,
+        iterator_close_with_value, iterator_complete, iterator_next, iterator_value, unwrap_try,
     },
-    engine::{
-        VmIteratorRecord,
-        context::{Bindable, GcScope},
-        rootable::Scopable,
-    },
+    engine::{Bindable, GcScope, Scopable, VmIteratorRecord},
 };
 
 /// ### [27.1.6.1 CreateAsyncFromSyncIterator ( syncIteratorRecord )](https://tc39.es/ecma262/#sec-createasyncfromsynciterator)
@@ -165,11 +143,7 @@ impl AsyncFromSyncIteratorPrototype {
             )
             .expect("Should perform GC here");
             // b. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
-            unwrap_try(promise_capability.try_resolve(
-                agent,
-                iterator_result.into_value(),
-                gc.nogc(),
-            ));
+            unwrap_try(promise_capability.try_resolve(agent, iterator_result.into(), gc.nogc()));
             // c. Return promiseCapability.[[Promise]].
             // SAFETY: scoped_promise is not shared.
             return unsafe { scoped_promise.take(agent) };
@@ -183,7 +157,7 @@ impl AsyncFromSyncIteratorPrototype {
             call_function(
                 agent,
                 r#return.unbind(),
-                scoped_sync_iterator.get(agent).into_value(),
+                scoped_sync_iterator.get(agent).into(),
                 value.as_mut().map(ArgumentsList::from_mut_value),
                 gc.reborrow(),
             )
@@ -323,7 +297,7 @@ impl AsyncFromSyncIteratorPrototype {
         let result = call_function(
             agent,
             throw.unbind(),
-            scoped_sync_iterator.get(agent).into_value(),
+            scoped_sync_iterator.get(agent).into(),
             Some(ArgumentsList::from_mut_value(&mut value.unbind())),
             gc.reborrow(),
         )
@@ -401,7 +375,7 @@ pub(crate) fn async_from_sync_iterator_continuation<'a>(
         .unbind()
         .bind(gc.nogc());
     // 3. IfAbruptRejectPromise(done, promiseCapability).
-    let promise_capability = PromiseCapability {
+    let mut promise_capability = PromiseCapability {
         promise: scoped_promise.get(agent).bind(gc.nogc()),
         must_be_unresolved,
     };
@@ -413,18 +387,37 @@ pub(crate) fn async_from_sync_iterator_continuation<'a>(
         .unbind()
         .bind(gc.nogc());
     // 5. IfAbruptRejectPromise(value, promiseCapability).
-    let promise_capability = PromiseCapability {
+    promise_capability = PromiseCapability {
         promise: scoped_promise.get(agent).bind(gc.nogc()),
         must_be_unresolved,
     };
     let value = if_abrupt_reject_promise_m!(agent, value, promise_capability, gc);
     // 6. Let valueWrapper be Completion(PromiseResolve(%Promise%, value)).
-    let value_wrapper = Promise::resolve(agent, value.unbind(), gc.reborrow())
+    let mut value_wrapper = Promise::resolve(agent, value.unbind(), gc.reborrow())
         .unbind()
         .bind(gc.nogc());
-    // 7. If valueWrapper is an abrupt completion, done is false, and closeOnRejection is true, then
-    //         a. Set valueWrapper to Completion(IteratorClose(syncIteratorRecord, valueWrapper)).
+    // 7. If valueWrapper is an abrupt completion, done is false, and
+    // closeOnRejection is true, then
+    if let Err(err) = value_wrapper
+        && !done
+        && close_on_rejection
+    {
+        // a. Set valueWrapper to Completion(IteratorClose(syncIteratorRecord, valueWrapper)).
+        value_wrapper = Err(iterator_close_with_error(
+            agent,
+            sync_iterator.get(agent),
+            err.unbind(),
+            gc.reborrow(),
+        )
+        .unbind()
+        .bind(gc.nogc()));
+    }
+    promise_capability = PromiseCapability {
+        promise: scoped_promise.get(agent).bind(gc.nogc()),
+        must_be_unresolved,
+    };
     // 8. IfAbruptRejectPromise(valueWrapper, promiseCapability).
+    let value_wrapper = if_abrupt_reject_promise_m!(agent, value_wrapper, promise_capability, gc);
     // 9. Let unwrap be a new Abstract Closure with parameters (v) that
     //    captures done and performs the following steps when called:
     //         a. Return CreateIteratorResultObject(v, done).
@@ -440,10 +433,13 @@ pub(crate) fn async_from_sync_iterator_continuation<'a>(
         PromiseReactionHandler::Empty
     } else {
         // 13. Else,
-        // a. Let closeIterator be a new Abstract Closure with parameters (error) that captures syncIteratorRecord and performs the following steps when called:
+        // a. Let closeIterator be a new Abstract Closure with parameters
+        //    (error) that captures syncIteratorRecord and performs the
+        //    following steps when called:
         //         i. Return ? IteratorClose(syncIteratorRecord, ThrowCompletion(error)).
         // b. Let onRejected be CreateBuiltinFunction(closeIterator, 1, "", « »).
-        // c. NOTE: onRejected is used to close the Iterator when the "value" property of an IteratorResult object it yields is a rejected promise.
+        // c. NOTE: onRejected is used to close the Iterator when the "value"
+        //    property of an IteratorResult object it yields is a rejected promise.
         PromiseReactionHandler::AsyncFromSyncIteratorClose(
             unsafe { sync_iterator.take(agent) }.bind(gc.nogc()),
         )

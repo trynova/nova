@@ -6,8 +6,8 @@ use soavec_derive::SoAble;
 
 use crate::{
     ecmascript::types::OrdinaryObject,
-    engine::context::bindable_handle,
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementsVector},
+    engine::bindable_handle,
+    heap::{CompactionLists, ElementsVector, HeapMarkAndSweep, WorkQueues},
 };
 
 /// An Array is an exotic object that gives special treatment to array index

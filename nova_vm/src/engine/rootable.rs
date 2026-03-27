@@ -5,338 +5,158 @@
 mod global;
 mod scoped;
 
-pub(crate) use private::{HeapRootCollectionData, RootableCollectionSealed, RootableSealed};
+pub use global::*;
+pub use scoped::*;
+
+pub(crate) use private::{HeapRootCollection, Rootable, RootableCollection};
 
 #[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::Date;
-#[cfg(feature = "weak-refs")]
-use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
+use crate::ecmascript::DATE_DISCRIMINANT;
 #[cfg(feature = "date")]
-use crate::ecmascript::types::DATE_DISCRIMINANT;
-#[cfg(feature = "weak-refs")]
-use crate::ecmascript::types::{
-    WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
-};
-#[cfg(feature = "proposal-float16array")]
-use crate::ecmascript::{builtins::typed_array::Float16Array, types::FLOAT_16_ARRAY_DISCRIMINANT};
-#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-use crate::ecmascript::{
-    builtins::typed_array::SharedFloat16Array, types::SHARED_FLOAT_16_ARRAY_DISCRIMINANT,
-};
+use crate::ecmascript::Date;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::PLAIN_TIME_DISCRIMINANT;
+#[cfg(feature = "temporal")]
+use crate::ecmascript::TemporalPlainTime;
+use crate::ecmascript::UnmappedArguments;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::{
-    builtins::{
-        ArrayBuffer,
-        data_view::DataView,
-        typed_array::{
-            BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int8Array, Int16Array,
-            Int32Array, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array,
-        },
-    },
-    types::{
-        ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-        DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
-        INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-        UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
-        UINT_32_ARRAY_DISCRIMINANT,
-    },
+    ARRAY_BUFFER_DISCRIMINANT, ArrayBuffer, BIGINT_64_ARRAY_DISCRIMINANT,
+    BIGUINT_64_ARRAY_DISCRIMINANT, BigInt64Array, BigUint64Array, DATA_VIEW_DISCRIMINANT, DataView,
+    FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, Float32Array, Float64Array,
+    INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, Int8Array,
+    Int16Array, Int32Array, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Uint8Array, Uint8ClampedArray,
+    Uint16Array, Uint32Array,
 };
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::{
-    builtins::{
-        data_view::SharedDataView,
-        shared_array_buffer::SharedArrayBuffer,
-        typed_array::{
-            SharedBigInt64Array, SharedBigUint64Array, SharedFloat32Array, SharedFloat64Array,
-            SharedInt8Array, SharedInt16Array, SharedInt32Array, SharedUint8Array,
-            SharedUint8ClampedArray, SharedUint16Array, SharedUint32Array,
-        },
-    },
-    types::{
-        SHARED_ARRAY_BUFFER_DISCRIMINANT, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
-        SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_DATA_VIEW_DISCRIMINANT,
-        SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
-        SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
-        SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
-        SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
-        SHARED_UINT_32_ARRAY_DISCRIMINANT,
-    },
-};
-#[cfg(feature = "set")]
-use crate::ecmascript::{
-    builtins::{
-        keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
-    },
-    types::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT},
-};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{DURATION_DISCRIMINANT, TemporalDuration};
+#[cfg(feature = "proposal-float16array")]
+use crate::ecmascript::{FLOAT_16_ARRAY_DISCRIMINANT, Float16Array};
+#[cfg(feature = "temporal")]
+use crate::ecmascript::{INSTANT_DISCRIMINANT, TemporalInstant};
 #[cfg(feature = "regexp")]
 use crate::ecmascript::{
-    builtins::{
-        regexp::RegExp,
-        text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-    },
-    types::{REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT},
+    REGEXP_DISCRIMINANT, REGEXP_STRING_ITERATOR_DISCRIMINANT, RegExp, RegExpStringIterator,
 };
+#[cfg(feature = "set")]
+use crate::ecmascript::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT, Set, SetIterator};
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::{
+    SHARED_ARRAY_BUFFER_DISCRIMINANT, SHARED_BIGINT_64_ARRAY_DISCRIMINANT,
+    SHARED_BIGUINT_64_ARRAY_DISCRIMINANT, SHARED_DATA_VIEW_DISCRIMINANT,
+    SHARED_FLOAT_32_ARRAY_DISCRIMINANT, SHARED_FLOAT_64_ARRAY_DISCRIMINANT,
+    SHARED_INT_8_ARRAY_DISCRIMINANT, SHARED_INT_16_ARRAY_DISCRIMINANT,
+    SHARED_INT_32_ARRAY_DISCRIMINANT, SHARED_UINT_8_ARRAY_DISCRIMINANT,
+    SHARED_UINT_8_CLAMPED_ARRAY_DISCRIMINANT, SHARED_UINT_16_ARRAY_DISCRIMINANT,
+    SHARED_UINT_32_ARRAY_DISCRIMINANT, SharedArrayBuffer, SharedBigInt64Array,
+    SharedBigUint64Array, SharedDataView, SharedFloat32Array, SharedFloat64Array, SharedInt8Array,
+    SharedInt16Array, SharedInt32Array, SharedUint8Array, SharedUint8ClampedArray,
+    SharedUint16Array, SharedUint32Array,
+};
+#[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
+use crate::ecmascript::{SHARED_FLOAT_16_ARRAY_DISCRIMINANT, SharedFloat16Array};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::{WeakMap, WeakRef, WeakSet};
+use crate::heap::CompactionLists;
+use crate::heap::WorkQueues;
 use crate::{
     ecmascript::{
-        abstract_operations::keyed_group::KeyedGroup,
-        builtins::{
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
-            async_function_objects::await_reaction::AwaitReaction,
-            async_generator_objects::AsyncGenerator,
-            bound_function::BoundFunction,
-            embedder_object::EmbedderObject,
-            error::Error,
-            finalization_registry::FinalizationRegistry,
-            generator_objects::Generator,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-            map::Map,
-            module::Module,
-            ordinary::caches::PropertyLookupCache,
-            primitive_objects::PrimitiveObject,
-            promise::Promise,
-            promise_objects::promise_abstract_operations::{
-                promise_finally_functions::BuiltinPromiseFinallyFunction,
-                promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
-                promise_resolving_functions::BuiltinPromiseResolvingFunction,
-            },
-            proxy::Proxy,
-            text_processing::string_objects::string_iterator_objects::StringIterator,
-        },
-        execution::{
-            DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
-            ObjectEnvironment, PrivateEnvironment, Realm,
-        },
-        scripts_and_modules::{
-            module::module_semantics::source_text_module_records::SourceTextModule, script::Script,
-            source_code::SourceCode,
-        },
-        types::{
-            ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-            ASYNC_GENERATOR_DISCRIMINANT, BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
-            BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
-            BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
-            BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-            BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
-            ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
-            FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, HeapNumber, HeapString,
-            IntoObject, MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT,
-            NUMBER_DISCRIMINANT, OBJECT_DISCRIMINANT, Object, OrdinaryObject, PROMISE_DISCRIMINANT,
-            PROXY_DISCRIMINANT, PropertyKey, PropertyKeySet, STRING_DISCRIMINANT,
-            STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
-        },
+        ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
+        ASYNC_GENERATOR_DISCRIMINANT, Array, ArrayIterator, AsyncGenerator, AwaitReaction,
+        BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
+        BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
+        BoundFunction, BuiltinConstructorFunction, BuiltinFunction, BuiltinPromiseFinallyFunction,
+        BuiltinPromiseResolvingFunction, DeclarativeEnvironment, ECMASCRIPT_FUNCTION_DISCRIMINANT,
+        ECMAScriptFunction, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT, EmbedderObject,
+        Error, FINALIZATION_REGISTRY_DISCRIMINANT, FinalizationRegistry, FunctionEnvironment,
+        GENERATOR_DISCRIMINANT, Generator, GlobalEnvironment, HeapBigInt, HeapNumber, HeapString,
+        MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, Map, MapIterator, Module,
+        ModuleEnvironment, NUMBER_DISCRIMINANT, OBJECT_DISCRIMINANT, ObjectEnvironment,
+        OrdinaryObject, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, PrimitiveObject,
+        PrivateEnvironment, Promise, PromiseGroup, PromiseReaction, PropertyLookupCache, Proxy,
+        Realm, STRING_DISCRIMINANT, STRING_ITERATOR_DISCRIMINANT, SYMBOL_DISCRIMINANT, Script,
+        SourceCode, SourceTextModule, StringIterator, Symbol,
     },
     heap::HeapMarkAndSweep,
 };
 
-pub mod private {
+mod private {
     use std::ptr::NonNull;
 
-    #[cfg(feature = "date")]
-    use crate::ecmascript::builtins::date::Date;
-    #[cfg(feature = "shared-array-buffer")]
-    use crate::ecmascript::builtins::{
-        data_view::SharedDataView,
-        shared_array_buffer::SharedArrayBuffer,
-        typed_array::{GenericSharedTypedArray, SharedTypedArray},
-    };
-    #[cfg(feature = "set")]
-    use crate::ecmascript::builtins::{
-        keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
-    };
-    #[cfg(feature = "regexp")]
-    use crate::ecmascript::builtins::{
-        regexp::RegExp,
-        text_processing::regexp_objects::regexp_string_iterator_objects::RegExpStringIterator,
-    };
-    #[cfg(feature = "array-buffer")]
-    use crate::ecmascript::{
-        builtins::{
-            ArrayBuffer,
-            array_buffer::AnyArrayBuffer,
-            data_view::{AnyDataView, DataView},
-            typed_array::GenericTypedArray,
-            typed_array::{AnyTypedArray, TypedArray},
-        },
-        types::Viewable,
-    };
-    #[cfg(feature = "weak-refs")]
-    use crate::ecmascript::{
-        builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet},
-        execution::WeakKey,
-    };
     use crate::{
-        ecmascript::{
-            abstract_operations::keyed_group::KeyedGroup,
-            builtins::{
-                ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction,
-                ECMAScriptFunction,
-                async_function_objects::await_reaction::AwaitReaction,
-                async_generator_objects::AsyncGenerator,
-                bound_function::BoundFunction,
-                embedder_object::EmbedderObject,
-                error::Error,
-                finalization_registry::FinalizationRegistry,
-                generator_objects::Generator,
-                indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-                keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
-                map::Map,
-                module::Module,
-                ordinary::caches::PropertyLookupCache,
-                primitive_objects::PrimitiveObject,
-                promise::Promise,
-                promise_objects::promise_abstract_operations::{
-                    promise_finally_functions::BuiltinPromiseFinallyFunction,
-                    promise_group_record::PromiseGroup, promise_reaction_records::PromiseReaction,
-                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
-                },
-                proxy::Proxy,
-            },
-            execution::{
-                DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
-                ModuleEnvironment, ObjectEnvironment, PrivateEnvironment, Realm, agent::JsError,
-            },
-            scripts_and_modules::{
-                module::module_semantics::{
-                    InnerReferrer, Referrer,
-                    abstract_module_records::{AbstractModule, InnerAbstractModule},
-                    cyclic_module_records::{CyclicModule, InnerCyclicModule},
-                    source_text_module_records::SourceTextModule,
-                },
-                script::Script,
-                source_code::SourceCode,
-            },
-            types::{
-                BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
-                PropertyKeySet, String, Symbol, Value,
-            },
-        },
-        engine::{Executable, context::Bindable},
+        ecmascript::{ArgumentsList, KeyedGroup, PropertyKey, PropertyKeySet, Value},
+        engine::{Bindable, HeapRootData, HeapRootRef},
         heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     };
 
     /// Marker trait to make Rootable not implementable outside of nova_vm.
-    pub trait RootableSealed {}
-    impl RootableSealed for Array<'_> {}
-    impl RootableSealed for ArrayIterator<'_> {}
-    impl RootableSealed for AsyncGenerator<'_> {}
-    impl RootableSealed for AwaitReaction<'_> {}
-    impl RootableSealed for BigInt<'_> {}
-    impl RootableSealed for BoundFunction<'_> {}
-    impl RootableSealed for BuiltinConstructorFunction<'_> {}
-    impl RootableSealed for BuiltinFunction<'_> {}
-    impl RootableSealed for BuiltinPromiseResolvingFunction<'_> {}
-    impl RootableSealed for BuiltinPromiseFinallyFunction<'_> {}
-    #[cfg(feature = "date")]
-    impl RootableSealed for Date<'_> {}
-    impl RootableSealed for ECMAScriptFunction<'_> {}
-    impl RootableSealed for EmbedderObject<'_> {}
-    impl RootableSealed for Error<'_> {}
-    impl RootableSealed for Executable<'_> {}
-    impl RootableSealed for FinalizationRegistry<'_> {}
-    impl RootableSealed for Function<'_> {}
-    impl RootableSealed for Generator<'_> {}
-    impl RootableSealed for Map<'_> {}
-    impl RootableSealed for MapIterator<'_> {}
-    impl RootableSealed for Module<'_> {}
-    impl RootableSealed for Number<'_> {}
-    impl RootableSealed for Numeric<'_> {}
-    impl RootableSealed for Object<'_> {}
-    impl RootableSealed for OrdinaryObject<'_> {}
-    impl RootableSealed for Primitive<'_> {}
-    impl RootableSealed for PrimitiveObject<'_> {}
-    impl RootableSealed for Promise<'_> {}
-    impl RootableSealed for PromiseReaction<'_> {}
-    impl RootableSealed for PromiseGroup<'_> {}
-    impl RootableSealed for PropertyKey<'_> {}
-    impl RootableSealed for Proxy<'_> {}
-    impl RootableSealed for Realm<'_> {}
-    #[cfg(feature = "regexp")]
-    impl RootableSealed for RegExp<'_> {}
-    #[cfg(feature = "regexp")]
-    impl RootableSealed for RegExpStringIterator<'_> {}
-    impl RootableSealed for Script<'_> {}
-    #[cfg(feature = "set")]
-    impl RootableSealed for Set<'_> {}
-    #[cfg(feature = "set")]
-    impl RootableSealed for SetIterator<'_> {}
-    impl RootableSealed for SourceCode<'_> {}
-    impl RootableSealed for SourceTextModule<'_> {}
-    impl RootableSealed for String<'_> {}
-    impl RootableSealed for Symbol<'_> {}
+    pub(crate) trait Rootable: Copy {
+        type RootRepr: Sized + Clone;
 
-    #[cfg(feature = "array-buffer")]
-    impl RootableSealed for ArrayBuffer<'_> {}
-    #[cfg(feature = "array-buffer")]
-    impl RootableSealed for AnyArrayBuffer<'_> {}
-    #[cfg(feature = "array-buffer")]
-    impl RootableSealed for AnyDataView<'_> {}
-    #[cfg(feature = "array-buffer")]
-    impl RootableSealed for DataView<'_> {}
-    #[cfg(feature = "array-buffer")]
-    impl RootableSealed for AnyTypedArray<'_> {}
-    #[cfg(feature = "array-buffer")]
-    impl RootableSealed for TypedArray<'_> {}
-    #[cfg(feature = "array-buffer")]
-    impl<T: Viewable> RootableSealed for GenericTypedArray<'_, T> {}
+        /// Convert a rootable value to a root representation directly if the value
+        /// does not need to be rooted, or return its heap root representation as
+        /// the error value.
+        fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData>;
 
-    #[cfg(feature = "shared-array-buffer")]
-    impl RootableSealed for SharedArrayBuffer<'_> {}
-    #[cfg(feature = "shared-array-buffer")]
-    impl RootableSealed for SharedDataView<'_> {}
-    #[cfg(feature = "shared-array-buffer")]
-    impl RootableSealed for SharedTypedArray<'_> {}
-    #[cfg(feature = "shared-array-buffer")]
-    impl<T: Viewable> RootableSealed for GenericSharedTypedArray<'_, T> {}
+        /// Convert a rootable value's root representation to the value type
+        /// directly if it didn't need to be rooted in the first place, or return
+        /// its heap root reference as the error value.
+        fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef>;
 
-    #[cfg(feature = "weak-refs")]
-    impl RootableSealed for WeakKey<'_> {}
-    #[cfg(feature = "weak-refs")]
-    impl RootableSealed for WeakMap<'_> {}
-    #[cfg(feature = "weak-refs")]
-    impl RootableSealed for WeakRef<'_> {}
-    #[cfg(feature = "weak-refs")]
-    impl RootableSealed for WeakSet<'_> {}
+        /// Convert a heap root reference to a root representation.
+        fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr;
 
-    impl RootableSealed for Value<'_> {}
+        /// Convert the rooted type's heap data value to the type itself. A failure
+        /// to convert indicates that the heap is corrupted or the value's root
+        /// representation was misused and points to a reused heap root data slot.
+        fn from_heap_data(heap_data: HeapRootData) -> Option<Self>;
+    }
 
-    // Environments are also rootable
-    impl RootableSealed for DeclarativeEnvironment<'_> {}
-    impl RootableSealed for FunctionEnvironment<'_> {}
-    impl RootableSealed for GlobalEnvironment<'_> {}
-    impl RootableSealed for ModuleEnvironment<'_> {}
-    impl RootableSealed for ObjectEnvironment<'_> {}
-    impl RootableSealed for PrivateEnvironment<'_> {}
-    impl RootableSealed for Environment<'_> {}
-    // Errors are rootable as they're just a wrapper around Value.
-    impl RootableSealed for JsError<'_> {}
-    // Module Record references are also rootable
-    impl RootableSealed for AbstractModule<'_> {}
-    impl RootableSealed for InnerAbstractModule<'_> {}
-    impl RootableSealed for CyclicModule<'_> {}
-    impl RootableSealed for InnerCyclicModule<'_> {}
-    impl RootableSealed for Referrer<'_> {}
-    impl RootableSealed for InnerReferrer<'_> {}
-    // Cache references.
-    impl RootableSealed for PropertyLookupCache<'_> {}
+    impl<T: Copy + Into<HeapRootData> + TryFrom<HeapRootData>> Rootable for T {
+        type RootRepr = HeapRootRef;
+
+        #[inline]
+        fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+            Err(value.into())
+        }
+
+        #[inline]
+        fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+            Err(*value)
+        }
+
+        #[inline]
+        fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+            heap_ref
+        }
+
+        #[inline]
+        fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+            Self::try_from(heap_data).ok()
+        }
+    }
 
     /// Marker trait to make RootableSealed not implementable outside of nova_vm.
-    pub trait RootableCollectionSealed {
+    pub(crate) trait RootableCollection {
         /// Convert a rootable collection value to a heap data representation.
-        fn to_heap_data(self) -> HeapRootCollectionData;
+        fn to_heap_data(self) -> HeapRootCollection;
 
         /// Convert the rooted collection's heap data value to the type itself.
         ///
         /// ## Panics
         ///
         /// If the heap data does not match the type, the method should panic.
-        fn from_heap_data(value: HeapRootCollectionData) -> Self;
+        fn from_heap_data(value: HeapRootCollection) -> Self;
     }
 
     #[derive(Debug)]
     #[repr(u8)]
-    pub enum HeapRootCollectionData {
+    pub(crate) enum HeapRootCollection {
         /// Empty heap root collection data slot: The data was taken from heap.
         Empty,
         /// Not like the others: Arguments list cannot be given to the heap as
@@ -354,7 +174,13 @@ pub mod private {
         KeyedGroup(Box<KeyedGroup<'static>>),
     }
 
-    impl HeapMarkAndSweep for HeapRootCollectionData {
+    impl HeapRootCollection {
+        pub(crate) fn is_empty(&self) -> bool {
+            matches!(self, Self::Empty)
+        }
+    }
+
+    impl HeapMarkAndSweep for HeapRootCollection {
         fn mark_values(&self, queues: &mut WorkQueues) {
             match self {
                 Self::Empty => {}
@@ -392,58 +218,58 @@ pub mod private {
         }
     }
 
-    impl RootableCollectionSealed for ArgumentsList<'_, '_> {
-        fn to_heap_data(mut self) -> HeapRootCollectionData {
-            HeapRootCollectionData::ArgumentsList(self.as_mut_slice().into())
+    impl RootableCollection for ArgumentsList<'_, '_> {
+        fn to_heap_data(mut self) -> HeapRootCollection {
+            HeapRootCollection::ArgumentsList(self.as_mut_slice().into())
         }
 
-        fn from_heap_data(_: HeapRootCollectionData) -> Self {
+        fn from_heap_data(_: HeapRootCollection) -> Self {
             unreachable!("ScopedCollection should never try to take ownership of ArgumentsList");
         }
     }
-    impl RootableCollectionSealed for Vec<Value<'static>> {
-        fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::ValueVec(self.unbind())
+    impl RootableCollection for Vec<Value<'static>> {
+        fn to_heap_data(self) -> HeapRootCollection {
+            HeapRootCollection::ValueVec(self.unbind())
         }
 
-        fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::ValueVec(value) = value else {
+        fn from_heap_data(value: HeapRootCollection) -> Self {
+            let HeapRootCollection::ValueVec(value) = value else {
                 unreachable!()
             };
             value
         }
     }
-    impl RootableCollectionSealed for Vec<PropertyKey<'static>> {
-        fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::PropertyKeyVec(self.unbind())
+    impl RootableCollection for Vec<PropertyKey<'static>> {
+        fn to_heap_data(self) -> HeapRootCollection {
+            HeapRootCollection::PropertyKeyVec(self.unbind())
         }
 
-        fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::PropertyKeyVec(value) = value else {
+        fn from_heap_data(value: HeapRootCollection) -> Self {
+            let HeapRootCollection::PropertyKeyVec(value) = value else {
                 unreachable!()
             };
             value
         }
     }
-    impl RootableCollectionSealed for PropertyKeySet<'static> {
-        fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::PropertyKeySet(self.unbind())
+    impl RootableCollection for PropertyKeySet<'static> {
+        fn to_heap_data(self) -> HeapRootCollection {
+            HeapRootCollection::PropertyKeySet(self.unbind())
         }
 
-        fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::PropertyKeySet(value) = value else {
+        fn from_heap_data(value: HeapRootCollection) -> Self {
+            let HeapRootCollection::PropertyKeySet(value) = value else {
                 unreachable!()
             };
             value
         }
     }
-    impl RootableCollectionSealed for Box<KeyedGroup<'static>> {
-        fn to_heap_data(self) -> HeapRootCollectionData {
-            HeapRootCollectionData::KeyedGroup(self.unbind())
+    impl RootableCollection for Box<KeyedGroup<'static>> {
+        fn to_heap_data(self) -> HeapRootCollection {
+            HeapRootCollection::KeyedGroup(self.unbind())
         }
 
-        fn from_heap_data(value: HeapRootCollectionData) -> Self {
-            let HeapRootCollectionData::KeyedGroup(value) = value else {
+        fn from_heap_data(value: HeapRootCollection) -> Self {
+            let HeapRootCollection::KeyedGroup(value) = value else {
                 unreachable!()
             };
             value
@@ -451,57 +277,7 @@ pub mod private {
     }
 }
 
-pub use global::Global;
-pub use scoped::{Scopable, ScopableCollection, Scoped, ScopedCollection};
-
-use super::{Executable, context::Bindable};
-
-pub trait Rootable: Copy + RootableSealed {
-    type RootRepr: Sized + Clone;
-
-    /// Convert a rootable value to a root representation directly if the value
-    /// does not need to be rooted, or return its heap root representation as
-    /// the error value.
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData>;
-
-    /// Convert a rootable value's root representation to the value type
-    /// directly if it didn't need to be rooted in the first place, or return
-    /// its heap root reference as the error value.
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef>;
-
-    /// Convert a heap root reference to a root representation.
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr;
-
-    /// Convert the rooted type's heap data value to the type itself. A failure
-    /// to convert indicates that the heap is corrupted or the value's root
-    /// representation was misused and points to a reused heap root data slot.
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self>;
-}
-
-// Blanket impl for Objects
-impl<'a, T: RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable for T {
-    type RootRepr = HeapRootRef;
-
-    #[inline]
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(value.into_object().unbind().into())
-    }
-
-    #[inline]
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    #[inline]
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    #[inline]
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        Self::try_from(heap_data).ok()
-    }
-}
+use super::Executable;
 
 /// Internal type that enables rooting any heap-allocated type mentioned here.
 ///
@@ -517,7 +293,7 @@ impl<'a, T: RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable fo
 /// values and the `InnerHeapRef` representation.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum HeapRootData {
+pub(crate) enum HeapRootData {
     /// Empty heap root data slot. This can be used to reserve a slot, or to
     /// remove a scoped value from the heap.
     Empty,
@@ -537,13 +313,18 @@ pub enum HeapRootData {
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
     BuiltinPromiseFinallyFunction(BuiltinPromiseFinallyFunction<'static>) =
         BUILTIN_PROMISE_FINALLY_FUNCTION_DISCRIMINANT,
-    BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject<'static>),
-    Arguments(OrdinaryObject<'static>) = ARGUMENTS_DISCRIMINANT,
+    Arguments(UnmappedArguments<'static>) = ARGUMENTS_DISCRIMINANT,
     Array(Array<'static>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'static>) = DATE_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    Instant(TemporalInstant<'static>) = INSTANT_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    Duration(TemporalDuration<'static>) = DURATION_DISCRIMINANT,
+    #[cfg(feature = "temporal")]
+    PlainTime(TemporalPlainTime<'static>) = PLAIN_TIME_DISCRIMINANT,
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'static>) = MAP_DISCRIMINANT,
@@ -654,136 +435,18 @@ pub enum HeapRootData {
     PropertyLookupCache(PropertyLookupCache<'static>),
 }
 
-impl From<Object<'static>> for HeapRootData {
-    #[inline]
-    fn from(value: Object<'static>) -> Self {
-        match value {
-            Object::Object(ordinary_object) => Self::Object(ordinary_object),
-            Object::BoundFunction(bound_function) => Self::BoundFunction(bound_function),
-            Object::BuiltinFunction(builtin_function) => Self::BuiltinFunction(builtin_function),
-            Object::ECMAScriptFunction(ecmascript_function) => {
-                Self::ECMAScriptFunction(ecmascript_function)
-            }
-            Object::BuiltinConstructorFunction(builtin_constructor_function) => {
-                Self::BuiltinConstructorFunction(builtin_constructor_function)
-            }
-            Object::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
-                Self::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function)
-            }
-            Object::BuiltinPromiseFinallyFunction(f) => Self::BuiltinPromiseFinallyFunction(f),
-            Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
-            Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
-            Object::PrimitiveObject(primitive_object) => Self::PrimitiveObject(primitive_object),
-            Object::Arguments(ordinary_object) => Self::Arguments(ordinary_object),
-            Object::Array(array) => Self::Array(array),
-            #[cfg(feature = "date")]
-            Object::Date(date) => Self::Date(date),
-            Object::Error(error) => Self::Error(error),
-            Object::FinalizationRegistry(finalization_registry) => {
-                Self::FinalizationRegistry(finalization_registry)
-            }
-            Object::Map(map) => Self::Map(map),
-            Object::Promise(promise) => Self::Promise(promise),
-            Object::Proxy(proxy) => Self::Proxy(proxy),
-            #[cfg(feature = "regexp")]
-            Object::RegExp(reg_exp) => Self::RegExp(reg_exp),
-            #[cfg(feature = "set")]
-            Object::Set(set) => Self::Set(set),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakMap(weak_map) => Self::WeakMap(weak_map),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakRef(weak_ref) => Self::WeakRef(weak_ref),
-            #[cfg(feature = "weak-refs")]
-            Object::WeakSet(weak_set) => Self::WeakSet(weak_set),
-
-            #[cfg(feature = "array-buffer")]
-            Object::ArrayBuffer(ab) => Self::ArrayBuffer(ab),
-            #[cfg(feature = "array-buffer")]
-            Object::DataView(dv) => Self::DataView(dv),
-            #[cfg(feature = "array-buffer")]
-            Object::Int8Array(ta) => Self::Int8Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint8Array(ta) => Self::Uint8Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint8ClampedArray(ta) => Self::Uint8ClampedArray(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Int16Array(ta) => Self::Int16Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint16Array(ta) => Self::Uint16Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Int32Array(ta) => Self::Int32Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Uint32Array(ta) => Self::Uint32Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::BigInt64Array(ta) => Self::BigInt64Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::BigUint64Array(ta) => Self::BigUint64Array(ta),
-            #[cfg(feature = "proposal-float16array")]
-            Object::Float16Array(ta) => Self::Float16Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Float32Array(ta) => Self::Float32Array(ta),
-            #[cfg(feature = "array-buffer")]
-            Object::Float64Array(ta) => Self::Float64Array(ta),
-
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedArrayBuffer(sab) => Self::SharedArrayBuffer(sab),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedDataView(sta) => Self::SharedDataView(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt8Array(sta) => Self::SharedInt8Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint8Array(sta) => Self::SharedUint8Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint8ClampedArray(sta) => Self::SharedUint8ClampedArray(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt16Array(sta) => Self::SharedInt16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint16Array(sta) => Self::SharedUint16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedInt32Array(sta) => Self::SharedInt32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedUint32Array(sta) => Self::SharedUint32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedBigInt64Array(sta) => Self::SharedBigInt64Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedBigUint64Array(sta) => Self::SharedBigUint64Array(sta),
-            #[cfg(all(feature = "proposal-float16array", feature = "shared-array-buffer"))]
-            Object::SharedFloat16Array(sta) => Self::SharedFloat16Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedFloat32Array(sta) => Self::SharedFloat32Array(sta),
-            #[cfg(feature = "shared-array-buffer")]
-            Object::SharedFloat64Array(sta) => Self::SharedFloat64Array(sta),
-
-            Object::AsyncGenerator(r#gen) => Self::AsyncGenerator(r#gen),
-            Object::ArrayIterator(array_iterator) => Self::ArrayIterator(array_iterator),
-            #[cfg(feature = "set")]
-            Object::SetIterator(set_iterator) => Self::SetIterator(set_iterator),
-            Object::MapIterator(map_iterator) => Self::MapIterator(map_iterator),
-            Object::StringIterator(generator) => Self::StringIterator(generator),
-            #[cfg(feature = "regexp")]
-            Object::RegExpStringIterator(generator) => Self::RegExpStringIterator(generator),
-            Object::Generator(generator) => Self::Generator(generator),
-            Object::Module(module) => Self::Module(module),
-            Object::EmbedderObject(embedder_object) => Self::EmbedderObject(embedder_object),
-        }
-    }
-}
-
-/// Internal type that is used to refer from user-controlled memory (stack or
-/// heap) into the Agent heap, indexing into some root list within. The exact
-/// root list being referred to is determined by the wrapping type. Locals
-/// refer to the locals list, globals refer to the corresponding Realm's
-/// globals list.
+/// # Reference to a rooted handle on the heap
 ///
-/// ### Usage note
+/// Internal type that is used to refer to a rooted handle stored inside the
+/// Agent heap. The exact storage location and its lifetime is dependent on the
+/// type of root. This type should never be used as-is. It only makes sense
+/// within some root type, specifically [`Scoped<T>`], and [`Global<T>`].
 ///
-/// This type should never appear inside the heap and should never be used
-/// as-is. It only make sense within some root list referring type,
-/// specifically `Local<T>` and `Global<T>`, and then those types should never
-/// appear within the heap directly.
+/// [`Scoped<T>`]: crate::engine::Scoped
+/// [`Global<T>`]: crate::engine::Global
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-pub struct HeapRootRef(u32);
+pub(crate) struct HeapRootRef(u32);
 
 impl HeapRootRef {
     #[inline]
@@ -807,7 +470,7 @@ fn handle_heap_ref_overflow() -> ! {
 }
 
 impl HeapMarkAndSweep for HeapRootData {
-    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+    fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             Self::Empty => {}
             Self::String(heap_string) => heap_string.mark_values(queues),
@@ -830,13 +493,18 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
                 builtin_promise_finally_function.mark_values(queues)
             }
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::PrimitiveObject(primitive_object) => primitive_object.mark_values(queues),
             Self::Arguments(ordinary_object) => ordinary_object.mark_values(queues),
             Self::Array(array) => array.mark_values(queues),
             #[cfg(feature = "date")]
             Self::Date(date) => date.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::Instant(instant) => instant.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::Duration(duration) => duration.mark_values(queues),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(plaintime) => plaintime.mark_values(queues),
             Self::Error(error) => error.mark_values(queues),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.mark_values(queues)
@@ -956,7 +624,7 @@ impl HeapMarkAndSweep for HeapRootData {
         }
     }
 
-    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
             Self::Empty => {}
             Self::String(heap_string) => heap_string.sweep_values(compactions),
@@ -979,13 +647,18 @@ impl HeapMarkAndSweep for HeapRootData {
             Self::BuiltinPromiseFinallyFunction(builtin_promise_finally_function) => {
                 builtin_promise_finally_function.sweep_values(compactions);
             }
-            Self::BuiltinPromiseCollectorFunction => todo!(),
             Self::BuiltinProxyRevokerFunction => todo!(),
             Self::PrimitiveObject(primitive_object) => primitive_object.sweep_values(compactions),
             Self::Arguments(ordinary_object) => ordinary_object.sweep_values(compactions),
             Self::Array(array) => array.sweep_values(compactions),
             #[cfg(feature = "date")]
             Self::Date(date) => date.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::Instant(instant) => instant.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::Duration(duration) => duration.sweep_values(compactions),
+            #[cfg(feature = "temporal")]
+            Self::PlainTime(o) => o.sweep_values(compactions),
             Self::Error(error) => error.sweep_values(compactions),
             Self::FinalizationRegistry(finalization_registry) => {
                 finalization_registry.sweep_values(compactions)
@@ -1107,10 +780,3 @@ impl HeapMarkAndSweep for HeapRootData {
         }
     }
 }
-
-pub trait RootableCollection: core::fmt::Debug + RootableCollectionSealed {}
-
-impl RootableCollection for Vec<Value<'static>> {}
-impl RootableCollection for Vec<PropertyKey<'static>> {}
-impl RootableCollection for PropertyKeySet<'static> {}
-impl RootableCollection for Box<KeyedGroup<'static>> {}

@@ -10,6 +10,11 @@ use wtf8::{CodePoint, Wtf8};
 /// Maximum number of bytes a [SmallString] can inline.
 const MAX_LEN: usize = 7;
 
+/// An String stored on the stack.
+///
+/// The size of the string is at most 7 bytes, and its is encoded in [WTF-8].
+///
+/// [WTF-8]: https://wtf-8.codeberg.page/
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct SmallString {
@@ -51,10 +56,12 @@ impl core::fmt::Debug for SmallString {
 }
 
 impl SmallString {
+    /// `""`
     pub const EMPTY: SmallString = Self {
         bytes: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF],
     };
 
+    /// Get the byte length of the String.
     pub const fn len(&self) -> usize {
         // Find the first 0xFF byte. Small strings must be valid UTF-8, and
         // UTF-8 can never contain 0xFF, so that must mark the end of the
@@ -98,6 +105,9 @@ impl SmallString {
         true
     }
 
+    /// Get the WTF-16 code unit length of the String.
+    ///
+    /// This is equivalent to the JavaScript `string.length` property.
     pub fn utf16_len(&self) -> usize {
         if self.is_ascii() {
             return self.len();
@@ -134,6 +144,9 @@ impl SmallString {
         unreachable!("Could not find code point index");
     }
 
+    /// Get the WTF-16 code unit at a given WTF-16 code unit index.
+    ///
+    /// This is equivalent to the JavaScript `string.charCodeAt(idx)` method.
     pub fn char_code_at(&self, idx: usize) -> CodePoint {
         if self.is_ascii() {
             // SAFETY: ASCII is valid UTF-8.
@@ -160,7 +173,9 @@ impl SmallString {
         unsafe { CodePoint::from_u32_unchecked(surrogate as u32) }
     }
 
-    /// Get the CodePoint at a given WTF-16 index.
+    /// Get the CodePoint at a given WTF-16 code unit index.
+    ///
+    /// This is equivalent to the JavaScript `string.codePointAt(idx)` method.
     pub fn code_point_at(self, idx: usize) -> CodePoint {
         if self.is_ascii() {
             // SAFETY: ASCII is valid UTF-8.
@@ -187,6 +202,8 @@ impl SmallString {
         }
     }
 
+    /// Get the corresponding WTF-8 byte index for a given WTF-16 code unit
+    /// index. Returns `None` if the index is out of bounds.
     pub fn utf8_index(&self, utf16_idx: usize) -> Option<usize> {
         if self.is_ascii() {
             return Some(utf16_idx);
@@ -212,6 +229,8 @@ impl SmallString {
         Some(self.len())
     }
 
+    /// Get the corresponding WTF-16 code unit index for a given UTF-8 code
+    /// point index.
     pub fn utf16_index(&self, utf8_idx: usize) -> usize {
         if self.is_ascii() {
             return utf8_idx;
@@ -239,11 +258,9 @@ impl SmallString {
         self.as_wtf8().to_string_lossy()
     }
 
-    /// Try to convert the string to UTF-8 and return a `&str` slice.
+    /// Return the string as a UTF-8 `&str` slice. This does not copy the data.
     ///
-    /// Return `None` if the string contains surrogates.
-    ///
-    /// This does not copy the data.
+    /// Returns `None` if the string is not valid UTF-8.
     #[inline]
     pub fn as_str(&self) -> Option<&str> {
         self.as_wtf8().as_str()
@@ -260,27 +277,32 @@ impl SmallString {
         unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }
     }
 
+    /// Get the SmallString data as a WTF-8 slice.
     #[inline]
     pub const fn as_wtf8(&self) -> &Wtf8 {
         // SAFETY: guaranteed to be WTF-8.
         unsafe { core::mem::transmute::<&[u8], &Wtf8>(self.as_bytes()) }
     }
 
+    /// Get the SmallString data as a byte slice.
     #[inline]
     pub const fn as_bytes(&self) -> &[u8] {
         self.bytes.as_slice().split_at(self.len()).0
     }
 
+    /// Get the raw SmallString bytes.
     #[inline]
     pub const fn data(&self) -> &[u8; MAX_LEN] {
         &self.bytes
     }
 
+    /// Get the raw SmallString bytes as mutable.
     #[inline]
     pub const fn data_mut(&mut self) -> &mut [u8; MAX_LEN] {
         &mut self.bytes
     }
 
+    /// Returns true if the SmallString is the empty string.
     #[inline]
     pub const fn is_empty(&self) -> bool {
         matches!(self.bytes, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
@@ -376,7 +398,7 @@ impl SmallString {
         }
     }
 
-    /// Inline a [Wtf8] into a [SmallString].
+    /// Create a [SmallString] from a given [Wtf8] slice.
     ///
     /// # Panics
     ///
@@ -479,12 +501,14 @@ impl SmallString {
         }
     }
 
+    /// Create a [SmallString] from a [char].
     pub fn from_char(ch: char) -> Self {
         let mut bytes = [0xFF; MAX_LEN];
         ch.encode_utf8(&mut bytes);
         SmallString { bytes }
     }
 
+    /// Create a [SmallString] from a [CodePoint].
     pub fn from_code_point(ch: CodePoint) -> Self {
         if let Some(char) = ch.to_char() {
             Self::from_char(char)

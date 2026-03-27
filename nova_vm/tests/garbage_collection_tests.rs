@@ -2,21 +2,16 @@ use std::{fs, path::PathBuf};
 
 use nova_vm::{
     ecmascript::{
-        execution::{
-            Agent, DefaultHostHooks,
-            agent::{GcAgent, Options},
-        },
-        scripts_and_modules::script::{parse_script, script_evaluation},
-        types::{Object, String, Value},
+        Agent, AgentOptions, DefaultHostHooks, GcAgent, Object, String, Value, parse_script,
+        script_evaluation,
     },
-    engine::context::{Bindable, GcScope},
+    engine::{Bindable, GcScope},
 };
 
 fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
     use nova_vm::ecmascript::{
-        builtins::{ArgumentsList, Behaviour, BuiltinFunctionArgs, create_builtin_function},
-        execution::JsResult,
-        types::{InternalMethods, IntoValue, PropertyDescriptor, PropertyKey},
+        ArgumentsList, Behaviour, BuiltinFunctionArgs, InternalMethods, JsResult,
+        PropertyDescriptor, PropertyKey, create_builtin_function,
     };
 
     // `print` function
@@ -45,7 +40,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
             agent,
             property_key.unbind(),
             PropertyDescriptor {
-                value: Some(function.into_value().unbind()),
+                value: Some(function.unbind().into()),
                 ..Default::default()
             },
             gc,
@@ -76,7 +71,7 @@ fn garbage_collection_tests() {
     let call_contents =
         fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
-    let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
+    let mut agent = GcAgent::new(AgentOptions::default(), &DefaultHostHooks);
     let create_global_object: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> = None;
     let create_global_this_value: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> =
         None;

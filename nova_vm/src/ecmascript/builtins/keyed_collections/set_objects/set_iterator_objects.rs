@@ -2,5 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub(crate) mod set_iterator;
-pub(crate) mod set_iterator_prototype;
+mod set_iterator;
+pub use set_iterator::*;
+mod set_iterator_prototype;
+pub(crate) use set_iterator_prototype::*;
