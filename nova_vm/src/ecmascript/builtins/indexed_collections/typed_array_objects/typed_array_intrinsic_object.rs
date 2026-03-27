@@ -267,7 +267,7 @@ impl TypedArrayIntrinsicObject {
             k += 1;
         }
         // SAFETY: not shared.
-        Ok(unsafe { scoped_target_obj.take(agent) }.into_value())
+        Ok(unsafe { scoped_target_obj.take(agent) }.into())
     }
 
     /// ### [23.2.2.2 %TypedArray%.of ( ...items )](https://tc39.es/ecma262/#sec-properties-of-the-%typedarray%-intrinsic-object)

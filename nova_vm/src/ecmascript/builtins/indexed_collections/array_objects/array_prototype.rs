@@ -3808,7 +3808,7 @@ impl ArrayPrototype {
         }
         // 19. Return A.
         // SAFETY: not shared.
-        Ok(unsafe { scoped_a.take(agent) }.into_value())
+        Ok(unsafe { scoped_a.take(agent) }.into())
     }
 
     /// ### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)
