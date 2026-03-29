@@ -1,11 +1,8 @@
 #![allow(dead_code, unused_variables, clippy::disallowed_names)]
 
 use nova_vm::{
-    ecmascript::{execution::Agent, types::Value},
-    engine::{
-        Scoped,
-        context::{Bindable, NoGcScope},
-    },
+    ecmascript::{Agent, Value},
+    engine::{Bindable, NoGcScope, Scoped},
 };
 
 fn test_scoped_get_is_immediately_bound(agent: &Agent, scoped: Scoped<Value>, gc: NoGcScope) {
