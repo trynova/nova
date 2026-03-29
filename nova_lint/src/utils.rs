@@ -74,9 +74,7 @@ pub fn is_agent_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
 
 pub fn is_gc_scope_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => {
-            match_def_path(cx, def.did(), &["nova_vm", "engine", "GcScope"])
-        }
+        TyKind::Adt(def, _) => match_def_path(cx, def.did(), &["nova_vm", "engine", "GcScope"]),
         _ => false,
     }
 }
@@ -94,55 +92,37 @@ pub fn is_no_gc_method(cx: &LateContext<'_>, did: DefId) -> bool {
 
 pub fn is_no_gc_scope_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => match_def_path(
-            cx,
-            def.did(),
-            &["nova_vm", "engine", "NoGcScope"],
-        ),
+        TyKind::Adt(def, _) => match_def_path(cx, def.did(), &["nova_vm", "engine", "NoGcScope"]),
         _ => false,
     }
 }
 
 pub fn is_scoped_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.kind() {
-        TyKind::Adt(def, _) => match_def_path(
-            cx,
-            def.did(),
-            &["nova_vm", "engine", "Scoped"],
-        ),
+        TyKind::Adt(def, _) => match_def_path(cx, def.did(), &["nova_vm", "engine", "Scoped"]),
         _ => false,
     }
 }
 
 pub fn is_value_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => match_def_path(
-            cx,
-            def.did(),
-            &["nova_vm", "ecmascript", "Value"],
-        ),
+        TyKind::Adt(def, _) => match_def_path(cx, def.did(), &["nova_vm", "ecmascript", "Value"]),
         _ => false,
     }
 }
 
 pub fn is_object_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => match_def_path(
-            cx,
-            def.did(),
-            &["nova_vm","ecmascript","Object"],
-        ),
+        TyKind::Adt(def, _) => match_def_path(cx, def.did(), &["nova_vm", "ecmascript", "Object"]),
         _ => false,
     }
 }
 
 pub fn is_arguments_list_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => match_def_path(
-            cx,
-            def.did(),
-            &["nova_vm", "ecmascript", "ArgumentsList"],
-        ),
+        TyKind::Adt(def, _) => {
+            match_def_path(cx, def.did(), &["nova_vm", "ecmascript", "ArgumentsList"])
+        }
         _ => false,
     }
 }

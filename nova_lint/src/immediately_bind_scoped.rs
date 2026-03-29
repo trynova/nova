@@ -184,10 +184,11 @@ fn is_in_self_position(cx: &LateContext<'_>, expr: &Expr) -> bool {
     while let Some(parent) = get_parent_expr(cx, current_expr) {
         // If we find a method call where our expression is in the receiver position
         if let ExprKind::MethodCall(_, receiver, _, _) = parent.kind
-            && receiver.hir_id == current_expr.hir_id {
-                return true;
-            }
-            // Else continue walking up for other expression types
+            && receiver.hir_id == current_expr.hir_id
+        {
+            return true;
+        }
+        // Else continue walking up for other expression types
         current_expr = parent;
     }
 
