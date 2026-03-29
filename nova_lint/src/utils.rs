@@ -75,7 +75,7 @@ pub fn is_agent_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
 pub fn is_gc_scope_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
         TyKind::Adt(def, _) => {
-            match_def_path(cx, def.did(), &["nova_vm", "engine", "context", "GcScope"])
+            match_def_path(cx, def.did(), &["nova_vm", "engine", "GcScope"])
         }
         _ => false,
     }
@@ -86,8 +86,8 @@ pub fn is_no_gc_method(cx: &LateContext<'_>, did: DefId) -> bool {
         cx,
         did,
         &[
-            &["nova_vm", "engine", "context", "GcScope", "nogc"],
-            &["nova_vm", "engine", "context", "GcScope", "into_nogc"],
+            &["nova_vm", "engine", "GcScope", "nogc"],
+            &["nova_vm", "engine", "GcScope", "into_nogc"],
         ],
     )
 }
@@ -97,7 +97,7 @@ pub fn is_no_gc_scope_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
         TyKind::Adt(def, _) => match_def_path(
             cx,
             def.did(),
-            &["nova_vm", "engine", "context", "NoGcScope"],
+            &["nova_vm", "engine", "NoGcScope"],
         ),
         _ => false,
     }
@@ -108,7 +108,7 @@ pub fn is_scoped_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
         TyKind::Adt(def, _) => match_def_path(
             cx,
             def.did(),
-            &["nova_vm", "engine", "rootable", "scoped", "Scoped"],
+            &["nova_vm", "engine", "Scoped"],
         ),
         _ => false,
     }
@@ -119,14 +119,7 @@ pub fn is_value_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
         TyKind::Adt(def, _) => match_def_path(
             cx,
             def.did(),
-            &[
-                "nova_vm",
-                "ecmascript",
-                "types",
-                "language",
-                "value",
-                "Value",
-            ],
+            &["nova_vm", "ecmascript", "Value"],
         ),
         _ => false,
     }
@@ -137,14 +130,7 @@ pub fn is_object_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
         TyKind::Adt(def, _) => match_def_path(
             cx,
             def.did(),
-            &[
-                "nova_vm",
-                "ecmascript",
-                "types",
-                "language",
-                "object",
-                "Object",
-            ],
+            &["nova_vm","ecmascript","Object"],
         ),
         _ => false,
     }
@@ -155,13 +141,7 @@ pub fn is_arguments_list_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
         TyKind::Adt(def, _) => match_def_path(
             cx,
             def.did(),
-            &[
-                "nova_vm",
-                "ecmascript",
-                "builtins",
-                "builtin_function",
-                "ArgumentsList",
-            ],
+            &["nova_vm", "ecmascript", "ArgumentsList"],
         ),
         _ => false,
     }

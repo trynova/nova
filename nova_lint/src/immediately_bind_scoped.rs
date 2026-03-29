@@ -267,7 +267,7 @@ fn is_bindable_bind_method_call(cx: &LateContext<'_>, expr: &Expr) -> bool {
 }
 
 fn implements_bindable_trait<'tcx>(cx: &LateContext<'tcx>, ty: &Ty<'tcx>) -> bool {
-    lookup_path_str(cx.tcx, PathNS::Type, "nova_vm::engine::context::Bindable")
+    lookup_path_str(cx.tcx, PathNS::Type, "nova_vm::engine::Bindable")
         .first()
         .is_some_and(|&trait_def_id| implements_trait(cx, *ty, trait_def_id, &[]))
 }
