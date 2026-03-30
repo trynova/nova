@@ -74,7 +74,9 @@ pub fn is_agent_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
 
 pub fn is_gc_scope_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => match_def_path(cx, def.did(), &["nova_vm", "engine", "GcScope"]),
+        TyKind::Adt(def, _) => {
+            match_def_path(cx, def.did(), &["nova_vm", "engine", "context", "GcScope"])
+        }
         _ => false,
     }
 }
@@ -84,45 +86,83 @@ pub fn is_no_gc_method(cx: &LateContext<'_>, did: DefId) -> bool {
         cx,
         did,
         &[
-            &["nova_vm", "engine", "GcScope", "nogc"],
-            &["nova_vm", "engine", "GcScope", "into_nogc"],
+            &["nova_vm", "engine", "context", "GcScope", "nogc"],
+            &["nova_vm", "engine", "context", "GcScope", "into_nogc"],
         ],
     )
 }
 
 pub fn is_no_gc_scope_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => match_def_path(cx, def.did(), &["nova_vm", "engine", "NoGcScope"]),
+        TyKind::Adt(def, _) => match_def_path(
+            cx,
+            def.did(),
+            &["nova_vm", "engine", "context", "NoGcScope"],
+        ),
         _ => false,
     }
 }
 
 pub fn is_scoped_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.kind() {
-        TyKind::Adt(def, _) => match_def_path(cx, def.did(), &["nova_vm", "engine", "Scoped"]),
+        TyKind::Adt(def, _) => match_def_path(
+            cx,
+            def.did(),
+            &["nova_vm", "engine", "rootable", "scoped", "Scoped"],
+        ),
         _ => false,
     }
 }
 
 pub fn is_value_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => match_def_path(cx, def.did(), &["nova_vm", "ecmascript", "Value"]),
+        TyKind::Adt(def, _) => match_def_path(
+            cx,
+            def.did(),
+            &[
+                "nova_vm",
+                "ecmascript",
+                "types",
+                "language",
+                "value",
+                "Value",
+            ],
+        ),
         _ => false,
     }
 }
 
 pub fn is_object_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => match_def_path(cx, def.did(), &["nova_vm", "ecmascript", "Object"]),
+        TyKind::Adt(def, _) => match_def_path(
+            cx,
+            def.did(),
+            &[
+                "nova_vm",
+                "ecmascript",
+                "types",
+                "language",
+                "object",
+                "Object",
+            ],
+        ),
         _ => false,
     }
 }
 
 pub fn is_arguments_list_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
     match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => {
-            match_def_path(cx, def.did(), &["nova_vm", "ecmascript", "ArgumentsList"])
-        }
+        TyKind::Adt(def, _) => match_def_path(
+            cx,
+            def.did(),
+            &[
+                "nova_vm",
+                "ecmascript",
+                "builtins",
+                "builtin_function",
+                "ArgumentsList",
+            ],
+        ),
         _ => false,
     }
 }
