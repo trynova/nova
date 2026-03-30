@@ -591,14 +591,15 @@ impl<'e> GlobalEnvironment<'e> {
                 .unbind()
                 .delete_binding(agent, scoped_name.get(agent), gc.reborrow())
                 .unbind()?;
-            let env = unsafe { env.take(agent) }.bind(gc.nogc());
+            let gc = gc.into_nogc();
+            let env = unsafe { env.take(agent) }.bind(gc);
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
-                let name = scoped_name.get(agent);
+                let name = scoped_name.get(agent).bind(gc);
                 let env_rec = env.get_mut(agent);
                 if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
-                    env_rec.var_names.remove(&name);
+                    env_rec.var_names.remove(&name.unbind());
                 }
             }
             // c. Return status.
