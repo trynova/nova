@@ -1699,14 +1699,16 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     // 1. Let timeoutJob be a new Job Abstract Closure with no parameters that
     //    captures WL and waiterRecord and performs the following steps when
     //    called:
-    // let data_block = data_block.clone();
     let signal = Arc::new(AtomicBool::new(false));
+    let s = signal.clone();
     let handle = thread::spawn(move || {
         // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
         let waiters = unsafe { data_block.get_or_init_waiters() };
         let waiter_record = WaiterRecord::new_shared();
         let mut guard = waiters.lock().unwrap();
 
+        // Signal the main thread that we have the lock and are about to sleep.
+        s.store(true, StdOrdering::Release);
         guard.push_to_list(byte_index_in_buffer, waiter_record.clone());
 
         if t == u64::MAX {
