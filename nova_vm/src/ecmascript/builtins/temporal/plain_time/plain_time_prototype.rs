@@ -83,6 +83,13 @@ impl Builtin for TemporalPlainTimePrototypeAdd {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::add);
 }
 
+struct TemporalPlainTimePrototypeSubtract;
+impl Builtin for TemporalPlainTimePrototypeSubtract {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.subtract;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::subtract);
+}
+
 impl TemporalPlainTimePrototype {
     /// ### [4.3.4 get Temporal.PlainTime.prototype.minute](https://tc39.es/proposal-temporal/#sec-get-temporal.plaintime.prototype.minute)
     pub(crate) fn get_minute<'gc>(
@@ -200,6 +207,27 @@ impl TemporalPlainTimePrototype {
             .map(Value::from)
     }
 
+    /// ### [4.3.10 Temporal.PlainTime.prototype.subtract ( temporalDurationLike )](https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.subtract)
+    fn subtract<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let duration = args.get(0).bind(gc.nogc());
+        // 1. Let plainTime be the this value.
+        let plain_time = this_value.bind(gc.nogc());
+        // 2. Perform ? RequireInternalSlot(plainTime, [[InitializedTemporalTime]]).
+        let plain_time =
+            require_internal_slot_temporal_plain_time(agent, plain_time.unbind(), gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
+        // 3. Return ? AddDurationToTime(subtract, plainTime, temporalDurationLike).
+        const ADD: bool = false;
+        add_duration_to_time::<ADD>(agent, plain_time.unbind(), duration.unbind(), gc)
+            .map(Value::from)
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.temporal_plain_time_prototype();
@@ -207,7 +235,7 @@ impl TemporalPlainTimePrototype {
         let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(9)
+            .with_property_capacity(10)
             .with_prototype(object_prototype)
             .with_constructor_property(plain_time_constructor)
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetHour>()
@@ -217,6 +245,7 @@ impl TemporalPlainTimePrototype {
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetNanosecond>()
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetMillisecond>()
             .with_builtin_function_property::<TemporalPlainTimePrototypeAdd>()
+            .with_builtin_function_property::<TemporalPlainTimePrototypeSubtract>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbols::ToStringTag.into())
