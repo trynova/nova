@@ -107,7 +107,7 @@ impl<'r> ModuleRequest<'r> {
                 .with_entries
                 .iter()
                 .map(|attr| {
-                    let key = attr.key.as_atom().as_str();
+                    let key = attr.key.as_arena_str().as_str();
                     let value = attr.value.value.as_str();
                     (key, value)
                 })
