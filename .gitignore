@@ -4,3 +4,4 @@ Cargo.lock
 # e.g. `test.js` for local testing/development
 /*.js
 justfile
+.DS_Store
