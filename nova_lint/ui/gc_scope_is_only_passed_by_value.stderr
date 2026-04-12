@@ -1,5 +1,5 @@
 error: gc scope should only be passed by value
-  --> $DIR/gc_scope_is_only_passed_by_value.rs:28:52
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:27:52
    |
 LL | fn test_borrowed_qualified_gc_scope_only(gc_scope: &nova_vm::engine::GcScope<'_, '_>) {
    |                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -8,7 +8,7 @@ LL | fn test_borrowed_qualified_gc_scope_only(gc_scope: &nova_vm::engine::GcScop
    = note: `#[deny(gc_scope_is_only_passed_by_value)]` on by default
 
 error: gc scope should only be passed by value
-  --> $DIR/gc_scope_is_only_passed_by_value.rs:32:42
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:31:42
    |
 LL | fn test_borrowed_gc_scope_only(gc_scope: &GcScope<'_, '_>) {
    |                                          ^^^^^^^^^^^^^^^^
@@ -16,7 +16,7 @@ LL | fn test_borrowed_gc_scope_only(gc_scope: &GcScope<'_, '_>) {
    = help: remove the reference
 
 error: gc scope should only be passed by value
-  --> $DIR/gc_scope_is_only_passed_by_value.rs:36:55
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:35:55
    |
 LL | fn test_borrowed_qualified_no_gc_scope_only(gc_scope: &nova_vm::engine::NoGcScope<'_, '_>) {
    |                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -24,7 +24,7 @@ LL | fn test_borrowed_qualified_no_gc_scope_only(gc_scope: &nova_vm::engine::NoG
    = help: remove the reference
 
 error: gc scope should only be passed by value
-  --> $DIR/gc_scope_is_only_passed_by_value.rs:40:45
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:39:45
    |
 LL | fn test_borrowed_no_gc_scope_only(gc_scope: &NoGcScope<'_, '_>) {
    |                                             ^^^^^^^^^^^^^^^^^^
@@ -32,7 +32,7 @@ LL | fn test_borrowed_no_gc_scope_only(gc_scope: &NoGcScope<'_, '_>) {
    = help: remove the reference
 
 error: gc scope should only be passed by value
-  --> $DIR/gc_scope_is_only_passed_by_value.rs:44:56
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:43:56
    |
 LL | fn test_mut_borrowed_qualified_gc_scope_only(gc_scope: &mut nova_vm::engine::GcScope<'_, '_>) {
    |                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -40,7 +40,7 @@ LL | fn test_mut_borrowed_qualified_gc_scope_only(gc_scope: &mut nova_vm::engine
    = help: remove the reference
 
 error: gc scope should only be passed by value
-  --> $DIR/gc_scope_is_only_passed_by_value.rs:48:46
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:47:46
    |
 LL | fn test_mut_borrowed_gc_scope_only(gc_scope: &mut GcScope<'_, '_>) {
    |                                              ^^^^^^^^^^^^^^^^^^^^
@@ -48,7 +48,7 @@ LL | fn test_mut_borrowed_gc_scope_only(gc_scope: &mut GcScope<'_, '_>) {
    = help: remove the reference
 
 error: gc scope should only be passed by value
-  --> $DIR/gc_scope_is_only_passed_by_value.rs:52:59
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:51:59
    |
 LL | fn test_mut_borrowed_qualified_no_gc_scope_only(gc_scope: &mut nova_vm::engine::NoGcScope<'_, '_>) {
    |                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -56,7 +56,7 @@ LL | fn test_mut_borrowed_qualified_no_gc_scope_only(gc_scope: &mut nova_vm::eng
    = help: remove the reference
 
 error: gc scope should only be passed by value
-  --> $DIR/gc_scope_is_only_passed_by_value.rs:56:49
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:55:49
    |
 LL | fn test_mut_borrowed_no_gc_scope_only(gc_scope: &mut NoGcScope<'_, '_>) {
    |                                                 ^^^^^^^^^^^^^^^^^^^^^^

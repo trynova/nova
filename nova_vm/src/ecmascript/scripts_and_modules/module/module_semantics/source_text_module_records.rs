@@ -1579,9 +1579,9 @@ fn async_module_start(
             let async_context = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
             let (bytecode, promise, module) = unsafe {
-                let bytecode = bytecode.take(agent);
+                let bytecode = bytecode.take(agent).bind(gc.nogc());
                 let promise = promise.take(agent).bind(gc.nogc());
-                let module = scoped_module.take(agent);
+                let module = scoped_module.take(agent).bind(gc.nogc());
                 (bytecode, promise, module)
             };
             let promise_capability = PromiseCapability::from_promise(promise, true);

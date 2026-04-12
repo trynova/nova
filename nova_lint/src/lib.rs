@@ -28,6 +28,7 @@ mod agent_comes_first;
 mod can_use_no_gc_scope;
 mod gc_scope_comes_last;
 mod gc_scope_is_only_passed_by_value;
+mod immediately_bind_scoped;
 mod no_it_performs_the_following;
 mod no_multipage_spec;
 mod spec_header_level;
@@ -41,6 +42,7 @@ pub fn register_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint
     can_use_no_gc_scope::register_lints(sess, lint_store);
     gc_scope_comes_last::register_lints(sess, lint_store);
     gc_scope_is_only_passed_by_value::register_lints(sess, lint_store);
+    immediately_bind_scoped::register_lints(sess, lint_store);
     no_it_performs_the_following::register_lints(sess, lint_store);
     no_multipage_spec::register_lints(sess, lint_store);
     spec_header_level::register_lints(sess, lint_store);

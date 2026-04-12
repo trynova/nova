@@ -6,8 +6,7 @@
     can_use_no_gc_scope
 )]
 
-type GcScope<'a, 'b> = nova_vm::engine::GcScope<'a, 'b>;
-type NoGcScope<'a, 'b> = nova_vm::engine::NoGcScope<'a, 'b>;
+use nova_vm::engine::{GcScope, NoGcScope};
 
 fn test_no_params() {
     unimplemented!()
