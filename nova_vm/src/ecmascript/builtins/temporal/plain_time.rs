@@ -166,7 +166,7 @@ fn add_duration_to_time<'gc, const IS_ADD: bool>(
         res
     };
 
-    // If operation is subtract, set duration to CreateNegatedTemporalDuration(duration).
+    // 2. If operation is subtract, set duration to CreateNegatedTemporalDuration(duration).
     // 3. Let internalDuration be ToInternalDurationRecord(duration).
     // 4. Let result be AddTime(temporalTime.[[Time]], internalDuration.[[Time]]).
     let ns_result = if IS_ADD {
