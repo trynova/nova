@@ -14,8 +14,9 @@ use crate::{
     ecmascript::{
         Agent, ExceptionType, Function, InternalMethods, InternalSlots, JsResult, OrdinaryObject,
         ProtoIntrinsics, Value, object_handle, ordinary_populate_from_constructor,
+        temporal_err_to_js_err, to_temporal_duration,
     },
-    engine::{Bindable, GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -132,4 +133,52 @@ pub(crate) fn create_temporal_plain_time<'gc>(
         )?)
         .unwrap(),
     )
+}
+
+/// [4.5.18 AddDurationToTime ( operation, temporalTime, temporalDurationLike )](https://tc39.es/proposal-temporal/#sec-temporal-adddurationtotime)
+///
+/// The abstract operation AddDurationToTime takes arguments operation
+/// (either add or subtract), temporalTime (a Temporal.PlainTime), and
+/// temporalDurationLike (an ECMAScript language value) and returns either
+/// a normal completion containing a Temporal.PlainTime or a throw completion.
+/// It adds/subtracts temporalDurationLike to/from temporalTime, returning a
+/// point in time that is in the future/past relative to temporalTime.
+/// It performs the following steps when called:
+fn add_duration_to_time<'gc, const IS_ADD: bool>(
+    agent: &mut Agent,
+    plan_time: TemporalPlainTime,
+    duration: Value,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<'gc, TemporalPlainTime<'gc>> {
+    let duration = duration.bind(gc.nogc());
+    let mut plain_time = plan_time.bind(gc.nogc());
+
+    // 1. Let duration be ? ToTemporalDuration(temporalDurationLike).
+    let duration = if let Value::Duration(duration) = duration {
+        duration.get(agent).duration
+    } else {
+        let scoped_instant = plain_time.scope(agent, gc.nogc());
+        let res = to_temporal_duration(agent, duration.unbind(), gc.reborrow()).unbind()?;
+        // SAFETY: not shared
+        unsafe {
+            plain_time = scoped_instant.take(agent);
+        }
+        res
+    };
+
+    // 2. If operation is subtract, set duration to CreateNegatedTemporalDuration(duration).
+    // 3. Let internalDuration be ToInternalDurationRecord(duration).
+    // 4. Let result be AddTime(temporalTime.[[Time]], internalDuration.[[Time]]).
+    let ns_result = if IS_ADD {
+        temporal_rs::PlainTime::add(plain_time.inner_plain_time(agent), &duration)
+            .map_err(|err| temporal_err_to_js_err(agent, err, gc.nogc()))
+            .unbind()?
+    } else {
+        temporal_rs::PlainTime::subtract(plain_time.inner_plain_time(agent), &duration)
+            .map_err(|err| temporal_err_to_js_err(agent, err, gc.nogc()))
+            .unbind()?
+    };
+
+    // 5. Return ! CreateTemporalTime(result).
+    Ok(create_temporal_plain_time(agent, ns_result, None, gc).unwrap())
 }
