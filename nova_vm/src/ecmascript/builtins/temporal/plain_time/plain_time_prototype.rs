@@ -241,7 +241,7 @@ impl TemporalPlainTimePrototype {
         // 1. Throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
-            "can't convert PlainTime to primitive type. Use PlainTime.equal() or PlainTime.compare() instead.",
+            "can't convert PlainTime to primitive type. Use PlainTime.prototype.equals() or PlainTime.compare() instead.",
             gc.into_nogc(),
         ))
     }
