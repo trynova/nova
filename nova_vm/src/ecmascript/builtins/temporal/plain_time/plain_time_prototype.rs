@@ -202,7 +202,7 @@ impl TemporalPlainTimePrototype {
                 .unbind()?
                 .bind(gc.nogc());
         // 3. Return ? AddDurationToTime(add, plainTime, temporalDurationLike).
-        const ADD: bool = true;
+        const SUBTRACT: bool = true;
         add_duration_to_time::<ADD>(agent, plain_time.unbind(), duration.unbind(), gc)
             .map(Value::from)
     }
