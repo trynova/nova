@@ -6,9 +6,9 @@ use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter, JsResult,
         PropertyKey, Realm, String, Value, builders::OrdinaryObjectBuilder,
-        builtins::temporal::plain_time::require_internal_slot_temporal_plain_time,
+        builtins::temporal::plain_time::{self, require_internal_slot_temporal_plain_time},
     },
-    engine::{GcScope, NoGcScope},
+    engine::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbols,
 };
 
@@ -72,6 +72,20 @@ impl Builtin for TemporalPlainTimePrototypeGetNanosecond {
     const CONFIGURABLE: bool = true;
 }
 impl BuiltinGetter for TemporalPlainTimePrototypeGetNanosecond {}
+
+struct TemporalPlainTimePrototypeUntil;
+impl Builtin for TemporalPlainTimePrototypeUntil {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.until;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::until);
+}
+
+struct TemporalPlainTimePrototypeSince;
+impl Builtin for TemporalPlainTimePrototypeSince {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.since;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::since);
+}
 
 impl TemporalPlainTimePrototype {
     /// ### [4.3.4 get Temporal.PlainTime.prototype.minute](https://tc39.es/proposal-temporal/#sec-get-temporal.plaintime.prototype.minute)
@@ -169,6 +183,60 @@ impl TemporalPlainTimePrototype {
         Ok(value.into())
     }
 
+    /// ### [4.3.12 Temporal.PlainTime.prototype.until ( other [ , options ] )](https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.until) 
+    fn until<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>>{
+        let other = args.get(0).bind(gc.nogc());
+        let options = args.get(1).bind(gc.nogc());
+        // 1. Let plainTime be the this value.
+        let plain_time = this_value.bind(gc.nogc());
+        // 2. Perform ? RequireInternalSlot(plainTime, [[InitializedTemporalTime]]).
+        let plain_time = require_internal_slot_temporal_plain_time(agent, plain_time.unbind(), gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        // 3. Return ? DifferenceTemporalPlainTime(until, plainTime, other, options).
+        const UNTIL: bool = true;
+        difference_temporal_plain_time::<UNTIL>(
+            agent,
+            plain_time.unbind(),
+            other.unbind(),
+            options.unbind(),
+            gc,
+        )
+        .map(Value::from)
+    }
+
+    /// ### [4.3.13 Temporal.PlainTime.prototype.since ( other [ , options ] )](https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.since)
+    fn since<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let other = args.get(0).bind(gc.nogc());
+        let options = args.get(1).bind(gc.nogc());
+        // 1. Let plainTime be the this value.
+        let plain_time = this_value.bind(gc.nogc());
+        // 2. Perform ? RequireInternalSlot(plainTime, [[InitializedTemporalTime]]).
+        let plain_time = require_internal_slot_temporal_plain_time(agent, plain_time.unbind(), gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        // 3. Return ? DifferenceTemporalPlainTime(since, instant, other, options).
+        const SINCE: bool = false;
+        difference_temporal_plain_time::<SINCE>(
+            agent,
+            plain_time.unbind(),
+            other.unbind(),
+            options.unbind(),
+            gc,
+        )
+        .map(Value::from)
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.temporal_plain_time_prototype();
@@ -176,7 +244,7 @@ impl TemporalPlainTimePrototype {
         let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(8)
+            .with_property_capacity(10)
             .with_prototype(object_prototype)
             .with_constructor_property(plain_time_constructor)
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetHour>()
@@ -185,6 +253,8 @@ impl TemporalPlainTimePrototype {
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetMicrosecond>()
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetNanosecond>()
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetMillisecond>()
+            .with_builtin_function_property::<TemporalPlainTimePrototypeSince>()
+            .with_builtin_function_property::<TemporalPlainTimePrototypeUntil>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbols::ToStringTag.into())
