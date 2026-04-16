@@ -1244,7 +1244,7 @@ fn object_define_properties<'gc>(
         descriptors.push(Some(desc));
     }
     // 5. For each element property of descriptors, do
-    for (property_key, property_descriptor) in keys.iter(agent).zip(descriptors.into_iter()) {
+    for (property_key, property_descriptor) in keys.iter(agent).zip(descriptors) {
         let Some(property_descriptor) = property_descriptor else {
             continue;
         };
