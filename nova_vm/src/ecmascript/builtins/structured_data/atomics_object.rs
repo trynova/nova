@@ -5,10 +5,7 @@
 use std::{
     hint::assert_unchecked,
     ops::ControlFlow,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering as StdOrdering},
-    },
+    sync::Arc,
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -1421,6 +1418,7 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     gc: NoGcScope<'gc, '_>,
 ) -> Value<'gc> {
     let slot = buffer.as_slice(agent).slice_from(byte_index_in_buffer);
+    let data_block = buffer.get_data_block(agent).clone();
     // 14. Let WL be GetWaiterList(block, byteIndexInBuffer).
     // 15. If mode is sync, then
     // a. Let promiseCapability be blocking.
@@ -1429,6 +1427,14 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     // a. Let promiseCapability be ! NewPromiseCapability(%Promise%).
     // b. Let resultObject be OrdinaryObjectCreate(%Object.prototype%).
     // 17. Perform EnterCriticalSection(WL).
+
+    // SAFETY: buffer is a valid SharedArrayBuffer and cannot be detached. A 0-sized SAB would
+    // have a dangling data block, but Atomics.wait requires `byteIndex` to be within bounds,
+    // so a 0-sized SAB would have been rejected earlier with a RangeError.
+    let waiters = unsafe { data_block.get_or_init_waiters() };
+    let waiter_record = WaiterRecord::new_shared();
+    let mut guard = waiters.lock().unwrap();
+
     // 18. Let elementType be TypedArrayElementType(typedArray).
     // 19. Let w be GetValueFromBuffer(buffer, byteIndexInBuffer, elementType, true, seq-cst).
     let v_not_equal_to_w = if IS_I64 {
@@ -1447,6 +1453,8 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     // 20. If v ≠ w, then
     if v_not_equal_to_w {
         // a. Perform LeaveCriticalSection(WL).
+        drop(guard);
+
         // b. If mode is sync, return "not-equal".
         if !IS_ASYNC {
             return BUILTIN_STRING_MEMORY.not_equal.into();
@@ -1464,6 +1472,7 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         //    timeouts. Asynchronous immediate timeouts have special handling
         //    in order to fail fast and avoid unnecessary Promise jobs.
         // b. Perform LeaveCriticalSection(WL).
+        drop(guard);
         // c. Perform ! CreateDataPropertyOrThrow(resultObject, "async", false).
         // d. Perform ! CreateDataPropertyOrThrow(resultObject, "value", "timed-out").
         let result_object =
@@ -1484,20 +1493,10 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     //         [[Result]]: "ok"
     // }.
     // 28. Perform AddWaiter(WL, waiterRecord).
+    guard.push_to_list(byte_index_in_buffer, waiter_record.clone());
     // 29. If mode is sync, then
-
-    let data_block = buffer.get_data_block(agent);
     if !IS_ASYNC {
-        // SAFETY: buffer is a valid SharedArrayBuffer and cannot be detached. A 0-sized SAB would
-        // have a dangling data block, but Atomics.wait requires `byteIndex` to be within bounds,
-        // so a 0-sized SAB would have been rejected earlier with a RangeError.
-        let waiters = unsafe { data_block.get_or_init_waiters() };
-        let waiter_record = WaiterRecord::new_shared();
-        let mut guard = waiters.lock().unwrap();
-
         // a. Perform SuspendThisAgent(WL, waiterRecord).
-        guard.push_to_list(byte_index_in_buffer, waiter_record.clone());
-
         if t == u64::MAX {
             waiter_record.wait(guard);
         } else {
@@ -1521,16 +1520,20 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
         // 30. Else if timeoutTime is finite, then
         // a. Perform EnqueueAtomicsWaitAsyncTimeoutJob(WL, waiterRecord).
 
-        let data_block_clone = buffer.get_data_block(agent).clone();
+        let data_block_clone = data_block.clone();
         enqueue_atomics_wait_async_job::<IS_I64>(
             agent,
             data_block_clone,
             byte_index_in_buffer,
+            waiter_record.clone(),
             t,
             promise,
             gc,
         );
+
         // 31. Perform LeaveCriticalSection(WL).
+        drop(guard);
+
         // 33. Perform ! CreateDataPropertyOrThrow(resultObject, "async", true).
         // 34. Perform ! CreateDataPropertyOrThrow(resultObject, "value", promiseCapability.[[Promise]]).
         let result_object =
@@ -1678,6 +1681,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     agent: &mut Agent,
     data_block: SharedDataBlock,
     byte_index_in_buffer: usize,
+    waiter_record: Arc<WaiterRecord>,
     t: u64,
     promise: Global<Promise>,
     gc: NoGcScope,
@@ -1685,17 +1689,10 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     // 1. Let timeoutJob be a new Job Abstract Closure with no parameters that
     //    captures WL and waiterRecord and performs the following steps when
     //    called:
-    let signal = Arc::new(AtomicBool::new(false));
-    let s = signal.clone();
     let handle = thread::spawn(move || {
         // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
         let waiters = unsafe { data_block.get_or_init_waiters() };
-        let waiter_record = WaiterRecord::new_shared();
         let mut guard = waiters.lock().unwrap();
-
-        // Signal the main thread that we have the lock and are about to sleep.
-        s.store(true, StdOrdering::Release);
-        guard.push_to_list(byte_index_in_buffer, waiter_record.clone());
 
         if t == u64::MAX {
             waiter_record.wait(guard);
@@ -1707,6 +1704,8 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
                 guard.remove_from_list(byte_index_in_buffer, waiter_record);
 
                 // 31. Perform LeaveCriticalSection(WL).
+                drop(guard);
+
                 // 32. If mode is sync, return waiterRecord.[[Result]].
                 return WaitResult::TimedOut;
             }
@@ -1721,9 +1720,6 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
             _has_timeout: t != u64::MAX,
         }))),
     };
-    while !signal.load(StdOrdering::Acquire) {
-        // Wait until the thread has started up and is about to go to sleep.
-    }
     // 2. Let now be the time value (UTC) identifying the current time.
     // 3. Let currentRealm be the current Realm Record.
     // 4. Perform HostEnqueueTimeoutJob(timeoutJob, currentRealm, 𝔽(waiterRecord.[[TimeoutTime]]) - now).
