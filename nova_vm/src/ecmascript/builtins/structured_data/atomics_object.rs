@@ -1487,20 +1487,6 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
     // 29. If mode is sync, then
 
     let data_block = buffer.get_data_block(agent);
-
-    // Re-read value under critical section to avoid TOCTOU race.
-    let slot = data_block.as_racy_slice().slice_from(byte_index_in_buffer);
-    let v_changed = if IS_I64 {
-        let slot = unsafe { slot.as_aligned::<u64>().unwrap_unchecked() };
-        v as u64 != slot.load(Ordering::SeqCst)
-    } else {
-        let slot = unsafe { slot.as_aligned::<u32>().unwrap_unchecked() };
-        v as i32 as u32 != slot.load(Ordering::SeqCst)
-    };
-    if v_changed {
-        return BUILTIN_STRING_MEMORY.not_equal.into();
-    }
-
     if !IS_ASYNC {
         // SAFETY: buffer is a valid SharedArrayBuffer and cannot be detached. A 0-sized SAB would
         // have a dangling data block, but Atomics.wait requires `byteIndex` to be within bounds,
