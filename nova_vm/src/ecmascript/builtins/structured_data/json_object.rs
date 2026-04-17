@@ -355,7 +355,7 @@ impl JSONObject {
                 // b. Set spaceMV to min(10, spaceMV).
                 // c. If spaceMV < 1, let gap be the empty String; otherwise let gap be the String value containing spaceMV occurrences of the code unit 0x0020 (SPACE).
                 let space_mv = space_mv.into_i64().clamp(0, 10) as usize;
-                " ".repeat(space_mv as usize).into()
+                " ".repeat(space_mv).into()
             } else if let Ok(space) = String::try_from(space) {
                 // 8. Else if space is a String, then
                 let space = space.to_string_lossy_(agent);
