@@ -58,7 +58,7 @@ use crate::{
         ScriptRecord, SourceCodeHeapData, SourceTextModuleHeap, String, StringIteratorHeapData,
         StringRecord, SymbolHeapData,
     },
-    engine::{ExecutableHeapData, GcScope, HeapRootData},
+    engine::{ExecutableHeapData, GcScope, HeapRootData, NoGcScope},
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
@@ -179,9 +179,19 @@ pub(crate) struct Heap {
 }
 
 pub(crate) trait CreateHeapData<'gc, T, F: 'gc> {
-    /// Creates a [`Value`] from the given data. Allocating the data is **not**
-    /// guaranteed.
+    /// Allocates a [`Value`] from the given data.
     fn create(&mut self, data: T, gc: GcScope<'gc, '_>) -> F;
+}
+
+/// Allocation could not be finished.
+pub(crate) struct GcError;
+
+pub(crate) trait TryCreateHeapData<'gc, T, F: 'gc> {
+    /// Try creates a [`Value`] from the given data. If allocation cannot be
+    /// performed, a [`GcError`] is returned.
+    ///
+    /// [`GcError`]: GcError
+    fn try_create(&mut self, data: T, gc: NoGcScope<'gc, '_>) -> Result<F, GcError>;
 }
 
 impl<'gc> CreateHeapData<'gc, &str, String<'gc>> for Heap {

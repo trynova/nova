@@ -16,9 +16,9 @@ use crate::{
     },
     engine::{Bindable, GcScope, NoGcScope, bindable_handle},
     heap::{
-        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
-        HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicPrimitiveObjectIndexes, WorkQueues,
-        arena_vec_access,
+        ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, GcError, Heap,
+        HeapMarkAndSweep, HeapSweepWeakReference, IntrinsicPrimitiveObjectIndexes,
+        TryCreateHeapData, WorkQueues, arena_vec_access,
     },
 };
 use small_string::SmallString;
@@ -693,5 +693,17 @@ impl<'gc> CreateHeapData<'gc, PrimitiveObjectRecord<'static>, PrimitiveObject<'g
         self.primitive_objects.push(data.unbind());
         self.alloc_counter += core::mem::size_of::<PrimitiveObjectRecord<'static>>();
         PrimitiveObject(BaseIndex::last(&self.primitive_objects))
+    }
+}
+
+impl<'gc> TryCreateHeapData<'gc, PrimitiveObjectRecord<'static>, PrimitiveObject<'gc>> for Heap {
+    fn try_create(
+        &mut self,
+        data: PrimitiveObjectRecord,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Result<PrimitiveObject<'gc>, GcError> {
+        self.primitive_objects.push(data.unbind());
+        self.alloc_counter += core::mem::size_of::<PrimitiveObjectRecord<'static>>();
+        Ok(PrimitiveObject(BaseIndex::last(&self.primitive_objects)))
     }
 }
