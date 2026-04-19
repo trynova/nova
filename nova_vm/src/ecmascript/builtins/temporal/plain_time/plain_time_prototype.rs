@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use temporal_rs::{options::ToStringRoundingOptions};
+
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter, JsResult,
@@ -9,7 +11,7 @@ use crate::{
         builders::OrdinaryObjectBuilder,
         builtins::temporal::plain_time::{
             add_duration_to_time, require_internal_slot_temporal_plain_time,
-        },
+        }, temporal_err_to_js_err,
     },
     engine::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbols,
@@ -88,6 +90,13 @@ impl Builtin for TemporalPlainTimePrototypeSubtract {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.subtract;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::subtract);
+}
+
+struct TemporalPlainTimePrototypeToLocaleString;
+impl Builtin for TemporalPlainTimePrototypeToLocaleString {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::to_locale_string);
 }
 
 impl TemporalPlainTimePrototype {
@@ -228,6 +237,36 @@ impl TemporalPlainTimePrototype {
             .map(Value::from)
     }
 
+    /// ### [4.3.17 Temporal.PlainTime.prototype.toLocaleString ( [ locales [ , options ] ] )](https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.tolocalestring)
+    /// An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement this method as specified in the ECMA-402 specification. If an ECMAScript 
+    /// implementation does not include the ECMA-402 API the following specification of this method is used. The meanings of the optional parameters to this method are defined 
+    /// in the ECMA-402 specification; implementations that do not include ECMA-402 support must not use those parameter positions for anything else.
+    fn to_locale_string<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        _args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Let plainTime be the this value.
+        let value = this_value.bind(gc.nogc());
+        // 2. Perform ? RequireInternalSlot(plainTime, [[InitializedTemporalTime]]).
+        let plain_time = require_internal_slot_temporal_plain_time(agent, value, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        // 3. Return TimeRecordToString(plainTime.[[Time]], auto).
+        let options: ToStringRoundingOptions = ToStringRoundingOptions::default(); // defaults Precision to Auto
+        match plain_time
+            .inner_plain_time(agent)
+            .to_ixdtf_string(options)
+        {
+            Ok(string) => Ok(Value::from_string(agent, string, gc.into_nogc())),
+            Err(err) => Err(temporal_err_to_js_err(agent, err, gc.into_nogc())),
+        }
+    }
+
+
+
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.temporal_plain_time_prototype();
@@ -235,7 +274,7 @@ impl TemporalPlainTimePrototype {
         let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(10)
+            .with_property_capacity(11)
             .with_prototype(object_prototype)
             .with_constructor_property(plain_time_constructor)
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetHour>()
@@ -246,6 +285,7 @@ impl TemporalPlainTimePrototype {
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetMillisecond>()
             .with_builtin_function_property::<TemporalPlainTimePrototypeAdd>()
             .with_builtin_function_property::<TemporalPlainTimePrototypeSubtract>()
+            .with_builtin_function_property::<TemporalPlainTimePrototypeToLocaleString>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbols::ToStringTag.into())
