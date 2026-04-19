@@ -90,6 +90,13 @@ impl Builtin for TemporalPlainTimePrototypeSubtract {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::subtract);
 }
 
+struct TemporalPlainTimePrototypeEquals;
+impl Builtin for TemporalPlainTimePrototypeEquals {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.equals;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::equals);
+}
+
 impl TemporalPlainTimePrototype {
     /// ### [4.3.4 get Temporal.PlainTime.prototype.minute](https://tc39.es/proposal-temporal/#sec-get-temporal.plaintime.prototype.minute)
     pub(crate) fn get_minute<'gc>(
@@ -228,6 +235,38 @@ impl TemporalPlainTimePrototype {
             .map(Value::from)
     }
 
+    /// ### [4.3.15 Temporal.PlainTime.prototype.equals ( other )](https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.equals)
+    fn equals<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let other = args.get(0).bind(gc.nogc());
+        let plain_time = this_value.bind(gc.nogc());
+        // 1. Let plainTime be the this value.
+        // 2. Perform ? RequireInternalSlot(plainTime, [[InitializedTemporalTime]]).
+        let plain_time =
+            require_internal_slot_temporal_plain_time(agent, plain_time.unbind(), gc.nogc())
+                .unbind()?
+                .bind(gc.nogc());
+        // 3. Set other to ? ToTemporalTime(other).
+        let equal = if let Value::PlainTime(other) = other {
+            plain_time.inner_plain_time(agent) == other.inner_plain_time(agent)
+        } else {
+            // let plain_time = plain_time.scope(agent, gc.nogc());
+            // let other = to_temporal_time(agent, other.unbind(), gc.reborrow()).unbind()?;
+            // // 4. If CompareTimeRecord(plainTime.[[Time]], other.[[Time]]) = 0, return true.
+            // let plain_time = plain_time.get(agent).bind(gc.nogc());
+            // plain_time.inner_plain_time(agent) == &other
+
+            // TODO(jesper): missing to_temporal_time function
+            todo!()
+        };
+        // 5. Return false.
+        Ok(equal.into())
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.temporal_plain_time_prototype();
@@ -235,7 +274,7 @@ impl TemporalPlainTimePrototype {
         let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(10)
+            .with_property_capacity(11)
             .with_prototype(object_prototype)
             .with_constructor_property(plain_time_constructor)
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetHour>()
@@ -246,6 +285,7 @@ impl TemporalPlainTimePrototype {
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetMillisecond>()
             .with_builtin_function_property::<TemporalPlainTimePrototypeAdd>()
             .with_builtin_function_property::<TemporalPlainTimePrototypeSubtract>()
+            .with_builtin_function_property::<TemporalPlainTimePrototypeEquals>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbols::ToStringTag.into())
