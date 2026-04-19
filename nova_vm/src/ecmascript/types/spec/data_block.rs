@@ -480,7 +480,6 @@ impl WaiterRecord {
 pub(crate) enum WaitResult {
     Ok,
     TimedOut,
-    NotEqual,
 }
 
 #[cfg(feature = "shared-array-buffer")]
