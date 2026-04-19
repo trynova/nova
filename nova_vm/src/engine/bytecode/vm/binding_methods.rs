@@ -18,8 +18,6 @@ use super::with_vm_gc;
 
 pub(super) fn execute_simple_array_binding<'a>(
     agent: &mut Agent,
-    vm: &mut Vm,
-    executable: Scoped<Executable>,
     environment: Option<Scoped<Environment>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, ()> {
@@ -178,8 +176,6 @@ pub(super) fn execute_simple_array_binding<'a>(
             Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
                 execute_nested_simple_binding(
                     agent,
-                    vm,
-                    executable.clone(),
                     value.unbind(),
                     environment.clone(),
                     gc.reborrow(),
@@ -225,8 +221,6 @@ pub(super) fn execute_simple_array_binding<'a>(
 
 pub(super) fn execute_simple_object_binding<'a>(
     agent: &mut Agent,
-    vm: &mut Vm,
-    executable: Scoped<Executable>,
     object: Object,
     environment: Option<Scoped<Environment>>,
     mut gc: GcScope<'a, '_>,
@@ -344,8 +338,6 @@ pub(super) fn execute_simple_object_binding<'a>(
                 .bind(gc.nogc());
                 execute_nested_simple_binding(
                     agent,
-                    vm,
-                    executable.clone(),
                     v.unbind(),
                     environment.clone(),
                     gc.reborrow(),
@@ -430,8 +422,6 @@ pub(super) fn execute_simple_object_binding<'a>(
 
 pub(super) fn execute_nested_simple_binding<'a>(
     agent: &mut Agent,
-    vm: &mut Vm,
-    executable: Scoped<Executable>,
     value: Value,
     environment: Option<Scoped<Environment>>,
     mut gc: GcScope<'a, '_>,

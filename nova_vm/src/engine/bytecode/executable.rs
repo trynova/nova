@@ -250,7 +250,7 @@ impl<'gc> Executable<'gc> {
     }
 
     #[inline]
-    fn fetch_cache(
+    pub(crate) fn fetch_cache(
         self,
         agent: &Agent,
         index: usize,
@@ -260,12 +260,22 @@ impl<'gc> Executable<'gc> {
     }
 
     #[inline]
-    fn fetch_constant(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+    pub(crate) fn fetch_constant(
+        self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Value<'gc> {
         self.get(agent).constants[index].bind(gc)
     }
 
     #[inline]
-    fn fetch_identifier(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> String<'gc> {
+    pub(crate) fn fetch_identifier(
+        self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> String<'gc> {
         let value = self.get(agent).constants[index];
         let Ok(value) = String::try_from(value) else {
             handle_identifier_failure()
@@ -274,7 +284,7 @@ impl<'gc> Executable<'gc> {
     }
 
     #[inline]
-    fn fetch_property_key(
+    pub(crate) fn fetch_property_key(
         self,
         agent: &Agent,
         index: usize,
@@ -285,7 +295,7 @@ impl<'gc> Executable<'gc> {
         unsafe { PropertyKey::from_value_unchecked(value).bind(gc) }
     }
 
-    fn fetch_function_expression<'a>(
+    pub(crate) fn fetch_function_expression<'a>(
         self,
         agent: &'a Agent,
         index: usize,
@@ -294,7 +304,7 @@ impl<'gc> Executable<'gc> {
         &self.get(agent).function_expressions[index]
     }
 
-    fn fetch_arrow_function_expression<'a>(
+    pub(crate) fn fetch_arrow_function_expression<'a>(
         self,
         agent: &'a Agent,
         index: usize,
@@ -305,7 +315,7 @@ impl<'gc> Executable<'gc> {
         &self.get(agent).arrow_function_expressions[index]
     }
 
-    fn fetch_class_initializer_bytecode(
+    pub(crate) fn fetch_class_initializer_bytecode(
         self,
         agent: &Agent,
         index: usize,
@@ -314,7 +324,7 @@ impl<'gc> Executable<'gc> {
         self.get(agent).class_initializer_bytecodes[index]
     }
 
-    fn fetch_object_shape(
+    pub(crate) fn fetch_object_shape(
         self,
         agent: &Agent,
         index: usize,
