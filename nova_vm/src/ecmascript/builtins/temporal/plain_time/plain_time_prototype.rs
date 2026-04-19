@@ -4,8 +4,8 @@
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter, JsResult,
-        PropertyKey, Realm, String, Value,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        ExceptionType, JsResult, PropertyKey, Realm, String, Value,
         builders::OrdinaryObjectBuilder,
         builtins::temporal::plain_time::{
             add_duration_to_time, require_internal_slot_temporal_plain_time,
@@ -88,6 +88,8 @@ impl Builtin for TemporalPlainTimePrototypeSubtract {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.subtract;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::subtract);
+}
+
 struct TemporalPlainTimePrototypeValueOf;
 impl Builtin for TemporalPlainTimePrototypeValueOf {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
@@ -231,6 +233,8 @@ impl TemporalPlainTimePrototype {
         const ADD: bool = false;
         add_duration_to_time::<ADD>(agent, plain_time.unbind(), duration.unbind(), gc)
             .map(Value::from)
+    }
+
     /// ### [4.3.19 Temporal.PlainTime.prototype.valueOf](https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.valueof)
     fn value_of<'gc>(
         agent: &mut Agent,
@@ -253,7 +257,7 @@ impl TemporalPlainTimePrototype {
         let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(10)
+            .with_property_capacity(11)
             .with_prototype(object_prototype)
             .with_constructor_property(plain_time_constructor)
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetHour>()
