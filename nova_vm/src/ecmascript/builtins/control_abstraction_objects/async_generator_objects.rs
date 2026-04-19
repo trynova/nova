@@ -15,7 +15,7 @@ use crate::{
         Agent, ExecutionContext, InternalMethods, InternalSlots, JsError, OrdinaryObject,
         PromiseCapability, PromiseReactionType, ProtoIntrinsics, Value, object_handle,
     },
-    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, SuspendedVm, bindable_handle},
+    engine::{Bindable, GcScope, NoGcScope, Scopable, SuspendedVm, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -39,14 +39,6 @@ object_handle!(AsyncGenerator);
 arena_vec_access!(AsyncGenerator, 'a, AsyncGeneratorHeapData, async_generators);
 
 impl AsyncGenerator<'_> {
-    pub(crate) fn get_executable<'gc>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> Executable<'gc> {
-        self.get(agent).executable.unwrap().bind(gc)
-    }
-
     /// Returns true if the state of the AsyncGenerator is DRAINING-QUEUE or
     /// EXECUTING.
     ///
@@ -207,8 +199,8 @@ impl AsyncGenerator<'_> {
     pub(crate) fn transition_to_executing<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> (SuspendedVm, ExecutionContext, Executable<'gc>) {
+        _: NoGcScope<'gc, '_>,
+    ) -> (SuspendedVm, ExecutionContext) {
         let async_generator_state = &mut self.get_mut(agent).async_generator_state;
         let (vm, execution_context, queue) = match async_generator_state.take() {
             Some(AsyncGeneratorState::SuspendedStart {
@@ -224,7 +216,7 @@ impl AsyncGenerator<'_> {
             _ => unreachable!(),
         };
         async_generator_state.replace(AsyncGeneratorState::Executing(queue));
-        (vm, execution_context, self.get_executable(agent, gc))
+        (vm, execution_context)
     }
 
     pub(crate) fn transition_to_suspended(
@@ -287,13 +279,10 @@ impl AsyncGenerator<'_> {
         let execution_result = match kind {
             AsyncGeneratorAwaitKind::Await => {
                 // Await only.
-                let executable = self.get(agent).executable.unwrap().scope(agent, gc.nogc());
                 match reaction_type {
-                    PromiseReactionType::Fulfill => {
-                        vm.resume(agent, executable, value.unbind(), gc.reborrow())
-                    }
+                    PromiseReactionType::Fulfill => agent.resume(vm, value.unbind(), gc.reborrow()),
                     PromiseReactionType::Reject => {
-                        vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
+                        agent.resume_throw(vm, value.unbind(), gc.reborrow())
                     }
                 }
             }
@@ -302,8 +291,7 @@ impl AsyncGenerator<'_> {
                 if reaction_type == PromiseReactionType::Reject {
                     // ? Yield ( ? Await ( Value ) ), so Yield doesn't get
                     // performed at all and value is just thrown.
-                    let executable = self.get(agent).executable.unwrap().scope(agent, gc.nogc());
-                    vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
+                    agent.resume_throw(vm, value.unbind(), gc.reborrow())
                 } else {
                     async_generator_yield(
                         agent,
@@ -352,7 +340,6 @@ impl<'a> CreateHeapData<AsyncGeneratorHeapData<'a>, AsyncGenerator<'a>> for Heap
 pub(crate) struct AsyncGeneratorHeapData<'a> {
     pub(crate) object_index: Option<OrdinaryObject<'a>>,
     pub(crate) async_generator_state: Option<AsyncGeneratorState<'a>>,
-    pub(crate) executable: Option<Executable<'a>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -506,10 +493,8 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData<'static> {
         let Self {
             object_index,
             async_generator_state: generator_state,
-            executable,
         } = self;
         object_index.mark_values(queues);
-        executable.mark_values(queues);
         let Some(generator_state) = generator_state else {
             return;
         };
@@ -550,10 +535,8 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData<'static> {
         let Self {
             object_index,
             async_generator_state: generator_state,
-            executable,
         } = self;
         object_index.sweep_values(compactions);
-        executable.sweep_values(compactions);
         let Some(generator_state) = generator_state else {
             return;
         };

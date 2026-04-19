@@ -156,10 +156,25 @@ fn for_in_of_body_evaluation<'s, 'gc>(
         ctx.add_instruction(Instruction::Await);
         // c. If nextResult is not an Object, throw a TypeError exception.
         // d. Let done be ? IteratorComplete(nextResult).
-        let jump_to_done = ctx.add_instruction_with_jump_slot(Instruction::IteratorComplete);
-        // e. If done is true, return V.
+
+        // nextResult now on top of stack and result.
+        ctx.add_instruction(Instruction::LoadCopy);
+        ctx.add_instruction(Instruction::IteratorComplete);
+        // done now in result, nextResult on top of stack.
+        ctx.add_instruction(Instruction::LoadStoreSwap);
+        // nextResult now in result, done on top of stack.
+
         // f. Let nextValue be ? IteratorValue(nextResult).
         ctx.add_instruction(Instruction::IteratorValue);
+        ctx.add_instruction(Instruction::LoadStoreSwap);
+        // done back in result, nextValue on top of stack.
+
+        // e. If done is true, return V.
+        let jump_to_done = ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+
+        // If done is not true, we want nextValue into result.
+        ctx.add_instruction(Instruction::Store);
+
         jump_to_done
     } else {
         // Note: IteratorStepValue performs all of the following steps without
@@ -356,21 +371,29 @@ fn for_in_of_body_evaluation<'s, 'gc>(
         // performed only when an abrupt completion (throw here) happens in the
         // stmt evaluation. But! UpdateEmpty is effectively only a stack pop
         // when result value exists, and in catch handling we _always_ have a
-        // result value. Thus, the UpdateEmpty here has zero effect except that
-        // it takes care of removing V from the stack, which would otherwise be
-        // leaked here.
-        ctx.add_instruction(Instruction::UpdateEmpty);
+        // result value. Thus, we just pop stack.
+        ctx.add_instruction(Instruction::PopStack);
         // i. Set the running execution context's LexicalEnvironment to oldEnv.
         // Note: the jump target has already returned to the old environment.
         match iteration_kind {
             // ii. If iteratorKind is ASYNC,
             IterationKind::AsyncIterate => {
                 // return ? AsyncIteratorClose(iteratorRecord, status).
+
+                // First load the thrown error onto the stack.
+                ctx.add_instruction(Instruction::Load);
+                // Then perform AsyncIteratorCloseWithError - it will return
+                // `true` if we can jump over Await.
                 ctx.add_instruction(Instruction::AsyncIteratorCloseWithError);
-                // If AsyncIteratorCloseWithError ends up performing an Await then
-                // it will have added the thrown error into the stack: we need to
-                // rethrow it manually.
-                ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+                let jump_over_await = ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+                // We have to Await the result and ignore any rejections.
+                let try_catch = ctx.enter_try_catch_block();
+                ctx.add_instruction(Instruction::Await);
+                let jump_to_error = try_catch.exit(ctx);
+
+                // Ignore error completely.
+                ctx.set_jump_target_here(jump_to_error);
+                ctx.set_jump_target_here(jump_over_await);
                 ctx.add_instruction(Instruction::Store);
             }
             // iii. If iterationKind is ENUMERATE, then
@@ -414,6 +437,11 @@ fn for_in_of_body_evaluation<'s, 'gc>(
     // d. Let done be ? IteratorComplete(nextResult).
     // e. If done is true, return V.
     ctx.set_jump_target_here(jump_to_done);
+    // Top of stack is nextResult, followed by V.
+    if iteration_kind == IterationKind::AsyncIterate {
+        // AsyncIterate comes here with an extra nextValue on the stack.
+        ctx.add_instruction(Instruction::PopStack);
+    }
     ctx.add_instruction(Instruction::Store);
     if let Some(jump_over_return_v) = jump_over_return_v {
         ctx.set_jump_target_here(jump_over_return_v);
