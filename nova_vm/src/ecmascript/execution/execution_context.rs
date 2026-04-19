@@ -5,7 +5,7 @@
 use super::{Agent, Environment, JsResult, PrivateEnvironment, Realm, get_this_environment};
 use crate::{
     ecmascript::{Function, Object, ScriptOrModule, SourceCode, Value},
-    engine::{Bindable, NoGcScope},
+    engine::{Bindable, Executable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -18,6 +18,10 @@ pub(crate) type ECMAScriptCode = ECMAScriptCodeEvaluationState;
 /// listed in Table 26.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ECMAScriptCodeEvaluationState {
+    /// Instruction pointer.
+    pub(crate) ip: usize,
+    /// Executable being evaluated.
+    pub(crate) executable: Executable<'static>,
     /// ### LexicalEnvironment
     ///
     /// Identifies the Environment Record used to resolve identifier references
@@ -97,12 +101,16 @@ impl ExecutionContext {
 impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
+            ip: _,
+            executable,
+            bytecode: _,
             lexical_environment,
             variable_environment,
             private_environment,
             is_strict_mode: _,
             source_code,
         } = self;
+        executable.mark_values(queues);
         lexical_environment.mark_values(queues);
         variable_environment.mark_values(queues);
         private_environment.mark_values(queues);
@@ -111,12 +119,16 @@ impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
+            ip: _,
+            executable,
+            bytecode: _,
             lexical_environment,
             variable_environment,
             private_environment,
             is_strict_mode: _,
             source_code,
         } = self;
+        executable.sweep_values(compactions);
         lexical_environment.sweep_values(compactions);
         variable_environment.sweep_values(compactions);
         private_environment.sweep_values(compactions);

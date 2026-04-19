@@ -40,8 +40,8 @@ use crate::{
         parse_script, script_evaluation, to_string, try_get_identifier_reference,
     },
     engine::{
-        Bindable, GcScope, Global, HeapRootCollection, HeapRootData, HeapRootRef, NoGcScope,
-        Rootable, Vm, bindable_handle,
+        Bindable, Executable, GcScope, Global, HeapRootCollection, HeapRootData, HeapRootRef,
+        NoGcScope, Rootable, Vm, bindable_handle,
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep,
@@ -50,7 +50,7 @@ use crate::{
     ndt,
 };
 
-use core::{any::Any, cell::RefCell, ops::ControlFlow, ptr::NonNull};
+use core::{any::Any, cell::RefCell, ops::ControlFlow};
 use std::collections::TryReserveError;
 
 /// Creation options for [`GcAgent`].
@@ -803,7 +803,6 @@ impl GcAgent {
         #[cfg(feature = "weak-refs")]
         clear_kept_objects(&mut self.agent);
         assert!(self.agent.execution_context_stack.is_empty());
-        assert!(self.agent.vm_stack.is_empty());
         self.agent.stack_refs.borrow_mut().clear();
         result
     }
@@ -822,7 +821,6 @@ impl GcAgent {
         #[cfg(feature = "weak-refs")]
         clear_kept_objects(&mut self.agent);
         assert!(self.agent.execution_context_stack.is_empty());
-        assert!(self.agent.vm_stack.is_empty());
         self.agent.stack_refs.borrow_mut().clear();
         result
     }
@@ -878,8 +876,6 @@ pub struct Agent {
     pub(crate) stack_refs: RefCell<Vec<HeapRootData>>,
     /// Temporary storage for on-stack heap root collections.
     pub(crate) stack_ref_collections: RefCell<Vec<HeapRootCollection>>,
-    /// Temporary storage for on-stack VMs.
-    pub(crate) vm_stack: Vec<NonNull<Vm>>,
     /// ### \[\[KeptAlive]]
     ///
     /// > Note: instead of storing objects in a list here, we only store a
@@ -894,6 +890,7 @@ pub struct Agent {
     /// \[\[AsyncEvaluationOrder]] field of modules that are asynchronous or
     /// have asynchronous dependencies.
     module_async_evaluation_count: u32,
+    pub(crate) vm: Vm,
 }
 
 impl Agent {
@@ -907,7 +904,7 @@ impl Agent {
             execution_context_stack: Vec::new(),
             stack_refs: RefCell::new(Vec::with_capacity(64)),
             stack_ref_collections: RefCell::new(Vec::with_capacity(32)),
-            vm_stack: Vec::with_capacity(16),
+            vm: Vm::default(),
             #[cfg(feature = "weak-refs")]
             kept_alive: false,
             private_names_counter: 0,
@@ -1062,6 +1059,20 @@ impl Agent {
         );
         self.pop_execution_context();
         result
+    }
+
+    /// Get the `Executable` currently being executed.
+    pub(crate) fn current_executable<'a>(&self, gc: NoGcScope<'a, '_>) -> Executable<'a> {
+        if let Some(exe) = self
+            .running_execution_context()
+            .ecmascript_code
+            .as_ref()
+            .map(|r| r.executable.bind(gc))
+        {
+            exe
+        } else {
+            panic_corrupted_agent();
+        }
     }
 
     /// Get current Realm's global environment.
@@ -1616,7 +1627,7 @@ impl HeapMarkAndSweep for Agent {
             execution_context_stack,
             stack_refs,
             stack_ref_collections,
-            vm_stack,
+            vm,
             options: _,
             symbol_id: _,
             global_symbol_registry,
@@ -1638,9 +1649,7 @@ impl HeapMarkAndSweep for Agent {
             .borrow()
             .iter()
             .for_each(|collection| collection.mark_values(queues));
-        vm_stack.iter().for_each(|vm_ptr| {
-            unsafe { vm_ptr.as_ref() }.mark_values(queues);
-        });
+        vm.mark_values(queues);
         global_symbol_registry.mark_values(queues);
         let mut last_filled_global_value = None;
         heap.globals
@@ -1667,7 +1676,7 @@ impl HeapMarkAndSweep for Agent {
             execution_context_stack,
             stack_refs,
             stack_ref_collections,
-            vm_stack,
+            vm,
             options: _,
             symbol_id: _,
             global_symbol_registry,
@@ -1689,9 +1698,7 @@ impl HeapMarkAndSweep for Agent {
             .borrow_mut()
             .iter_mut()
             .for_each(|entry| entry.sweep_values(compactions));
-        vm_stack
-            .iter_mut()
-            .for_each(|entry| unsafe { entry.as_mut().sweep_values(compactions) });
+        vm.sweep_values(compactions);
         global_symbol_registry.sweep_values(compactions);
     }
 }

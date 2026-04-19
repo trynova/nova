@@ -25,7 +25,7 @@ use crate::{
             iterator::VmIteratorRecord,
         },
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
+    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
 };
 
 #[derive(Debug)]
@@ -175,18 +175,6 @@ impl SuspendedVm {
 }
 
 impl Vm {
-    fn new() -> Self {
-        Self {
-            ip: 0,
-            stack: Vec::with_capacity(32),
-            reference_stack: Vec::new(),
-            iterator_stack: Vec::new(),
-            exception_handler_stack: Vec::new(),
-            result: None,
-            reference: None,
-        }
-    }
-
     fn suspend(self) -> SuspendedVm {
         SuspendedVm {
             ip: self.ip,
@@ -263,63 +251,55 @@ impl Vm {
         eprintln!();
     }
 
-    fn resume<'gc>(
-        mut self,
-        agent: &mut Agent,
-        executable: Scoped<Executable>,
-        value: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> ExecutionResult<'gc> {
-        self.result = Some(value.unbind());
-        self.inner_execute(agent, executable, gc)
+    fn resume<'gc>(agent: &mut Agent, value: Value, gc: GcScope<'gc, '_>) -> ExecutionResult<'gc> {
+        agent.vm.result = Some(value.unbind());
+        Vm::inner_execute(agent, gc)
     }
 
     fn resume_throw<'gc>(
-        mut self,
         agent: &mut Agent,
-        executable: Scoped<Executable>,
         err: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
         let err = err.bind(gc.nogc());
         let err = JsError::new(err.unbind());
-        if !self.handle_error(agent, err) {
+        if !Vm::handle_error(agent, err) {
             if agent.options.print_internals {
                 eprintln!("Exiting function with error\n");
             }
             return ExecutionResult::Throw(err);
         }
-        self.inner_execute(agent, executable, gc)
+        Vm::inner_execute(agent, gc)
     }
 
-    fn inner_execute<'gc>(
-        mut self,
-        agent: &mut Agent,
-        executable: Scoped<Executable>,
-        mut gc: GcScope<'gc, '_>,
-    ) -> ExecutionResult<'gc> {
+    fn inner_execute<'gc>(agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> ExecutionResult<'gc> {
+        // SAFETY: ugh.
+        let instructions = unsafe {
+            core::mem::transmute::<&[u8], &[u8]>(
+                &*agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .executable
+                    .get(agent)
+                    .instructions,
+            )
+        };
         let stack_depth = agent.stack_refs.borrow().len();
-        let instructions = executable.get_instructions(agent);
-        while let Some(instr) = Instr::consume_instruction(instructions, &mut self.ip) {
+        while let Some(instr) = Instr::consume_instruction(instructions, &mut agent.vm.ip) {
             if agent.check_gc() {
-                self.trigger_gc(agent, gc.reborrow());
+                agent.gc(gc.reborrow());
             }
             if agent.options.print_internals {
                 Self::print_executing(instr.kind);
             }
-            let result = Self::execute_instruction(
-                agent,
-                &mut self,
-                executable.clone(),
-                instr,
-                gc.reborrow(),
-            );
+            let result = Self::execute_instruction(agent, instr, gc.reborrow());
             match result {
                 Ok(ContinuationKind::Normal) => {}
                 // SAFETY: result is not Ok(ContinuationKind::Normal).
                 _ => unsafe {
-                    if let Some(r) = self.handle_execute_instruction_abnormal_result(agent, result)
-                    {
+                    if let Some(r) = Vm::handle_execute_instruction_abnormal_result(agent, result) {
                         return r.unbind().bind(gc.into_nogc());
                     }
                 },
@@ -336,7 +316,6 @@ impl Vm {
     #[inline(never)]
     #[cold]
     unsafe fn handle_execute_instruction_abnormal_result<'a>(
-        &mut self,
         agent: &mut Agent,
         result: JsResult<'a, ContinuationKind>,
     ) -> Option<ExecutionResult<'a>> {
@@ -347,16 +326,16 @@ impl Vm {
                 if agent.options.print_internals {
                     Self::print_exiting();
                 }
-                let result = self.result.unwrap_or(Value::Undefined);
+                let result = agent.vm.result.unwrap_or(Value::Undefined);
                 Some(ExecutionResult::Return(result))
             }
             Ok(ContinuationKind::Yield) => {
-                let yielded_value = self.result.take().unwrap();
+                let yielded_value = agent.vm.result.take().unwrap();
                 if agent.options.print_internals {
                     Self::print_yielding(yielded_value);
                 }
                 Some(ExecutionResult::Yield {
-                    vm: core::mem::take(self).suspend(),
+                    vm: core::mem::take(agent.vm).suspend(),
                     yielded_value,
                 })
             }
@@ -364,16 +343,16 @@ impl Vm {
                 if agent.options.print_internals {
                     Self::print_awaiting();
                 }
-                let Value::Promise(promise) = self.result.take().unwrap() else {
+                let Value::Promise(promise) = agent.vm.result.take().unwrap() else {
                     unreachable!()
                 };
                 Some(ExecutionResult::Await {
-                    vm: core::mem::take(self).suspend(),
+                    vm: core::mem::take(agent.vm).suspend(),
                     promise,
                 })
             }
             Err(err) => {
-                if !self.handle_error(agent, err) {
+                if !Vm::handle_error(agent, err) {
                     if agent.options.print_internals {
                         Self::print_exiting_with_error();
                     }
@@ -383,12 +362,6 @@ impl Vm {
                 }
             }
         }
-    }
-
-    #[inline(never)]
-    #[cold]
-    fn trigger_gc(&mut self, agent: &mut Agent, gc: GcScope) {
-        with_vm_gc(agent, self, |agent, gc| agent.gc(gc), gc);
     }
 
     #[inline(never)]
@@ -424,8 +397,8 @@ impl Vm {
     #[inline(never)]
     #[cold]
     #[must_use]
-    fn handle_error(&mut self, agent: &mut Agent, err: JsError) -> bool {
-        if let Some(handler) = self.exception_handler_stack.pop() {
+    fn handle_error(agent: &mut Agent, err: JsError) -> bool {
+        if let Some(handler) = agent.vm.exception_handler_stack.pop() {
             match handler {
                 ExceptionHandler::CatchBlock {
                     ip,
@@ -435,15 +408,15 @@ impl Vm {
                         eprintln!("Error: {:?}", err.value());
                         eprintln!("Jumping to catch block in {ip}\n");
                     }
-                    self.ip = ip as usize;
+                    agent.vm.ip = ip as usize;
                     agent.set_current_lexical_environment(lexical_environment);
-                    self.result = Some(err.value().unbind());
+                    agent.vm.result = Some(err.value().unbind());
                 }
                 ExceptionHandler::IgnoreErrorAndNextInstruction => {
                     if agent.options.print_internals {
-                        eprintln!("Ignoring throw error and skipping to {}\n", self.ip + 1);
+                        eprintln!("Ignoring throw error and skipping to {}\n", agent.vm.ip + 1);
                     }
-                    self.ip += 1;
+                    agent.vm.ip += 1;
                 }
             }
             true
@@ -454,38 +427,36 @@ impl Vm {
 
     fn execute_instruction<'a>(
         agent: &mut Agent,
-        vm: &mut Vm,
-        executable: Scoped<Executable>,
         instr: Instr,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ContinuationKind> {
         // Hot instructions; apply #[inline(always)] to the execute methods.
         match instr.kind {
             Instruction::Load => {
-                vm.execute_load();
+                agent.vm.execute_load();
             }
             Instruction::LoadCopy => {
-                vm.execute_load_copy();
+                agent.vm.execute_load_copy();
             }
             Instruction::PutValueToIndex => {
-                vm.execute_load_to_index(instr.get_first_index());
+                agent.vm.execute_load_to_index(instr.get_first_index());
             }
             Instruction::Store => {
-                vm.execute_store();
+                agent.vm.execute_store();
             }
             Instruction::GetValueFromIndex => {
-                vm.execute_store_from_index(instr.get_first_index());
+                agent.vm.execute_store_from_index(instr.get_first_index());
             }
             Instruction::StoreConstant => {
-                execute_store_constant(agent, vm, executable, instr, gc.into_nogc());
+                execute_store_constant(agent, instr, gc.into_nogc());
             }
             Instruction::PopStack => {
-                vm.execute_pop_stack();
+                agent.vm.execute_pop_stack();
             }
-            Instruction::Jump => execute_jump(agent, vm, instr),
-            Instruction::JumpIfNot => execute_jump_if_not(agent, vm, instr),
+            Instruction::Jump => execute_jump(agent, instr),
+            Instruction::JumpIfNot => execute_jump_if_not(agent, instr),
             Instruction::ResolveBinding => {
-                execute_resolve_binding(agent, vm, executable, instr, gc)?;
+                execute_resolve_binding(agent, instr, gc)?;
             }
             Instruction::GetValue
             | Instruction::GetValueWithCache
@@ -500,37 +471,31 @@ impl Vm {
                     Instruction::GetValueKeepReference
                         | Instruction::GetValueWithCacheKeepReference
                 );
-                execute_get_value(agent, vm, executable, instr, cache, keep_reference, gc)?
+                execute_get_value(agent, instr, cache, keep_reference, gc)?
             }
             Instruction::PutValue | Instruction::PutValueWithCache => {
                 let cache = matches!(instr.kind, Instruction::PutValueWithCache);
-                execute_put_value(agent, vm, executable, instr, cache, gc)?
+                execute_put_value(agent, instr, cache, gc)?
             }
-            Instruction::ToNumeric => execute_to_numeric(agent, vm, gc)?,
+            Instruction::ToNumeric => execute_to_numeric(agent, gc)?,
             Instruction::CreateImmutableBinding => {
-                execute_create_immutable_binding(agent, executable, instr, gc.into_nogc())
+                execute_create_immutable_binding(agent, instr, gc.into_nogc())
             }
             Instruction::CreateMutableBinding => {
-                execute_create_mutable_binding(agent, executable, instr, gc.into_nogc())
+                execute_create_mutable_binding(agent, instr, gc.into_nogc())
             }
             Instruction::InitializeReferencedBinding => {
-                execute_initialize_referenced_binding(agent, vm, gc.into_nogc())
+                execute_initialize_referenced_binding(agent, gc.into_nogc())
             }
-            Instruction::PushReference => vm.execute_push_reference(),
-            Instruction::PopReference => vm.execute_pop_reference(),
+            Instruction::PushReference => agent.vm.execute_push_reference(),
+            Instruction::PopReference => agent.vm.execute_pop_reference(),
             Instruction::EvaluatePropertyAccessWithIdentifierKey => {
-                execute_evaluate_property_access_with_identifier_key(
-                    agent,
-                    vm,
-                    executable,
-                    instr,
-                    gc.into_nogc(),
-                )
+                execute_evaluate_property_access_with_identifier_key(agent, instr, gc.into_nogc())
             }
             Instruction::EvaluatePropertyAccessWithExpressionKey => {
-                execute_evaluate_property_access_with_expression_key(agent, vm, gc.into_nogc())
+                execute_evaluate_property_access_with_expression_key(agent, gc.into_nogc())
             }
-            _ => return Self::execute_cold_instruction(agent, vm, executable, instr, gc),
+            _ => return Self::execute_cold_instruction(agent, instr, gc),
         }
 
         Ok(ContinuationKind::Normal)
@@ -539,8 +504,6 @@ impl Vm {
     #[inline(never)]
     fn execute_cold_instruction<'a>(
         agent: &mut Agent,
-        vm: &mut Vm,
-        executable: Scoped<Executable>,
         instr: Instr,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ContinuationKind> {
@@ -573,28 +536,26 @@ impl Vm {
             }
             Instruction::Return => return Ok(ContinuationKind::Return),
             Instruction::Await => {
-                execute_await_promise_resolve(agent, vm, gc)?;
+                execute_await_promise_resolve(agent, gc)?;
                 return Ok(ContinuationKind::Await);
             }
             Instruction::Yield => return Ok(ContinuationKind::Yield),
-            Instruction::IsStrictlyEqual => execute_is_strictly_equal(agent, vm, gc.into_nogc()),
-            Instruction::IsNullOrUndefined => vm.execute_is_null_or_undefined(),
-            Instruction::IsNull => vm.execute_is_null(),
-            Instruction::IsUndefined => vm.execute_is_undefined(),
-            Instruction::IsObject => vm.execute_is_object(),
-            Instruction::IsConstructor => execute_is_constructor(agent, vm),
-            Instruction::JumpIfTrue => execute_jump_if_true(agent, vm, instr),
-            Instruction::LoadReplace => vm.execute_load_replace(),
-            Instruction::LoadConstant => {
-                execute_load_constant(agent, vm, executable, instr, gc.into_nogc())
-            }
-            Instruction::LoadStoreSwap => vm.execute_load_store_swap(),
-            Instruction::UpdateEmpty => vm.execute_update_empty(),
-            Instruction::Swap => vm.execute_swap(),
-            Instruction::Empty => vm.execute_empty(),
-            Instruction::LogicalNot => execute_logical_not(agent, vm),
+            Instruction::IsStrictlyEqual => execute_is_strictly_equal(agent, gc.into_nogc()),
+            Instruction::IsNullOrUndefined => agent.vm.execute_is_null_or_undefined(),
+            Instruction::IsNull => agent.vm.execute_is_null(),
+            Instruction::IsUndefined => agent.vm.execute_is_undefined(),
+            Instruction::IsObject => agent.vm.execute_is_object(),
+            Instruction::IsConstructor => execute_is_constructor(agent),
+            Instruction::JumpIfTrue => execute_jump_if_true(agent, instr),
+            Instruction::LoadReplace => agent.vm.execute_load_replace(),
+            Instruction::LoadConstant => execute_load_constant(agent, instr, gc.into_nogc()),
+            Instruction::LoadStoreSwap => agent.vm.execute_load_store_swap(),
+            Instruction::UpdateEmpty => agent.vm.execute_update_empty(),
+            Instruction::Swap => agent.vm.execute_swap(),
+            Instruction::Empty => agent.vm.execute_empty(),
+            Instruction::LogicalNot => execute_logical_not(agent),
             Instruction::ApplyAdditionBinaryOperator => {
-                execute_apply_addition_binary_operator(agent, vm, gc)?
+                execute_apply_addition_binary_operator(agent, gc)?
             }
             Instruction::ApplySubtractionBinaryOperator
             | Instruction::ApplyMultiplicationBinaryOperator
@@ -607,121 +568,105 @@ impl Vm {
             | Instruction::ApplyBitwiseORBinaryOperator
             | Instruction::ApplyBitwiseXORBinaryOperator
             | Instruction::ApplyBitwiseAndBinaryOperator => {
-                execute_apply_binary_operator(agent, vm, instr.kind, gc)?
+                execute_apply_binary_operator(agent, instr.kind, gc)?
             }
-            Instruction::ArrayCreate => execute_array_create(agent, vm, instr, gc.into_nogc())?,
-            Instruction::ArrayPush => execute_array_push(agent, vm, gc)?,
-            Instruction::ArrayElision => execute_array_elision(agent, vm, gc)?,
-            Instruction::BitwiseNot => execute_bitwise_not(agent, vm, gc.into_nogc())?,
+            Instruction::ArrayCreate => execute_array_create(agent, instr, gc.into_nogc())?,
+            Instruction::ArrayPush => execute_array_push(agent, gc)?,
+            Instruction::ArrayElision => execute_array_elision(agent, gc)?,
+            Instruction::BitwiseNot => execute_bitwise_not(agent, gc.into_nogc())?,
             Instruction::CreateUnmappedArgumentsObject => {
-                execute_create_unmapped_arguments_object(agent, vm, gc.into_nogc())?
+                execute_create_unmapped_arguments_object(agent, gc.into_nogc())?
             }
-            Instruction::CopyDataProperties => execute_copy_data_properties(agent, vm, gc)?,
+            Instruction::CopyDataProperties => execute_copy_data_properties(agent, gc)?,
             Instruction::CopyDataPropertiesIntoObject => {
-                execute_copy_data_properties_into_object(agent, vm, instr, gc)?
+                execute_copy_data_properties_into_object(agent, instr, gc)?
             }
-            Instruction::Delete => execute_delete(agent, vm, gc)?,
-            Instruction::DirectEvalCall => execute_direct_eval_call(agent, vm, instr, gc)?,
-            Instruction::EvaluateCall => execute_evaluate_call(agent, vm, instr, gc)?,
-            Instruction::EvaluateNew => execute_evaluate_new(agent, vm, instr, gc)?,
-            Instruction::EvaluateSuper => execute_evaluate_super(agent, vm, instr, gc)?,
+            Instruction::Delete => execute_delete(agent, gc)?,
+            Instruction::DirectEvalCall => execute_direct_eval_call(agent, instr, gc)?,
+            Instruction::EvaluateCall => execute_evaluate_call(agent, instr, gc)?,
+            Instruction::EvaluateNew => execute_evaluate_new(agent, instr, gc)?,
+            Instruction::EvaluateSuper => execute_evaluate_super(agent, instr, gc)?,
             Instruction::MakePrivateReference => {
-                execute_make_private_reference(agent, vm, executable, instr, gc.into_nogc())
+                execute_make_private_reference(agent, instr, gc.into_nogc())
             }
             Instruction::MakeSuperPropertyReferenceWithExpressionKey => {
-                execute_make_super_property_reference_with_expression_key(
-                    agent,
-                    vm,
-                    gc.into_nogc(),
-                )?
+                execute_make_super_property_reference_with_expression_key(agent, gc.into_nogc())?
             }
             Instruction::MakeSuperPropertyReferenceWithIdentifierKey => {
                 execute_make_super_property_reference_with_identifier_key(
                     agent,
-                    vm,
-                    executable,
                     instr,
                     gc.into_nogc(),
                 )?
             }
-            Instruction::GreaterThan => execute_greater_than(agent, vm, gc)?,
-            Instruction::GreaterThanEquals => execute_greater_than_equals(agent, vm, gc)?,
-            Instruction::HasProperty => execute_has_property(agent, vm, gc)?,
-            Instruction::HasPrivateElement => {
-                execute_has_private_element(agent, vm, gc.into_nogc())?
-            }
-            Instruction::Increment => execute_increment(agent, vm, gc.into_nogc()),
-            Instruction::Decrement => execute_decrement(agent, vm, gc.into_nogc()),
-            Instruction::InstanceofOperator => execute_instanceof_operator(agent, vm, gc)?,
+            Instruction::GreaterThan => execute_greater_than(agent, gc)?,
+            Instruction::GreaterThanEquals => execute_greater_than_equals(agent, gc)?,
+            Instruction::HasProperty => execute_has_property(agent, gc)?,
+            Instruction::HasPrivateElement => execute_has_private_element(agent, gc.into_nogc())?,
+            Instruction::Increment => execute_increment(agent, gc.into_nogc()),
+            Instruction::Decrement => execute_decrement(agent, gc.into_nogc()),
+            Instruction::InstanceofOperator => execute_instanceof_operator(agent, gc)?,
             Instruction::InstantiateArrowFunctionExpression => {
-                execute_instantiate_arrow_function_expression(agent, vm, executable, instr, gc)?
+                execute_instantiate_arrow_function_expression(agent, instr, gc)?
             }
             Instruction::InstantiateOrdinaryFunctionExpression => {
-                execute_instantiate_ordinary_function_expression(agent, vm, executable, instr, gc)?
+                execute_instantiate_ordinary_function_expression(agent, instr, gc)?
             }
             Instruction::ClassDefineConstructor => {
-                execute_class_define_constructor(agent, vm, executable, instr, gc)?
+                execute_class_define_constructor(agent, instr, gc)?
             }
             Instruction::ClassDefineDefaultConstructor => {
-                execute_class_define_default_constructor(agent, vm, executable, instr, gc)?
+                execute_class_define_default_constructor(agent, instr, gc)?
             }
             Instruction::ClassDefinePrivateMethod => {
-                execute_class_define_private_method(agent, vm, executable, instr, gc)?
+                execute_class_define_private_method(agent, instr, gc)?
             }
             Instruction::ClassDefinePrivateProperty => {
-                execute_class_define_private_property(agent, vm, executable, instr, gc.into_nogc())?
+                execute_class_define_private_property(agent, instr, gc.into_nogc())?
             }
             Instruction::ClassInitializePrivateElements => {
-                execute_class_initialize_private_elements(agent, vm, gc.into_nogc())?
+                execute_class_initialize_private_elements(agent, gc.into_nogc())?
             }
             Instruction::ClassInitializePrivateValue => {
-                execute_class_initialize_private_value(agent, vm, instr, gc.into_nogc())?
+                execute_class_initialize_private_value(agent, instr, gc.into_nogc())?
             }
-            Instruction::LessThan => execute_less_than(agent, vm, gc)?,
-            Instruction::LessThanEquals => execute_less_than_equals(agent, vm, gc)?,
-            Instruction::IsLooselyEqual => execute_is_loosely_equal(agent, vm, gc)?,
-            Instruction::ObjectCreate => execute_object_create(agent, vm, gc.into_nogc()),
+            Instruction::LessThan => execute_less_than(agent, gc)?,
+            Instruction::LessThanEquals => execute_less_than_equals(agent, gc)?,
+            Instruction::IsLooselyEqual => execute_is_loosely_equal(agent, gc)?,
+            Instruction::ObjectCreate => execute_object_create(agent, gc.into_nogc()),
             Instruction::ObjectCreateWithShape => {
-                execute_object_create_with_shape(agent, vm, executable, instr, gc.into_nogc())
+                execute_object_create_with_shape(agent, instr, gc.into_nogc())
             }
-            Instruction::ObjectDefineProperty => execute_object_define_property(agent, vm, gc)?,
-            Instruction::ObjectDefineMethod => {
-                execute_object_define_method(agent, vm, executable, instr, gc)?
-            }
-            Instruction::ObjectDefineGetter => {
-                execute_object_define_getter(agent, vm, executable, instr, gc)?
-            }
-            Instruction::ObjectDefineSetter => {
-                execute_object_define_setter(agent, vm, executable, instr, gc)?
-            }
-            Instruction::ObjectSetPrototype => execute_object_set_prototype(agent, vm, gc)?,
-            Instruction::PopExceptionJumpTarget => vm.execute_pop_exception_jump_target(),
+            Instruction::ObjectDefineProperty => execute_object_define_property(agent, gc)?,
+            Instruction::ObjectDefineMethod => execute_object_define_method(agent, instr, gc)?,
+            Instruction::ObjectDefineGetter => execute_object_define_getter(agent, instr, gc)?,
+            Instruction::ObjectDefineSetter => execute_object_define_setter(agent, instr, gc)?,
+            Instruction::ObjectSetPrototype => execute_object_set_prototype(agent, gc)?,
+            Instruction::PopExceptionJumpTarget => agent.vm.execute_pop_exception_jump_target(),
             Instruction::PushExceptionJumpTarget => {
-                execute_push_exception_jump_target(agent, vm, instr, gc.into_nogc())
+                execute_push_exception_jump_target(agent, instr, gc.into_nogc())
             }
-            Instruction::TruncateStack => vm.stack.truncate(instr.get_first_arg() as usize),
+            Instruction::TruncateStack => agent.vm.stack.truncate(instr.get_first_arg() as usize),
             Instruction::ResolveBindingWithCache => {
-                execute_resolve_binding_with_cache(agent, vm, executable, instr, gc)?
+                execute_resolve_binding_with_cache(agent, instr, gc)?
             }
-            Instruction::ResolveThisBinding => {
-                execute_resolve_this_binding(agent, vm, gc.into_nogc())?
-            }
-            Instruction::StoreCopy => vm.execute_store_copy(),
-            Instruction::StringConcat => execute_string_concat(agent, vm, instr, gc)?,
-            Instruction::Throw => vm.execute_throw(gc.into_nogc())?,
-            Instruction::ThrowError => execute_throw_error(agent, vm, instr, gc.into_nogc())?,
-            Instruction::ToNumber => execute_to_number(agent, vm, gc)?,
-            Instruction::ToObject => execute_to_object(agent, vm, gc.into_nogc())?,
-            Instruction::Typeof => execute_typeof(agent, vm, gc)?,
-            Instruction::UnaryMinus => execute_unary_minus(agent, vm, gc.into_nogc()),
+            Instruction::ResolveThisBinding => execute_resolve_this_binding(agent, gc.into_nogc())?,
+            Instruction::StoreCopy => agent.vm.execute_store_copy(),
+            Instruction::StringConcat => execute_string_concat(agent, instr, gc)?,
+            Instruction::Throw => agent.vm.execute_throw(gc.into_nogc())?,
+            Instruction::ThrowError => execute_throw_error(agent, instr, gc.into_nogc())?,
+            Instruction::ToNumber => execute_to_number(agent, gc)?,
+            Instruction::ToObject => execute_to_object(agent, gc.into_nogc())?,
+            Instruction::Typeof => execute_typeof(agent, gc)?,
+            Instruction::UnaryMinus => execute_unary_minus(agent, gc.into_nogc()),
             Instruction::InitializeVariableEnvironment => {
-                execute_initialize_variable_environment(agent, vm, instr, gc.into_nogc())
+                execute_initialize_variable_environment(agent, instr, gc.into_nogc())
             }
             Instruction::EnterDeclarativeEnvironment => {
                 execute_enter_declarative_environment(agent, gc.into_nogc())
             }
             Instruction::EnterClassStaticElementEnvironment => {
-                execute_enter_class_static_element_environment(agent, vm, gc.into_nogc())
+                execute_enter_class_static_element_environment(agent, gc.into_nogc())
             }
             Instruction::EnterPrivateEnvironment => {
                 execute_enter_private_environment(agent, instr, gc.into_nogc())
@@ -736,10 +681,10 @@ impl Vm {
                 execute_exit_private_environment(agent, gc.into_nogc())
             }
             Instruction::BeginSimpleObjectBindingPattern => {
-                execute_begin_simple_object_binding_pattern(agent, vm, executable, instr, gc)?
+                execute_begin_simple_object_binding_pattern(agent, instr, gc)?
             }
             Instruction::BeginSimpleArrayBindingPattern => {
-                execute_begin_simple_array_binding_pattern(agent, vm, executable, instr, gc)?
+                execute_begin_simple_array_binding_pattern(agent, instr, gc)?
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindNamed
@@ -752,44 +697,40 @@ impl Vm {
             | Instruction::BindingPatternGetRestValue
             | Instruction::FinishBindingPattern => execute_binding_pattern(),
             Instruction::EnumerateObjectProperties => {
-                execute_enumerate_object_properties(agent, vm, gc.into_nogc())
+                execute_enumerate_object_properties(agent, gc.into_nogc())
             }
-            Instruction::GetIteratorSync => execute_get_iterator_sync(agent, vm, gc)?,
-            Instruction::GetIteratorAsync => execute_get_iterator_async(agent, vm, gc)?,
-            Instruction::IteratorStepValue => execute_iterator_step_value(agent, vm, instr, gc)?,
+            Instruction::GetIteratorSync => execute_get_iterator_sync(agent, gc)?,
+            Instruction::GetIteratorAsync => execute_get_iterator_async(agent, gc)?,
+            Instruction::IteratorStepValue => execute_iterator_step_value(agent, instr, gc)?,
             Instruction::IteratorStepValueOrUndefined => {
-                execute_iterator_step_value_or_undefined(agent, vm, gc)?
+                execute_iterator_step_value_or_undefined(agent, gc)?
             }
-            Instruction::IteratorCallNextMethod => {
-                execute_iterator_call_next_method(agent, vm, gc)?
-            }
-            Instruction::IteratorComplete => execute_iterator_complete(agent, vm, instr, gc)?,
-            Instruction::IteratorValue => execute_iterator_value(agent, vm, gc)?,
-            Instruction::IteratorThrow => execute_iterator_throw(agent, vm, instr, gc)?,
-            Instruction::IteratorReturn => execute_iterator_return(agent, vm, instr, gc)?,
-            Instruction::IteratorRestIntoArray => execute_iterator_rest_into_array(agent, vm, gc)?,
-            Instruction::IteratorClose => execute_iterator_close(agent, vm, gc)?,
+            Instruction::IteratorCallNextMethod => execute_iterator_call_next_method(agent, gc)?,
+            Instruction::IteratorComplete => execute_iterator_complete(agent, instr, gc)?,
+            Instruction::IteratorValue => execute_iterator_value(agent, gc)?,
+            Instruction::IteratorThrow => execute_iterator_throw(agent, instr, gc)?,
+            Instruction::IteratorReturn => execute_iterator_return(agent, instr, gc)?,
+            Instruction::IteratorRestIntoArray => execute_iterator_rest_into_array(agent, gc)?,
+            Instruction::IteratorClose => execute_iterator_close(agent, gc)?,
             Instruction::AsyncIteratorClose => {
-                if execute_async_iterator_close(agent, vm, gc)? {
+                if execute_async_iterator_close(agent, gc)? {
                     return Ok(ContinuationKind::Await);
                 }
             }
-            Instruction::IteratorCloseWithError => execute_iterator_close_with_error(agent, vm, gc),
+            Instruction::IteratorCloseWithError => execute_iterator_close_with_error(agent, gc),
             Instruction::AsyncIteratorCloseWithError => {
-                if execute_async_iterator_close_with_error(agent, vm, gc) {
+                if execute_async_iterator_close_with_error(agent, gc) {
                     return Ok(ContinuationKind::Await);
                 }
             }
             Instruction::IteratorPop => {
-                let _ = vm.pop_iterator(gc.into_nogc());
+                let _ = agent.vm.pop_iterator(gc.into_nogc());
             }
-            Instruction::GetNewTarget => execute_get_new_target(agent, vm, gc.into_nogc()),
-            Instruction::ImportCall => execute_import_call(agent, vm, gc),
-            Instruction::ImportMeta => execute_import_meta(agent, vm, gc.into_nogc()),
-            Instruction::VerifyIsObject => {
-                execute_verify_is_object(agent, vm, executable, instr, gc.into_nogc())?
-            }
-            Instruction::Debug => execute_debug(agent, vm),
+            Instruction::GetNewTarget => execute_get_new_target(agent, gc.into_nogc()),
+            Instruction::ImportCall => execute_import_call(agent, gc),
+            Instruction::ImportMeta => execute_import_meta(agent, gc.into_nogc()),
+            Instruction::VerifyIsObject => execute_verify_is_object(agent, instr, gc.into_nogc())?,
+            Instruction::Debug => execute_debug(agent),
         };
         Ok(ContinuationKind::Normal)
     }
@@ -1422,21 +1363,6 @@ pub(crate) fn instanceof_operator<'a, 'b>(
     }
 }
 
-#[inline(always)]
-fn with_vm_gc<'a, 'b, R: 'a>(
-    agent: &mut Agent,
-    vm: &mut Vm,
-    work: impl FnOnce(&mut Agent, GcScope<'a, 'b>) -> R,
-    gc: GcScope<'a, 'b>,
-) -> R {
-    let vm = NonNull::from(vm);
-    agent.vm_stack.push(vm);
-    let result = work(agent, gc);
-    let return_vm = agent.vm_stack.pop().unwrap();
-    assert_eq!(vm, return_vm, "VM Stack was misused");
-    result
-}
-
 impl HeapMarkAndSweep for ExceptionHandler<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
@@ -1537,7 +1463,6 @@ impl HeapMarkAndSweep for SuspendedVm {
 /// function name and returns it.
 fn set_class_name<'a>(
     agent: &mut Agent,
-    vm: &mut Vm,
     name: Value,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, String<'a>> {
@@ -1559,18 +1484,13 @@ fn set_class_name<'a>(
         // 3. Return ? ToPropertyKey(propName).
         let prop_key = {
             let name = name.unbind();
-            with_vm_gc(
-                agent,
-                vm,
-                |agent, gc| to_property_key(agent, name, gc),
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc())
+            to_property_key(agent, name, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc())
         };
 
         let name = prop_key.convert_to_value(agent, gc.nogc());
-        set_class_name(agent, vm, name.unbind().into(), gc)
+        set_class_name(agent, name.unbind().into(), gc)
     }
 }
 
