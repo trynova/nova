@@ -4,8 +4,8 @@
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter, JsResult,
-        PropertyKey, Realm, String, Value,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
+        ExceptionType, JsResult, PropertyKey, Realm, String, Value,
         builders::OrdinaryObjectBuilder,
         builtins::temporal::plain_time::{
             add_duration_to_time, require_internal_slot_temporal_plain_time,
@@ -88,6 +88,13 @@ impl Builtin for TemporalPlainTimePrototypeSubtract {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.subtract;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::subtract);
+}
+
+struct TemporalPlainTimePrototypeValueOf;
+impl Builtin for TemporalPlainTimePrototypeValueOf {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::value_of);
 }
 
 impl TemporalPlainTimePrototype {
@@ -228,6 +235,21 @@ impl TemporalPlainTimePrototype {
             .map(Value::from)
     }
 
+    /// ### [4.3.19 Temporal.PlainTime.prototype.valueOf](https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.valueof)
+    fn value_of<'gc>(
+        agent: &mut Agent,
+        _: Value,
+        _: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        // 1. Throw a TypeError exception.
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "can't convert PlainTime to primitive type. Use PlainTime.prototype.equals() or PlainTime.compare() instead.",
+            gc.into_nogc(),
+        ))
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: Realm<'static>, _: NoGcScope) {
         let intrinsics = agent.get_realm_record_by_id(realm).intrinsics();
         let this = intrinsics.temporal_plain_time_prototype();
@@ -235,7 +257,7 @@ impl TemporalPlainTimePrototype {
         let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(10)
+            .with_property_capacity(11)
             .with_prototype(object_prototype)
             .with_constructor_property(plain_time_constructor)
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetHour>()
@@ -246,6 +268,7 @@ impl TemporalPlainTimePrototype {
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetMillisecond>()
             .with_builtin_function_property::<TemporalPlainTimePrototypeAdd>()
             .with_builtin_function_property::<TemporalPlainTimePrototypeSubtract>()
+            .with_builtin_function_property::<TemporalPlainTimePrototypeValueOf>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbols::ToStringTag.into())
