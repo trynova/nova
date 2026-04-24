@@ -28,11 +28,11 @@ pub(super) fn execute_simple_array_binding<'a>(
     loop {
         let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
         if agent.options.print_internals {
-            eprintln!("Executing: {:?}", instr.kind);
+            eprintln!("Executing: {:?}", *instr.kind());
         }
         let mut break_after_bind = false;
 
-        let value = match instr.kind {
+        let value = match instr.kind() {
             Instruction::Debug => {
                 if agent.options.print_internals {
                     eprintln!("Debug: {vm:#?}");
@@ -118,7 +118,7 @@ pub(super) fn execute_simple_array_binding<'a>(
             }
         };
 
-        match instr.kind {
+        match instr.kind() {
             Instruction::BindingPatternSkip => {
                 if break_after_bind {
                     break;
@@ -237,9 +237,9 @@ pub(super) fn execute_simple_object_binding<'a>(
     loop {
         let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
         if agent.options.print_internals {
-            eprintln!("Executing: {:?}", instr.kind);
+            eprintln!("Executing: {:?}", instr.kind());
         }
-        match instr.kind {
+        match instr.kind() {
             Instruction::Debug => {
                 if agent.options.print_internals {
                     eprintln!("Debug: {vm:#?}");
@@ -252,7 +252,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                     |agent, mut gc| {
                         let binding_id =
                             executable.fetch_identifier(agent, instr.get_first_index(), gc.nogc());
-                        let property_key = if instr.kind == Instruction::BindingPatternBind {
+                        let property_key = if *instr.kind() == Instruction::BindingPatternBind {
                             binding_id.into()
                         } else {
                             let key_value = executable.fetch_constant(
@@ -438,9 +438,9 @@ pub(super) fn execute_nested_simple_binding<'a>(
 ) -> JsResult<'a, ()> {
     let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
     if agent.options.print_internals {
-        eprintln!("Executing: {:?}", instr.kind);
+        eprintln!("Executing: {:?}", instr.kind());
     }
-    match instr.kind {
+    match instr.kind() {
         Instruction::BeginSimpleArrayBindingPattern => {
             let result = with_vm_gc(
                 agent,
