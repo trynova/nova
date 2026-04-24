@@ -4196,8 +4196,6 @@
   "built-ins/Temporal/PlainTime/prototype/until/smallestunit-wrong-type.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/until/year-zero.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/valueOf/basic.js": "FAIL",
-  "built-ins/Temporal/PlainTime/prototype/valueOf/branding.js": "FAIL",
-  "built-ins/Temporal/PlainTime/prototype/valueOf/prop-desc.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/with/argument-not-object.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/with/basic.js": "FAIL",
   "built-ins/Temporal/PlainTime/prototype/with/branding.js": "FAIL",
