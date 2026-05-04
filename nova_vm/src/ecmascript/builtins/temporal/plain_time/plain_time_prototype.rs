@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use temporal_rs::options::ToStringRoundingOptions;
+
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
@@ -10,6 +12,7 @@ use crate::{
         builtins::temporal::plain_time::{
             add_duration_to_time, require_internal_slot_temporal_plain_time,
         },
+        temporal_err_to_js_err,
     },
     engine::{Bindable, GcScope, NoGcScope},
     heap::WellKnownSymbols,
@@ -88,6 +91,13 @@ impl Builtin for TemporalPlainTimePrototypeSubtract {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.subtract;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::subtract);
+}
+
+struct TemporalPlainTimePrototypeToJSON;
+impl Builtin for TemporalPlainTimePrototypeToJSON {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toJSON;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(TemporalPlainTimePrototype::to_json);
 }
 
 struct TemporalPlainTimePrototypeValueOf;
@@ -235,6 +245,28 @@ impl TemporalPlainTimePrototype {
             .map(Value::from)
     }
 
+    /// ### [4.3.18 Temporal.PlainTime.prototype.toJSON ( )](https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.tojson)
+    fn to_json<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        _args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
+        // 1. Let plainTime be the this value.
+        let value = this_value.bind(gc);
+        // 2. Perform ? RequireInternalSlot(plainTime, [[InitializedTemporalTime]]).
+        let instant = require_internal_slot_temporal_plain_time(agent, value.unbind(), gc)
+            .unbind()?
+            .bind(gc);
+        // 3. Return TimeRecordToString(plainTime.[[Time]], auto).
+        let options: ToStringRoundingOptions = ToStringRoundingOptions::default();
+        match instant.inner_plain_time(agent).to_ixdtf_string(options) {
+            Ok(string) => Ok(Value::from_string(agent, string, gc.into_nogc())),
+            Err(err) => Err(temporal_err_to_js_err(agent, err, gc.into_nogc())),
+        }
+    }
+
     /// ### [4.3.19 Temporal.PlainTime.prototype.valueOf](https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.valueof)
     fn value_of<'gc>(
         agent: &mut Agent,
@@ -257,7 +289,7 @@ impl TemporalPlainTimePrototype {
         let plain_time_constructor = intrinsics.temporal_plain_time();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(11)
+            .with_property_capacity(12)
             .with_prototype(object_prototype)
             .with_constructor_property(plain_time_constructor)
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetHour>()
@@ -268,6 +300,7 @@ impl TemporalPlainTimePrototype {
             .with_builtin_function_getter_property::<TemporalPlainTimePrototypeGetMillisecond>()
             .with_builtin_function_property::<TemporalPlainTimePrototypeAdd>()
             .with_builtin_function_property::<TemporalPlainTimePrototypeSubtract>()
+            .with_builtin_function_property::<TemporalPlainTimePrototypeToJSON>()
             .with_builtin_function_property::<TemporalPlainTimePrototypeValueOf>()
             .with_property(|builder| {
                 builder
