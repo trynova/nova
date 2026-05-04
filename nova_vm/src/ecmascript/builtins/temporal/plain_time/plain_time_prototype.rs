@@ -252,12 +252,13 @@ impl TemporalPlainTimePrototype {
         _args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        let gc = gc.into_nogc();
         // 1. Let plainTime be the this value.
-        let value = this_value.bind(gc.nogc());
+        let value = this_value.bind(gc);
         // 2. Perform ? RequireInternalSlot(plainTime, [[InitializedTemporalTime]]).
-        let instant = require_internal_slot_temporal_plain_time(agent, value.unbind(), gc.nogc())
+        let instant = require_internal_slot_temporal_plain_time(agent, value.unbind(), gc)
             .unbind()?
-            .bind(gc.nogc());
+            .bind(gc);
         // 3. Return TimeRecordToString(plainTime.[[Time]], auto).
         let options: ToStringRoundingOptions = ToStringRoundingOptions::default();
         match instant.inner_plain_time(agent).to_ixdtf_string(options) {
