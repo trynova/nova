@@ -315,22 +315,7 @@ impl TemporalPlainTimePrototype {
             };
 
         // 8. Perform ? ValidateTemporalUnitValue(smallestUnit, time).
-        if !smallest_unit.is_none_or(|su| su.is_time_unit()) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "smallestUnit is not a valid time unit",
-                gc.into_nogc(),
-            ));
-        }
         // 9. If smallestUnit is hour, throw a RangeError exception.
-        if smallest_unit == Some(Unit::Hour) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "smallestUnit is hour",
-                gc.into_nogc(),
-            ));
-        }
-
         // 10. Let precision be ToSecondsStringPrecisionRecord(smallestUnit, digits).
         // 11. Let roundResult be RoundTime(plainTime.[[Time]], precision.[[Increment]], precision.[[Unit]], roundingMode).
         let options = ToStringRoundingOptions {
