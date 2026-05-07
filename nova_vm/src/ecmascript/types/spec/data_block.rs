@@ -478,14 +478,6 @@ impl WaiterRecord {
     }
 }
 
-/// Result of an `Atomics.wait` or `Atomics.waitAsync` operation.
-#[derive(Debug)]
-#[cfg(feature = "shared-array-buffer")]
-pub(crate) enum WaitResult {
-    Ok,
-    TimedOut,
-}
-
 #[cfg(feature = "shared-array-buffer")]
 #[derive(Default)]
 #[repr(transparent)]
