@@ -10,7 +10,7 @@ use std::{
     collections::VecDeque,
     sync::{atomic::AtomicBool, mpsc},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use nova_vm::ecmascript::{HostHooks, Job};
@@ -19,7 +19,7 @@ use crate::{ChildToHostMessage, HostToChildMessage};
 
 pub struct CliChildHooks {
     promise_job_queue: RefCell<VecDeque<Job>>,
-    macrotask_queue: RefCell<Vec<Job>>,
+    macrotask_queue: RefCell<Vec<(Option<Instant>, Job)>>,
     pub(crate) receiver: mpsc::Receiver<HostToChildMessage>,
     pub(crate) host_sender: mpsc::SyncSender<ChildToHostMessage>,
     ready_to_leave: AtomicBool,
@@ -78,9 +78,11 @@ impl CliChildHooks {
         let mut counter = 0u8;
         while !off_thread_job_queue.is_empty() {
             counter = counter.wrapping_add(1);
-            for (i, job) in off_thread_job_queue.iter().enumerate() {
-                if job.is_finished() {
-                    let job = off_thread_job_queue.swap_remove(i);
+            let now = Instant::now();
+            for (i, (deadline, job)) in off_thread_job_queue.iter().enumerate() {
+                let deadline_reached = deadline.map_or(true, |d| now >= d);
+                if deadline_reached && job.is_finished() {
+                    let (_, job) = off_thread_job_queue.swap_remove(i);
                     return Some(job);
                 }
             }
@@ -96,14 +98,19 @@ impl CliChildHooks {
 
 impl HostHooks for CliChildHooks {
     fn enqueue_generic_job(&self, job: Job) {
-        self.macrotask_queue.borrow_mut().push(job);
+        self.macrotask_queue.borrow_mut().push((None, job));
     }
 
     fn enqueue_promise_job(&self, job: Job) {
         self.promise_job_queue.borrow_mut().push_back(job);
     }
 
-    fn enqueue_timeout_job(&self, _timeout_job: Job, _milliseconds: u64) {}
+    fn enqueue_timeout_job(&self, timeout_job: Job, milliseconds: u64) {
+        let deadline = Instant::now() + Duration::from_millis(milliseconds);
+        self.macrotask_queue
+            .borrow_mut()
+            .push((Some(deadline), timeout_job));
+    }
 
     fn get_host_data(&self) -> &dyn std::any::Any {
         self
