@@ -426,7 +426,7 @@ impl SharedDataBlockMaxByteLength {
 }
 
 #[cfg(feature = "shared-array-buffer")]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct WaiterRecord {
     condvar: Condvar,
     notified: AtomicBool,
@@ -471,6 +471,10 @@ impl WaiterRecord {
                 "Another thread panicked while holding the waiter list lock, poisoning it: {e:?}"
             ),
         }
+    }
+
+    pub(crate) fn is_notified(&self) -> bool {
+        self.notified.load(Ordering::Relaxed)
     }
 }
 

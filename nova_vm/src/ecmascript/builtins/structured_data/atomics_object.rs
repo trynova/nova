@@ -6,8 +6,7 @@ use std::{
     hint::assert_unchecked,
     ops::ControlFlow,
     sync::Arc,
-    thread::{self, JoinHandle},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use ecmascript_atomics::Ordering;
@@ -1621,52 +1620,65 @@ fn create_wait_result_object<'gc>(
     .expect("Should perform GC here")
 }
 
-#[derive(Debug)]
 struct WaitAsyncJobInner {
+    data_block: SharedDataBlock,
+    byte_index_in_buffer: usize,
+    waiter_record: Arc<WaiterRecord>,
     promise_to_resolve: Global<Promise<'static>>,
-    join_handle: JoinHandle<WaitResult>,
-    _has_timeout: bool,
+    created_at: Instant,
+    t: u64,
 }
 
-#[derive(Debug)]
 #[repr(transparent)]
 pub(crate) struct WaitAsyncJob(Box<WaitAsyncJobInner>);
 
 impl WaitAsyncJob {
     pub(crate) fn is_finished(&self) -> bool {
-        self.0.join_handle.is_finished()
+        let is_notified = self.0.waiter_record.is_notified();
+        let timeout_expired =
+            self.0.t != u64::MAX && self.0.created_at.elapsed() >= Duration::from_millis(self.0.t);
+        is_notified || timeout_expired
     }
 
     pub(crate) fn _will_halt(&self) -> bool {
-        self.0._has_timeout
+        self.0.t != u64::MAX
     }
 
-    // NOTE: The reason for using `GcScope` here even though we could've gotten
-    // away with `NoGcScope` is that this is essentially a trait impl method,
-    // but currently without the trait. The job trait will be added eventually
-    // and we can get rid of this lint exception.
-    #[allow(unknown_lints, can_use_no_gc_scope)]
-    pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope) -> JsResult<'gc, ()> {
+    pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
         let gc = gc.into_nogc();
-        let promise = self.0.promise_to_resolve.take(agent).bind(gc);
-        let Ok(result) = self.0.join_handle.join() else {
-            // Foreign thread died; we can never resolve.
-            return Ok(());
-        };
+
+        // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
+        let waiters = unsafe { self.0.data_block.get_or_init_waiters() };
         // a. Perform EnterCriticalSection(WL).
-        // b. If WL.[[Waiters]] contains waiterRecord, then
-        //         i. Let timeOfJobExecution be the time value (UTC) identifying the current time.
-        //         ii. Assert: ℝ(timeOfJobExecution) ≥ waiterRecord.[[TimeoutTime]] (ignoring potential non-monotonicity of time values).
-        //         iii. Set waiterRecord.[[Result]] to "timed-out".
-        //         iv. Perform RemoveWaiter(WL, waiterRecord).
-        //         v. Perform NotifyWaiter(WL, waiterRecord).
-        // c. Perform LeaveCriticalSection(WL).
-        let promise_capability = PromiseCapability::from_promise(promise, true);
-        let result = match result {
-            WaitResult::Ok => BUILTIN_STRING_MEMORY.ok.into(),
-            WaitResult::TimedOut => BUILTIN_STRING_MEMORY.timed_out.into(),
-        };
-        unwrap_try(promise_capability.try_resolve(agent, result, gc));
+        let mut guard = waiters.lock().unwrap();
+
+        if self.0.waiter_record.is_notified() {
+            let promise = self.0.promise_to_resolve.take(agent).bind(gc);
+            let promise_capability = PromiseCapability::from_promise(promise, true);
+            unwrap_try(promise_capability.try_resolve(agent, BUILTIN_STRING_MEMORY.ok.into(), gc));
+            drop(guard);
+        } else {
+            // b. If WL.[[Waiters]] contains waiterRecord, then
+            //         i. Let timeOfJobExecution be the time value (UTC) identifying the current time.
+            //         ii. Assert: ℝ(timeOfJobExecution) ≥ waiterRecord.[[TimeoutTime]] (ignoring potential non-monotonicity of time values).
+            //         iii. Set waiterRecord.[[Result]] to "timed-out".
+            //         iv. Perform RemoveWaiter(WL, waiterRecord).
+            //         v. Perform NotifyWaiter(WL, waiterRecord).
+
+            guard.remove_from_list(self.0.byte_index_in_buffer, self.0.waiter_record);
+
+            let promise = self.0.promise_to_resolve.take(agent).bind(gc);
+            let promise_capability = PromiseCapability::from_promise(promise, true);
+            unwrap_try(promise_capability.try_resolve(
+                agent,
+                BUILTIN_STRING_MEMORY.timed_out.into(),
+                gc,
+            ));
+
+            // c. Perform LeaveCriticalSection(WL).
+            drop(guard);
+        }
+
         // d. Return unused.
         Ok(())
     }
@@ -1689,40 +1701,22 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     // 1. Let timeoutJob be a new Job Abstract Closure with no parameters that
     //    captures WL and waiterRecord and performs the following steps when
     //    called:
-    let handle = thread::spawn(move || {
-        // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
-        let waiters = unsafe { data_block.get_or_init_waiters() };
-        let mut guard = waiters.lock().unwrap();
-
-        if t == u64::MAX {
-            waiter_record.wait(guard);
-        } else {
-            let dur = Duration::from_millis(t);
-            let (new_guard, timeout) = waiter_record.wait_timeout(guard, dur);
-            guard = new_guard;
-            if timeout.timed_out() {
-                guard.remove_from_list(byte_index_in_buffer, waiter_record);
-
-                // 31. Perform LeaveCriticalSection(WL).
-                drop(guard);
-
-                // 32. If mode is sync, return waiterRecord.[[Result]].
-                return WaitResult::TimedOut;
-            }
-        }
-        WaitResult::Ok
-    });
-    let wait_async_job = Job {
-        realm: Some(Global::new(agent, agent.current_realm(gc).unbind())),
-        inner: InnerJob::WaitAsync(WaitAsyncJob(Box::new(WaitAsyncJobInner {
-            promise_to_resolve: promise,
-            join_handle: handle,
-            _has_timeout: t != u64::MAX,
-        }))),
-    };
     // 2. Let now be the time value (UTC) identifying the current time.
     // 3. Let currentRealm be the current Realm Record.
     // 4. Perform HostEnqueueTimeoutJob(timeoutJob, currentRealm, 𝔽(waiterRecord.[[TimeoutTime]]) - now).
-    agent.host_hooks.enqueue_generic_job(wait_async_job);
+    let wait_async_job = Job {
+        realm: Some(Global::new(agent, agent.current_realm(gc).unbind())),
+        inner: InnerJob::WaitAsync(WaitAsyncJob(Box::new(WaitAsyncJobInner {
+            data_block,
+            byte_index_in_buffer,
+            waiter_record,
+            promise_to_resolve: promise,
+            t,
+            created_at: Instant::now(),
+        }))),
+    };
+    agent.host_hooks.enqueue_timeout_job(wait_async_job, t);
+    // agent.host_hooks.enqueue_generic_job(wait_async_job);
+
     // 5. Return unused.
 }
