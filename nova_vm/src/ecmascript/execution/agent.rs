@@ -25,10 +25,10 @@ use ahash::AHashMap;
 use crate::ecmascript::GlobalEnvironment;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::SharedArrayBuffer;
-#[cfg(feature = "atomics")]
-use crate::ecmascript::WaitAsyncJob;
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::{FinalizationRegistryCleanupJob, clear_kept_objects};
+#[cfg(feature = "atomics")]
+use crate::ecmascript::{WaitAsyncJob, WaitAsyncTimeoutJob};
 use crate::{
     ecmascript::{
         AbstractModuleMethods, Environment, ErrorHeapData, ExecutionContext, Function,
@@ -258,6 +258,8 @@ pub(crate) enum InnerJob {
     PromiseReaction(PromiseReactionJob),
     #[cfg(feature = "atomics")]
     WaitAsync(WaitAsyncJob),
+    #[cfg(feature = "atomics")]
+    WaitAsyncTimeout(WaitAsyncTimeoutJob),
     #[cfg(feature = "weak-refs")]
     FinalizationRegistry(FinalizationRegistryCleanupJob),
 }
@@ -315,6 +317,8 @@ impl Job {
             InnerJob::PromiseReaction(job) => job.run(agent, gc),
             #[cfg(feature = "atomics")]
             InnerJob::WaitAsync(job) => job.run(agent, gc),
+            #[cfg(feature = "atomics")]
+            InnerJob::WaitAsyncTimeout(job) => job.run(agent, gc),
             #[cfg(feature = "weak-refs")]
             InnerJob::FinalizationRegistry(job) => {
                 job.run(agent, gc);

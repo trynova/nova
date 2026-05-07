@@ -10,7 +10,7 @@ use std::{
     hint::assert_unchecked,
     sync::{
         Arc, Condvar, Mutex, MutexGuard, WaitTimeoutResult,
-        atomic::{AtomicBool, AtomicPtr, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicPtr, AtomicU8, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -426,10 +426,22 @@ impl SharedDataBlockMaxByteLength {
 }
 
 #[cfg(feature = "shared-array-buffer")]
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub(crate) struct WaiterRecord {
     condvar: Condvar,
     notified: AtomicBool,
+    result: AtomicU8,
+}
+
+#[cfg(feature = "shared-array-buffer")]
+impl Default for WaiterRecord {
+    fn default() -> Self {
+        Self {
+            condvar: Condvar::default(),
+            notified: AtomicBool::default(),
+            result: AtomicU8::new(u8::MAX),
+        }
+    }
 }
 
 #[cfg(feature = "shared-array-buffer")]
@@ -448,6 +460,7 @@ impl WaiterRecord {
         let lock_result = self
             .condvar
             .wait_while(guard, |_| !self.notified.load(Ordering::Relaxed));
+
         match lock_result {
             Ok(_) => (),
             Err(e) => panic!(
@@ -476,6 +489,26 @@ impl WaiterRecord {
     pub(crate) fn is_notified(&self) -> bool {
         self.notified.load(Ordering::Relaxed)
     }
+
+    pub(crate) fn set_result(&self, result: WaitResult) {
+        self.result.store(result as u8, Ordering::Relaxed);
+    }
+
+    pub(crate) fn get_result(&self) -> Option<WaitResult> {
+        match self.result.load(Ordering::Relaxed) {
+            0 => Some(WaitResult::Ok),
+            1 => Some(WaitResult::TimedOut),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(feature = "shared-array-buffer")]
+#[repr(u8)]
+pub(crate) enum WaitResult {
+    Ok = 0,
+    TimedOut = 1,
 }
 
 #[cfg(feature = "shared-array-buffer")]

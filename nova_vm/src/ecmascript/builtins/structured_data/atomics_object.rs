@@ -17,13 +17,13 @@ use crate::{
         BigInt, Builtin, ExceptionType, InnerJob, Job, JsResult, Number, Numeric, OrdinaryObject,
         Promise, PromiseCapability, Realm, SharedArrayBuffer, SharedDataBlock, SharedTypedArray,
         String, TryError, TryResult, TypedArrayAbstractOperations,
-        TypedArrayWithBufferWitnessRecords, Value, WaiterRecord, builders::OrdinaryObjectBuilder,
-        compare_exchange_in_buffer, for_any_typed_array, get_modify_set_value_in_buffer,
-        get_value_from_buffer, make_typed_array_with_buffer_witness_record,
-        number_convert_to_integer_or_infinity, set_value_in_buffer, to_big_int, to_big_int64,
-        to_big_int64_big_int, to_index, to_int32, to_int32_number, to_integer_number_or_infinity,
-        to_integer_or_infinity, to_number, try_result_into_js, try_to_index, unwrap_try,
-        validate_index, validate_typed_array,
+        TypedArrayWithBufferWitnessRecords, Value, WaitResult, WaiterRecord,
+        builders::OrdinaryObjectBuilder, compare_exchange_in_buffer, for_any_typed_array,
+        get_modify_set_value_in_buffer, get_value_from_buffer,
+        make_typed_array_with_buffer_witness_record, number_convert_to_integer_or_infinity,
+        set_value_in_buffer, to_big_int, to_big_int64, to_big_int64_big_int, to_index, to_int32,
+        to_int32_number, to_integer_number_or_infinity, to_integer_or_infinity, to_number,
+        try_result_into_js, try_to_index, unwrap_try, validate_index, validate_typed_array,
     },
     engine::{Bindable, GcScope, Global, NoGcScope, Scopable},
     heap::{ObjectEntry, WellKnownSymbols},
@@ -1625,7 +1625,6 @@ struct WaitAsyncJobInner {
     byte_index_in_buffer: usize,
     waiter_record: Arc<WaiterRecord>,
     promise_to_resolve: Global<Promise<'static>>,
-    created_at: Instant,
     t: u64,
 }
 
@@ -1634,10 +1633,7 @@ pub(crate) struct WaitAsyncJob(Box<WaitAsyncJobInner>);
 
 impl WaitAsyncJob {
     pub(crate) fn is_finished(&self) -> bool {
-        let is_notified = self.0.waiter_record.is_notified();
-        let timeout_expired =
-            self.0.t != u64::MAX && self.0.created_at.elapsed() >= Duration::from_millis(self.0.t);
-        is_notified || timeout_expired
+        self.0.waiter_record.is_notified()
     }
 
     pub(crate) fn _will_halt(&self) -> bool {
@@ -1651,33 +1647,84 @@ impl WaitAsyncJob {
         let waiters = unsafe { self.0.data_block.get_or_init_waiters() };
         // a. Perform EnterCriticalSection(WL).
         let mut guard = waiters.lock().unwrap();
+        let waiter_record = self.0.waiter_record;
+        guard.remove_from_list(self.0.byte_index_in_buffer, waiter_record.clone());
 
-        if self.0.waiter_record.is_notified() {
-            let promise = self.0.promise_to_resolve.take(agent).bind(gc);
-            let promise_capability = PromiseCapability::from_promise(promise, true);
-            unwrap_try(promise_capability.try_resolve(agent, BUILTIN_STRING_MEMORY.ok.into(), gc));
-            drop(guard);
-        } else {
-            // b. If WL.[[Waiters]] contains waiterRecord, then
-            //         i. Let timeOfJobExecution be the time value (UTC) identifying the current time.
-            //         ii. Assert: ℝ(timeOfJobExecution) ≥ waiterRecord.[[TimeoutTime]] (ignoring potential non-monotonicity of time values).
-            //         iii. Set waiterRecord.[[Result]] to "timed-out".
-            //         iv. Perform RemoveWaiter(WL, waiterRecord).
-            //         v. Perform NotifyWaiter(WL, waiterRecord).
+        let result = match waiter_record.get_result() {
+            Some(WaitResult::TimedOut) => WaitResult::TimedOut,
+            Some(WaitResult::Ok) => WaitResult::Ok,
+            None => {
+                waiter_record.set_result(WaitResult::Ok);
+                WaitResult::Ok
+            }
+        };
 
-            guard.remove_from_list(self.0.byte_index_in_buffer, self.0.waiter_record);
-
-            let promise = self.0.promise_to_resolve.take(agent).bind(gc);
-            let promise_capability = PromiseCapability::from_promise(promise, true);
-            unwrap_try(promise_capability.try_resolve(
-                agent,
-                BUILTIN_STRING_MEMORY.timed_out.into(),
-                gc,
-            ));
-
-            // c. Perform LeaveCriticalSection(WL).
-            drop(guard);
+        let promise = self.0.promise_to_resolve.take(agent).bind(gc);
+        let promise_capability = PromiseCapability::from_promise(promise, true);
+        match result {
+            WaitResult::Ok => {
+                unwrap_try(promise_capability.try_resolve(
+                    agent,
+                    BUILTIN_STRING_MEMORY.ok.into(),
+                    gc,
+                ));
+            }
+            WaitResult::TimedOut => {
+                unwrap_try(promise_capability.try_resolve(
+                    agent,
+                    BUILTIN_STRING_MEMORY.timed_out.into(),
+                    gc,
+                ));
+            }
         }
+        // c. Perform LeaveCriticalSection(WL).
+        drop(guard);
+
+        // d. Return unused.
+        Ok(())
+    }
+}
+
+struct WaitAsyncTimeoutJobInner {
+    data_block: SharedDataBlock,
+    byte_index_in_buffer: usize,
+    waiter_record: Arc<WaiterRecord>,
+}
+
+pub(crate) struct WaitAsyncTimeoutJob(Box<WaitAsyncTimeoutJobInner>);
+
+impl WaitAsyncTimeoutJob {
+    pub(crate) fn is_finished(&self) -> bool {
+        true // Always execute when the timeout is reached
+    }
+
+    pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
+        let gc = gc.into_nogc();
+
+        if self.0.waiter_record.get_result().is_some() {
+            return Ok(());
+        }
+
+        // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
+        let waiters = unsafe { self.0.data_block.get_or_init_waiters() };
+        // a. Perform EnterCriticalSection(WL).
+        let mut guard = waiters.lock().unwrap();
+
+        // b. If WL.[[Waiters]] contains waiterRecord, then
+        //         i. Let timeOfJobExecution be the time value (UTC) identifying the current time.
+        //         ii. Assert: ℝ(timeOfJobExecution) ≥ waiterRecord.[[TimeoutTime]] (ignoring potential non-monotonicity of time values).
+        //         iii. Set waiterRecord.[[Result]] to "timed-out".
+        self.0.waiter_record.set_result(WaitResult::TimedOut);
+
+        //         iv. Perform RemoveWaiter(WL, waiterRecord).
+        let waiter_record = self.0.waiter_record.clone();
+        guard.remove_from_list(self.0.byte_index_in_buffer, self.0.waiter_record);
+
+        //         v. Perform NotifyWaiter(WL, waiterRecord).
+        waiter_record.notify_waiters();
+
+        // c. Perform LeaveCriticalSection(WL).
+        drop(guard);
 
         // d. Return unused.
         Ok(())
@@ -1704,6 +1751,17 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     // 2. Let now be the time value (UTC) identifying the current time.
     // 3. Let currentRealm be the current Realm Record.
     // 4. Perform HostEnqueueTimeoutJob(timeoutJob, currentRealm, 𝔽(waiterRecord.[[TimeoutTime]]) - now).
+
+    let timeout_job_data = if t != u64::MAX {
+        Some(WaitAsyncTimeoutJobInner {
+            data_block: data_block.clone(),
+            byte_index_in_buffer,
+            waiter_record: waiter_record.clone(),
+        })
+    } else {
+        None
+    };
+
     let wait_async_job = Job {
         realm: Some(Global::new(agent, agent.current_realm(gc).unbind())),
         inner: InnerJob::WaitAsync(WaitAsyncJob(Box::new(WaitAsyncJobInner {
@@ -1712,11 +1770,19 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
             waiter_record,
             promise_to_resolve: promise,
             t,
-            created_at: Instant::now(),
         }))),
     };
-    agent.host_hooks.enqueue_timeout_job(wait_async_job, t);
-    // agent.host_hooks.enqueue_generic_job(wait_async_job);
+    agent.host_hooks.enqueue_generic_job(wait_async_job);
+
+    if let Some(inner) = timeout_job_data {
+        let wait_async_timeout_job = Job {
+            realm: Some(Global::new(agent, agent.current_realm(gc).unbind())),
+            inner: InnerJob::WaitAsyncTimeout(WaitAsyncTimeoutJob(Box::new(inner))),
+        };
+        agent
+            .host_hooks
+            .enqueue_timeout_job(wait_async_timeout_job, t);
+    }
 
     // 5. Return unused.
 }
