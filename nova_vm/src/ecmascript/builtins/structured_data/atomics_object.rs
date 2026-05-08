@@ -2,12 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    hint::assert_unchecked,
-    ops::ControlFlow,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{hint::assert_unchecked, ops::ControlFlow, sync::Arc, time::Duration};
 
 use ecmascript_atomics::Ordering;
 
@@ -1625,7 +1620,7 @@ struct WaitAsyncJobInner {
     byte_index_in_buffer: usize,
     waiter_record: Arc<WaiterRecord>,
     promise_to_resolve: Global<Promise<'static>>,
-    t: u64,
+    has_timeout: bool,
 }
 
 #[repr(transparent)]
@@ -1637,7 +1632,7 @@ impl WaitAsyncJob {
     }
 
     pub(crate) fn _will_halt(&self) -> bool {
-        self.0.t != u64::MAX
+        self.0.has_timeout
     }
 
     pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
@@ -1694,13 +1689,7 @@ struct WaitAsyncTimeoutJobInner {
 pub(crate) struct WaitAsyncTimeoutJob(Box<WaitAsyncTimeoutJobInner>);
 
 impl WaitAsyncTimeoutJob {
-    pub(crate) fn is_finished(&self) -> bool {
-        true // Always execute when the timeout is reached
-    }
-
-    pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
-        let gc = gc.into_nogc();
-
+    pub(crate) fn run<'gc>(self, _agent: &mut Agent, _gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
         if self.0.waiter_record.get_result().is_some() {
             return Ok(());
         }
@@ -1769,7 +1758,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
             byte_index_in_buffer,
             waiter_record,
             promise_to_resolve: promise,
-            t,
+            has_timeout: t != u64::MAX,
         }))),
     };
     agent.host_hooks.enqueue_generic_job(wait_async_job);
