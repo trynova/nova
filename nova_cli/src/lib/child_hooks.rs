@@ -80,7 +80,7 @@ impl CliChildHooks {
             counter = counter.wrapping_add(1);
             let now = Instant::now();
             for (i, (deadline, job)) in off_thread_job_queue.iter().enumerate() {
-                let deadline_reached = deadline.map_or(true, |d| now >= d);
+                let deadline_reached = deadline.is_none_or(|d| now >= d);
                 if deadline_reached && job.is_finished() {
                     let (_, job) = off_thread_job_queue.swap_remove(i);
                     return Some(job);
