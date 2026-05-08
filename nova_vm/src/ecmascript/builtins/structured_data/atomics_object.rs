@@ -1620,7 +1620,7 @@ struct WaitAsyncJobInner {
     byte_index_in_buffer: usize,
     waiter_record: Arc<WaiterRecord>,
     promise_to_resolve: Global<Promise<'static>>,
-    has_timeout: bool,
+    _has_timeout: bool,
 }
 
 #[repr(transparent)]
@@ -1632,7 +1632,7 @@ impl WaitAsyncJob {
     }
 
     pub(crate) fn _will_halt(&self) -> bool {
-        self.0.has_timeout
+        self.0._has_timeout
     }
 
     pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
@@ -1758,7 +1758,7 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
             byte_index_in_buffer,
             waiter_record,
             promise_to_resolve: promise,
-            has_timeout: t != u64::MAX,
+            _has_timeout: t != u64::MAX,
         }))),
     };
     agent.host_hooks.enqueue_generic_job(wait_async_job);
