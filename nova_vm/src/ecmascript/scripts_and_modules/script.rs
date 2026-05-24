@@ -335,6 +335,16 @@ pub fn script_evaluation<'a>(
     // 10. Push scriptContext onto the execution context stack; scriptContext is now the running execution context.
     agent.push_execution_context(script_context);
 
+    // NOTE: Nova extension: if a wall-clock execution timeout is configured
+    // and no deadline is already active (i.e. this is the outermost script
+    // call), record the absolute deadline now so the bytecode dispatch loop
+    // can enforce it. Nested re-entrant calls intentionally inherit the
+    // already-running deadline rather than resetting it.
+    let set_deadline = agent.execution_deadline.is_none();
+    if set_deadline && let Some(timeout) = agent.options.execution_timeout {
+        agent.execution_deadline = std::time::Instant::now().checked_add(timeout);
+    }
+
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
     // NOTE: We cannot define the script here due to reference safety.
 
@@ -375,6 +385,12 @@ pub fn script_evaluation<'a>(
 
     // 14. Suspend scriptContext and remove it from the execution context stack.
     _ = agent.pop_execution_context();
+
+    // NOTE: Nova extension: clear the deadline we set so it does not leak
+    // into future executions.
+    if set_deadline {
+        agent.execution_deadline = None;
+    }
 
     // TODO: 15. Assert: The execution context stack is not empty.
     // This is not currently true as we do not push an "empty" context stack to the root before running script evaluation.
@@ -1970,5 +1986,40 @@ mod test {
             .unbind()
             .bind(gc.nogc());
         assert_eq!(result, Value::from_static_str(&mut agent, "c", gc.nogc()));
+    }
+
+    /// Verify that an infinite loop is interrupted once the configured
+    /// `execution_timeout` has elapsed.
+    #[test]
+    fn execution_timeout_kills_infinite_loop() {
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let mut gc = GcScope::new(&mut gc, &mut scope);
+        let mut agent = Agent::new(
+            AgentOptions {
+                execution_timeout: Some(std::time::Duration::from_millis(100)),
+                ..AgentOptions::default()
+            },
+            &DefaultHostHooks,
+        );
+        initialize_default_realm(&mut agent, gc.reborrow());
+
+        let start = std::time::Instant::now();
+        let source_text = String::from_static_str(&mut agent, "while(true){}", gc.nogc());
+        let result = agent.run_script(source_text.unbind(), gc.reborrow());
+        let elapsed = start.elapsed();
+
+        // The script must have thrown an error.
+        assert!(result.is_err(), "expected a timeout error");
+        let err_value = result.unwrap_err().value();
+        let Value::Error(err) = err_value else {
+            panic!("expected an Error value, got {:?}", err_value);
+        };
+        assert_eq!(err.get(&agent).kind, ExceptionType::Error);
+
+        // Execution should have been cut off well within a few seconds.
+        assert!(
+            elapsed < std::time::Duration::from_secs(5),
+            "execution took too long: {elapsed:?}"
+        );
     }
 }

@@ -120,6 +120,7 @@ impl Instance {
                 disable_gc: !config.enable_gc,
                 print_internals: config.verbose,
                 no_block: !config.block,
+                execution_timeout: None,
             },
             // SAFETY: We keep the host hooks alive for at least as long as the agent
             unsafe { extend_lifetime(&*host_hooks) as &'static _ },
