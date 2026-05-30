@@ -103,7 +103,7 @@ pub struct UnmappedArguments<'a>(OrdinaryObject<'a>);
 /// ordinary object.
 pub(crate) fn create_unmapped_arguments_object<'a, 'b>(
     agent: &mut Agent,
-    arguments_list: &ScopedArgumentsList<'b>,
+    arguments_list: ScopedArgumentsList<'b>,
     gc: NoGcScope<'a, 'b>,
 ) -> Result<UnmappedArguments<'a>, TryReserveError> {
     // 1. Let len be the number of elements in argumentsList.

@@ -40,12 +40,12 @@ use crate::{
         parse_script, script_evaluation, to_string, try_get_identifier_reference,
     },
     engine::{
-        Bindable, Executable, GcScope, Global, HeapRootCollection, HeapRootData, HeapRootRef,
-        NoGcScope, Rootable, Vm, bindable_handle,
+        Bindable, Executable, ExecutionResult, GcScope, Global, HeapRootCollection, HeapRootData,
+        HeapRootRef, Instr, Instruction, NoGcScope, Rootable, SuspendedVm, Vm, bindable_handle,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep,
-        PrimitiveHeapAccess, WorkQueues, heap_gc,
+        ArenaAccess, CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapIndexHandle,
+        HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues, heap_gc,
     },
     ndt,
 };
@@ -1074,7 +1074,7 @@ impl Agent {
             .running_execution_context()
             .ecmascript_code
             .as_ref()
-            .map(|r| r.executable.bind(gc))
+            .and_then(|r| r.executable.bind(gc))
         {
             exe
         } else {
@@ -1150,6 +1150,80 @@ impl Agent {
         )
     }
 
+    pub(crate) fn execute<'gc>(
+        &mut self,
+        arguments: Option<&mut [Value]>,
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        Vm::execute(self, arguments, gc)
+    }
+
+    pub(crate) fn resume<'gc>(
+        &mut self,
+        vm: SuspendedVm,
+        value: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        let value = value.bind(gc.nogc());
+        if self.options.print_internals {
+            eprintln!("Resuming function with value\n");
+        }
+        self.vm.unsuspend(vm);
+        Vm::resume(self, value.unbind(), gc)
+    }
+
+    pub(crate) fn resume_throw<'gc>(
+        &mut self,
+        vm: SuspendedVm,
+        err: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        let err = err.bind(gc.nogc());
+        if self.options.print_internals {
+            eprintln!("Resuming function with error\n");
+        }
+        // Optimisation: Avoid unsuspending the Vm if we're just going to throw
+        // out of it immediately.
+        if !vm.has_catch_handler() {
+            return ExecutionResult::Throw(JsError::new(err.unbind()));
+        }
+        Vm::resume_throw(self, err.unbind(), gc)
+    }
+
+    pub(crate) fn resume_return<'gc>(
+        &mut self,
+        vm: SuspendedVm,
+        result: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        let result = result.bind(gc.nogc());
+        if self.options.print_internals {
+            eprintln!("Resuming function with return\n");
+        }
+        // Following a yield point, the next instruction is a Jump to the
+        // Normal continue handling. We need to ignore that.
+        let executable = self.current_executable(gc.nogc());
+        let ip = &mut self
+            .execution_context_stack
+            .last_mut()
+            .unwrap()
+            .ecmascript_code
+            .as_mut()
+            .unwrap()
+            .ip;
+        let instructions = &executable.get_direct(&self.heap.executables).instructions;
+        let next_instruction = Instr::consume_instruction(instructions, ip);
+        assert_eq!(next_instruction.map(|i| i.kind), Some(Instruction::Jump));
+        let peek_next_instruction = instructions.get(*ip).copied();
+        if peek_next_instruction == Some(Instruction::Return.as_u8()) {
+            // Our return handling is to just return; we can do that without
+            // unsuspending the VM.
+            return ExecutionResult::Return(result.unbind());
+        }
+        self.vm.unsuspend(vm);
+        Vm::resume(self, result.unbind(), gc)
+    }
+
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     #[must_use]
     pub fn throw_exception_with_static_message<'a>(
@@ -1213,6 +1287,37 @@ impl Agent {
         ctx
     }
 
+    pub(crate) fn set_running_executable(&mut self, exe: Executable) {
+        let Some(eval_state) = self
+            .execution_context_stack
+            .last_mut()
+            .and_then(|ctx| ctx.ecmascript_code.as_mut())
+            .and_then(|e| {
+                // Check that we're not replacing an already-set executable.
+                if e.executable.is_none() {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+        else {
+            panic_corrupted_agent()
+        };
+        eval_state.executable = Some(exe.unbind());
+    }
+
+    pub(crate) fn current_instructions(&self) -> &[u8] {
+        let Some(exe) = self
+            .execution_context_stack
+            .last()
+            .and_then(|ctx| ctx.ecmascript_code.as_ref())
+            .and_then(|code| code.executable.as_ref().cloned())
+        else {
+            panic_corrupted_agent()
+        };
+        exe.get_instructions(self)
+    }
+
     pub(crate) fn is_evaluating_strict_code(&self) -> bool {
         let Some(strict) = self
             .running_execution_context()
@@ -1252,7 +1357,15 @@ impl Agent {
         previous_context.realm.bind(gc)
     }
 
-    pub(crate) fn push_execution_context(&mut self, context: ExecutionContext) {
+    pub(crate) fn push_execution_context(&mut self, mut context: ExecutionContext) {
+        if let Some(eval_state) = &mut context.ecmascript_code {
+            (
+                eval_state.stack_base,
+                eval_state.reference_stack_base,
+                eval_state.iterator_stack_base,
+                eval_state.exception_handler_stack_base,
+            ) = self.vm.get_stack_sizes()
+        }
         self.execution_context_stack.push(context);
     }
 

@@ -8,8 +8,8 @@ use crate::{
         SourceCode, SourceTextModule, String, Value,
     },
     engine::{
-        Bindable, NoGcScope, Scoped, bindable_handle,
-        bytecode::{CompileContext, NamedEvaluationParameter, instructions::Instr},
+        Bindable, NoGcScope, bindable_handle,
+        bytecode::{CompileContext, NamedEvaluationParameter},
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -233,19 +233,18 @@ impl<'gc> Executable<'gc> {
     /// SAFETY: The returned reference is valid until the Executable is garbage
     /// collected.
     #[inline]
-    fn get_instructions(self, agent: &Agent) -> &'static [u8] {
+    pub(crate) fn get_instructions(self, agent: &Agent) -> &'static [u8] {
         // SAFETY: As long as we're alive the instructions Box lives, and it is
         // never accessed mutably.
         unsafe { core::mem::transmute(&self.get(agent).instructions[..]) }
     }
 
     #[inline]
-    fn get_instruction(self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
-        Instr::consume_instruction(&self.get(agent).instructions, ip)
-    }
-
-    #[inline]
-    fn get_constants<'a>(self, agent: &'a Agent, _: NoGcScope<'gc, '_>) -> &'a [Value<'gc>] {
+    pub(crate) fn get_constants<'a>(
+        self,
+        agent: &'a Agent,
+        _: NoGcScope<'gc, '_>,
+    ) -> &'a [Value<'gc>] {
         &self.get(agent).constants[..]
     }
 
@@ -331,110 +330,6 @@ impl<'gc> Executable<'gc> {
         gc: NoGcScope<'gc, '_>,
     ) -> ObjectShape<'gc> {
         self.get(agent).shapes[index].bind(gc)
-    }
-}
-
-impl Scoped<'_, Executable<'static>> {
-    #[inline]
-    pub(super) fn get_instructions(&self, agent: &Agent) -> &[u8] {
-        // SAFETY: Executable is scoped, the instructions reference is bound to
-        // the Scoped.
-        self.get(agent).get_instructions(agent)
-    }
-
-    #[inline]
-    pub(super) fn get_instruction(&self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
-        self.get(agent).get_instruction(agent, ip)
-    }
-
-    #[inline]
-    pub(super) fn get_constants<'a, 'gc>(
-        &self,
-        agent: &'a Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> &'a [Value<'gc>] {
-        self.get(agent).get_constants(agent, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_cache<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> PropertyLookupCache<'gc> {
-        self.get(agent).fetch_cache(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_identifier<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> String<'gc> {
-        self.get(agent).fetch_identifier(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_property_key<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> PropertyKey<'gc> {
-        self.get(agent).fetch_property_key(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_constant<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> Value<'gc> {
-        self.get(agent).fetch_constant(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_function_expression<'a, 'gc>(
-        &self,
-        agent: &'a Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> &'a FunctionExpression<'gc> {
-        self.get(agent).fetch_function_expression(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_arrow_function_expression<'a>(
-        &self,
-        agent: &'a Agent,
-        index: usize,
-    ) -> &'a ArrowFunctionExpression {
-        self.get(agent)
-            .fetch_arrow_function_expression(agent, index)
-    }
-
-    #[inline]
-    pub(super) fn fetch_class_initializer_bytecode<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> (Option<Executable<'gc>>, bool) {
-        self.get(agent)
-            .fetch_class_initializer_bytecode(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_object_shape<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ObjectShape<'gc> {
-        self.get(agent).fetch_object_shape(agent, index, gc)
     }
 }
 

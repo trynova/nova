@@ -7,9 +7,7 @@ use crate::{
         Agent, ECMAScriptFunction, ExecutionContext, PromiseCapability, PromiseReactionHandler,
         PromiseReactionType, SourceTextModule, Value, inner_promise_then,
     },
-    engine::{
-        Bindable, Executable, ExecutionResult, GcScope, Scopable, SuspendedVm, bindable_handle,
-    },
+    engine::{Bindable, ExecutionResult, GcScope, Scopable, SuspendedVm, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues, arena_vec_access, {BaseIndex, index_handle},
@@ -38,7 +36,6 @@ impl AwaitReaction<'_> {
         let record = reaction.get_mut(agent);
         let execution_context = record.execution_context.take().unwrap();
         let vm = record.vm.take().unwrap();
-        let async_function = record.async_executable.unwrap().bind(gc.nogc());
         agent.push_execution_context(execution_context);
 
         let reaction = reaction.scope(agent, gc.nogc());
@@ -49,18 +46,14 @@ impl AwaitReaction<'_> {
         //       ThrowCompletion(reason) as the result of the operation that
         //       suspended it.
         let execution_result = match reaction_type {
-            PromiseReactionType::Fulfill => {
-                let executable = async_function.get_executable(agent).scope(agent, gc.nogc());
-                vm.resume(agent, executable, value.unbind(), gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc())
-            }
-            PromiseReactionType::Reject => {
-                let executable = async_function.get_executable(agent).scope(agent, gc.nogc());
-                vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc())
-            }
+            PromiseReactionType::Fulfill => agent
+                .resume(vm, value.unbind(), gc.reborrow())
+                .unbind()
+                .bind(gc.nogc()),
+            PromiseReactionType::Reject => agent
+                .resume_throw(vm, value.unbind(), gc.reborrow())
+                .unbind()
+                .bind(gc.nogc()),
         };
 
         match execution_result {
@@ -149,15 +142,6 @@ impl HeapMarkAndSweep for AwaitReaction<'static> {
 pub(crate) enum AsyncExecutable<'a> {
     AsyncFunction(ECMAScriptFunction<'a>),
     AsyncModule(SourceTextModule<'a>),
-}
-
-impl<'a> AsyncExecutable<'a> {
-    fn get_executable(self, agent: &Agent) -> Executable<'a> {
-        match self {
-            AsyncExecutable::AsyncFunction(f) => f.get_executable(agent),
-            AsyncExecutable::AsyncModule(m) => m.get_executable(agent),
-        }
-    }
 }
 
 impl<'a> From<ECMAScriptFunction<'a>> for AsyncExecutable<'a> {

@@ -241,8 +241,8 @@ pub(crate) fn evaluate_function_body<'gc>(
         function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
         exe
     };
-    let exe = exe.scope(agent, gc.nogc());
-    Vm::execute(agent, exe, Some(arguments_list.unbind().as_mut_slice()), gc).into_js_result()
+    agent.set_running_executable(exe);
+    Vm::execute(agent, Some(arguments_list.unbind().as_mut_slice()), gc).into_js_result()
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
@@ -276,11 +276,10 @@ pub(crate) fn evaluate_async_function_body<'a>(
         function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
         exe
     };
-    let exe = exe.scope(agent, gc.nogc());
+    agent.set_running_executable(exe);
 
     let result = Vm::execute(
         agent,
-        exe,
         Some(arguments_list.unbind().as_mut_slice()),
         gc.reborrow(),
     )
@@ -355,13 +354,14 @@ pub(crate) fn evaluate_generator_body<'gc>(
     let function_object = function_object.bind(gc.nogc());
 
     let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
-        exe.scope(agent, gc.nogc())
+        exe.bind(gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
         function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
-        exe.scope(agent, gc.nogc())
+        exe
     };
+    agent.set_running_executable(exe);
 
     let function_object = function_object.scope(agent, gc.nogc());
 
@@ -370,7 +370,6 @@ pub(crate) fn evaluate_generator_body<'gc>(
     // bytecode, followed by a Yield.
     let vm = match Vm::execute(
         agent,
-        exe.clone(),
         Some(arguments_list.unbind().as_mut_slice()),
         gc.reborrow(),
     ) {
@@ -396,8 +395,6 @@ pub(crate) fn evaluate_generator_body<'gc>(
             object_index: None,
             generator_state: Some(GeneratorState::SuspendedStart(SuspendedGeneratorState {
                 vm,
-                // SAFETY: exe is not shared.
-                executable: unsafe { exe.take(agent) },
                 execution_context: agent.running_execution_context().clone(),
             })),
         })
@@ -429,13 +426,14 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     let arguments_list = arguments_list.bind(gc.nogc());
 
     let exe = if let Some(exe) = function_object.get(agent).compiled_bytecode {
-        exe.scope(agent, gc.nogc())
+        exe.bind(gc.nogc())
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object, gc.nogc());
         let exe = Executable::compile_function_body(agent, data, gc.nogc());
         function_object.get_mut(agent).compiled_bytecode = Some(exe.unbind());
-        exe.scope(agent, gc.nogc())
+        exe
     };
+    agent.set_running_executable(exe);
 
     let function_object = function_object.scope(agent, gc.nogc());
 
@@ -444,7 +442,6 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     // bytecode, followed by a Yield.
     let vm = match Vm::execute(
         agent,
-        exe.clone(),
         Some(arguments_list.unbind().as_mut_slice()),
         gc.reborrow(),
     ) {
@@ -470,8 +467,6 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
         .heap
         .create(AsyncGeneratorHeapData {
             object_index: None,
-            // SAFETY: exe is not shared.
-            executable: Some(unsafe { exe.take(agent) }),
             async_generator_state: Some(AsyncGeneratorState::SuspendedStart {
                 vm,
                 execution_context: agent.running_execution_context().clone(),

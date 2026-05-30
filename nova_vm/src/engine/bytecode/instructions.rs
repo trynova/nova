@@ -7,7 +7,7 @@ use oxc_syntax::number::ToJsString;
 
 use crate::{
     ecmascript::{Agent, String},
-    engine::{Executable, NoGcScope, Scoped, bytecode::bytecode_compiler::IndexType},
+    engine::{Executable, NoGcScope, bytecode::bytecode_compiler::IndexType},
 };
 
 /// ## Notes
@@ -719,7 +719,7 @@ pub(crate) struct Instr {
 }
 
 impl Instr {
-    pub(super) fn consume_instruction(instructions: &[u8], ip: &mut usize) -> Option<Instr> {
+    pub(crate) fn consume_instruction(instructions: &[u8], ip: &mut usize) -> Option<Instr> {
         let len = instructions.len();
         let cur_ip = *ip;
         if cur_ip >= len {
@@ -865,13 +865,7 @@ impl Instr {
         jump as usize
     }
 
-    pub(crate) fn debug_print(
-        &self,
-        agent: &mut Agent,
-        ip: usize,
-        exe: Scoped<Executable>,
-        gc: NoGcScope,
-    ) {
+    pub(crate) fn debug_print(&self, agent: &mut Agent, ip: usize, exe: Executable, gc: NoGcScope) {
         match self.kind.argument_count() {
             0 => {
                 eprintln!("  {}: {:?}", ip, self.kind);
@@ -909,7 +903,7 @@ impl Instr {
         agent: &mut Agent,
         kind: Instruction,
         arg: IndexType,
-        exe: Scoped<Executable>,
+        exe: Executable,
         gc: NoGcScope,
     ) -> std::string::String {
         let index = arg as usize;
@@ -964,7 +958,7 @@ impl Instr {
         kind: Instruction,
         arg0: IndexType,
         arg1: IndexType,
-        exe: Scoped<Executable>,
+        exe: Executable,
         gc: NoGcScope,
     ) -> std::string::String {
         match kind {
@@ -1031,7 +1025,7 @@ impl Instr {
 
 fn debug_print_constant(
     agent: &mut Agent,
-    exe: Scoped<Executable>,
+    exe: Executable,
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {
@@ -1048,7 +1042,7 @@ fn debug_print_constant(
 
 fn debug_print_identifier(
     agent: &Agent,
-    exe: Scoped<Executable>,
+    exe: Executable,
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {

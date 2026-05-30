@@ -20,7 +20,7 @@ use crate::{
         script_var_declared_names, script_var_scoped_declarations, to_int32, to_int32_number,
         to_number, to_number_primitive, to_string,
     },
-    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, string_literal_to_wtf8},
+    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, string_literal_to_wtf8},
     heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes},
     ndt,
 };
@@ -339,6 +339,12 @@ pub(crate) fn perform_eval<'gc>(
         let running_context_private_env = running_context_private_env.bind(gc.nogc());
 
         ECMAScriptCodeEvaluationState {
+            ip: 0,
+            executable: None,
+            stack_base: 0,
+            iterator_stack_base: 0,
+            reference_stack_base: 0,
+            exception_handler_stack_base: 0,
             // a. Let lexEnv be NewDeclarativeEnvironment(runningContext's LexicalEnvironment).
             lexical_environment: Environment::Declarative(
                 new_declarative_environment(agent, Some(running_context_lex_env), gc.nogc())
@@ -358,6 +364,12 @@ pub(crate) fn perform_eval<'gc>(
             Environment::Global(eval_realm.get(agent).global_env.unwrap()).bind(gc.nogc());
 
         ECMAScriptCodeEvaluationState {
+            ip: 0,
+            executable: None,
+            stack_base: 0,
+            iterator_stack_base: 0,
+            reference_stack_base: 0,
+            exception_handler_stack_base: 0,
             // a. Let lexEnv be NewDeclarativeEnvironment(evalRealm.[[GlobalEnv]]).
             lexical_environment: Environment::Declarative(
                 new_declarative_environment(agent, Some(global_env), gc.nogc()).unbind(),
@@ -421,14 +433,12 @@ pub(crate) fn perform_eval<'gc>(
         match result {
             Ok(_) => {
                 let source_code = agent.current_source_code(gc.nogc());
-                let exe = Executable::compile_eval_body(agent, body, source_code, gc.nogc())
-                    .scope(agent, gc.nogc());
+                let exe = Executable::compile_eval_body(agent, body, source_code, gc.nogc());
+                agent.set_running_executable(exe);
                 // a. Set result to Completion(Evaluation of body).
                 // 30. If result is a normal completion and result.[[Value]] is empty, then
                 // a. Set result to NormalCompletion(undefined).
-                let result = Vm::execute(agent, exe.clone(), None, gc).into_js_result();
-                // SAFETY: No one can access the bytecode anymore.
-                unsafe { exe.take(agent).try_drop(agent) };
+                let result = agent.execute(None, gc).into_js_result();
                 result
             }
             Err(err) => Err(err.unbind().bind(gc.into_nogc())),

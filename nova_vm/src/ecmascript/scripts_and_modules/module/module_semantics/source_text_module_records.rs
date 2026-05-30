@@ -236,10 +236,6 @@ impl<'m> SourceTextModule<'m> {
         }
     }
 
-    pub(crate) fn get_executable(self, agent: &Agent) -> Executable<'m> {
-        self.get(agent).compiled_bytecode.unwrap()
-    }
-
     fn set_executable(self, agent: &mut Agent, executable: Executable<'m>) {
         assert!(
             self.get_mut(agent)
@@ -1238,6 +1234,12 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         // 8. Let moduleContext be a new ECMAScript code execution context.
         let module_context = ExecutionContext {
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+                ip: 0,
+                executable: None,
+                stack_base: 0,
+                iterator_stack_base: 0,
+                reference_stack_base: 0,
+                exception_handler_stack_base: 0,
                 // 14. Set the LexicalEnvironment of moduleContext to
                 //     module.[[Environment]].
                 lexical_environment: env.unbind().into(),
@@ -1431,6 +1433,12 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         let source_code = module.source_code(agent);
         let module_context = ExecutionContext {
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+                ip: 0,
+                executable: None,
+                stack_base: 0,
+                iterator_stack_base: 0,
+                reference_stack_base: 0,
+                exception_handler_stack_base: 0,
                 // 7. Set the LexicalEnvironment of moduleContext to
                 //    module.[[Environment]].
                 lexical_environment: environment.unbind().into(),
@@ -1459,9 +1467,10 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             agent.push_execution_context(module_context);
             // c. Let result be Completion(Evaluation of
             //    module.[[ECMAScriptCode]]).
-            let bytecode =
-                Executable::compile_module(agent, module, gc.nogc()).scope(agent, gc.nogc());
-            let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow())
+            let bytecode = Executable::compile_module(agent, module, gc.nogc());
+            agent.set_running_executable(bytecode);
+            let result = agent
+                .execute(None, gc.reborrow())
                 .into_js_result()
                 .unbind()
                 .bind(gc.into_nogc());
@@ -1531,7 +1540,7 @@ fn async_module_start(
     agent.push_execution_context(async_context);
     // 5. Resume the suspended evaluation of asyncContext. Let result be the
     //    value returned by the resumed computation.
-    let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow())
+    let result = Vm::execute(agent, None, gc.reborrow())
         .unbind()
         .bind(gc.nogc());
 

@@ -666,6 +666,12 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
         // 9. Set the VariableEnvironment of calleeContext to localEnv.
         // 10. Set the PrivateEnvironment of calleeContext to F.[[PrivateEnvironment]].
         ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+            ip: 0,
+            executable: None,
+            stack_base: 0,
+            iterator_stack_base: 0,
+            reference_stack_base: 0,
+            exception_handler_stack_base: 0,
             lexical_environment: Environment::Function(local_env.unbind()),
             variable_environment: Environment::Function(local_env.unbind()),
             private_environment: private_environment.unbind(),

@@ -7,7 +7,7 @@ mod execute_instructions;
 
 use execute_instructions::*;
 
-use std::{hint::unreachable_unchecked, ptr::NonNull};
+use std::hint::unreachable_unchecked;
 use wtf8::Wtf8Buf;
 
 use crate::{
@@ -19,13 +19,13 @@ use crate::{
         try_get_object_method, try_result_into_option_js,
     },
     engine::{
-        Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle,
+        Bindable, GcScope, NoGcScope, Scopable, bindable_handle,
         bytecode::{
-            Executable, IndexType, Instruction, InstructionIter, instructions::Instr,
+            IndexType, Instruction, InstructionIter, instructions::Instr,
             iterator::VmIteratorRecord,
         },
     },
-    heap::{ArenaAccess, CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
 };
 
 #[derive(Debug)]
@@ -111,101 +111,93 @@ pub(crate) struct SuspendedVm {
     /// Note: Exception jump stack is non-empty only if the code awaits inside a
     /// try block or an await for-of loop. This means that often no heap data
     /// clone is required.
-    exception_jump_target_stack: Box<[ExceptionHandler<'static>]>,
+    exception_handler_stack: Box<[ExceptionHandler<'static>]>,
 }
 
 impl SuspendedVm {
-    pub(crate) fn resume<'gc>(
-        self,
-        agent: &mut Agent,
-        executable: Scoped<Executable>,
-        value: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> ExecutionResult<'gc> {
-        if agent.options.print_internals {
-            eprintln!("Resuming function with value\n");
-        }
-        let vm = Vm::from_suspended(self);
-        vm.resume(agent, executable, value, gc)
-    }
-
-    pub(crate) fn resume_throw<'gc>(
-        self,
-        agent: &mut Agent,
-        executable: Scoped<Executable>,
-        err: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> ExecutionResult<'gc> {
-        if agent.options.print_internals {
-            eprintln!("Resuming function with error\n");
-        }
-        // Optimisation: Avoid unsuspending the Vm if we're just going to throw
-        // out of it immediately.
-        if self.exception_jump_target_stack.is_empty() {
-            let err = JsError::new(err.unbind());
-            return ExecutionResult::Throw(err);
-        }
-        let vm = Vm::from_suspended(self);
-        vm.resume_throw(agent, executable, err, gc)
-    }
-
-    pub(crate) fn resume_return<'gc>(
-        mut self,
-        agent: &mut Agent,
-        executable: Scoped<Executable>,
-        result: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> ExecutionResult<'gc> {
-        if agent.options.print_internals {
-            eprintln!("Resuming function with return\n");
-        }
-        // Following a yield point, the next instruction is a Jump to the
-        // Normal continue handling. We need to ignore that.
-        let next_instruction = executable.get_instruction(agent, &mut self.ip);
-        assert_eq!(next_instruction.map(|i| i.kind), Some(Instruction::Jump));
-        let peek_next_instruction = executable.get_instructions(agent).get(self.ip).copied();
-        if peek_next_instruction == Some(Instruction::Return.as_u8()) {
-            // Our return handling is to just return; we can do that without
-            // unsuspending the VM.
-            return ExecutionResult::Return(result.bind(gc.into_nogc()));
-        }
-        let vm = Vm::from_suspended(self);
-        vm.resume(agent, executable, result, gc)
+    #[inline(always)]
+    pub(crate) fn has_catch_handler(&self) -> bool {
+        !self.exception_handler_stack.is_empty()
     }
 }
 
 impl Vm {
-    fn suspend(self) -> SuspendedVm {
+    /// Returns the current stack sizes in the order:
+    /// * stack
+    /// * reference stack
+    /// * iterator stack
+    /// * exception jump target stack
+    pub(crate) fn get_stack_sizes(&self) -> (u32, u32, u32, u32) {
+        let stack = u32::try_from(self.stack.len());
+        let reference_stack = u32::try_from(self.reference_stack.len());
+        let iterator_stack = u32::try_from(self.iterator_stack.len());
+        let exception_handler_stack = u32::try_from(self.exception_handler_stack.len());
+        let (Ok(stack), Ok(reference_stack), Ok(iterator_stack), Ok(exception_handler_stack)) = (
+            stack,
+            reference_stack,
+            iterator_stack,
+            exception_handler_stack,
+        ) else {
+            panic!("VM stack size too large");
+        };
+        (
+            stack,
+            reference_stack,
+            iterator_stack,
+            exception_handler_stack,
+        )
+    }
+
+    fn suspend(
+        &mut self,
+        (stack_base, reference_stack_base, iterator_stack_base, exception_handler_stack_base): (
+            u32,
+            u32,
+            u32,
+            u32,
+        ),
+    ) -> SuspendedVm {
         SuspendedVm {
             ip: self.ip,
-            stack: self.stack.into_boxed_slice(),
-            reference_stack: self.reference_stack.into_boxed_slice(),
-            iterator_stack: self.iterator_stack.into_boxed_slice(),
-            exception_jump_target_stack: self.exception_handler_stack.into_boxed_slice(),
+            stack: self.stack.split_off(stack_base as usize).into_boxed_slice(),
+            reference_stack: self
+                .reference_stack
+                .split_off(reference_stack_base as usize)
+                .into_boxed_slice(),
+            iterator_stack: self
+                .iterator_stack
+                .split_off(iterator_stack_base as usize)
+                .into_boxed_slice(),
+            exception_handler_stack: self
+                .exception_handler_stack
+                .split_off(exception_handler_stack_base as usize)
+                .into_boxed_slice(),
         }
     }
 
-    fn from_suspended(suspended: SuspendedVm) -> Self {
-        Self {
-            ip: suspended.ip,
-            stack: suspended.stack.into_vec(),
-            reference_stack: suspended.reference_stack.into_vec(),
-            iterator_stack: suspended.iterator_stack.into_vec(),
-            exception_handler_stack: suspended.exception_jump_target_stack.into_vec(),
-            result: None,
-            reference: None,
-        }
+    pub(crate) fn unsuspend(
+        &mut self,
+        SuspendedVm {
+            ip,
+            stack,
+            reference_stack,
+            iterator_stack,
+            exception_handler_stack,
+        }: SuspendedVm,
+    ) {
+        self.ip = ip;
+        self.stack.extend(stack);
+        self.reference_stack.extend(reference_stack);
+        self.iterator_stack.extend(iterator_stack);
+        self.exception_handler_stack.extend(exception_handler_stack);
     }
 
     /// Executes an executable using the virtual machine.
     pub(crate) fn execute<'gc>(
         agent: &mut Agent,
-        executable: Scoped<Executable>,
-        arguments: Option<&mut [Value<'static>]>,
+        arguments: Option<&mut [Value]>,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
-        let mut vm = Vm::new();
-
         if let Some(arguments) = arguments {
             ArgumentsList::from_mut_slice(arguments).with_scoped(
                 agent,
@@ -218,26 +210,29 @@ impl Vm {
                             arguments,
                         )
                     };
-                    vm.iterator_stack
+                    agent
+                        .vm
+                        .iterator_stack
                         .push(VmIteratorRecord::SliceIterator(arguments));
                     if agent.options.print_internals {
-                        vm.print_internals(agent, executable.clone(), gc.nogc());
+                        Vm::print_internals(agent, gc.nogc());
                     }
 
-                    vm.inner_execute(agent, executable, gc)
+                    Vm::inner_execute(agent, gc)
                 },
                 gc,
             )
         } else {
             if agent.options.print_internals {
-                vm.print_internals(agent, executable.clone(), gc.nogc());
+                Vm::print_internals(agent, gc.nogc());
             }
 
-            vm.inner_execute(agent, executable, gc)
+            Vm::inner_execute(agent, gc)
         }
     }
 
-    fn print_internals(&self, agent: &mut Agent, executable: Scoped<Executable>, gc: NoGcScope) {
+    fn print_internals(agent: &mut Agent, gc: NoGcScope) {
+        let executable = agent.current_executable(gc);
         eprintln!();
         eprintln!("=== Executing Executable ===");
         eprintln!("Constants: {:?}", executable.get_constants(agent, gc));
@@ -246,17 +241,21 @@ impl Vm {
         eprintln!("Instructions:");
         let iter = InstructionIter::new(executable.get_instructions(agent));
         for (ip, instr) in iter {
-            instr.debug_print(agent, ip, executable.clone(), gc);
+            instr.debug_print(agent, ip, executable, gc);
         }
         eprintln!();
     }
 
-    fn resume<'gc>(agent: &mut Agent, value: Value, gc: GcScope<'gc, '_>) -> ExecutionResult<'gc> {
+    pub(crate) fn resume<'gc>(
+        agent: &mut Agent,
+        value: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
         agent.vm.result = Some(value.unbind());
         Vm::inner_execute(agent, gc)
     }
 
-    fn resume_throw<'gc>(
+    pub(crate) fn resume_throw<'gc>(
         agent: &mut Agent,
         err: Value,
         gc: GcScope<'gc, '_>,
@@ -273,25 +272,21 @@ impl Vm {
     }
 
     fn inner_execute<'gc>(agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> ExecutionResult<'gc> {
-        // SAFETY: ugh.
-        let instructions = unsafe {
-            core::mem::transmute::<&[u8], &[u8]>(
-                &*agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .executable
-                    .get(agent)
-                    .instructions,
-            )
-        };
+        // SAFETY: The instructions buffer is owned by the current Executable,
+        // which is currently rooted by the execution context stack. The buffer
+        // is not accessible as exclusive excecpt for dropping the Executable's
+        // heap data, and isn't dropped while the Executable is rooted. Thus,
+        // the instructions slice is guaranteed to be valid while we perform the
+        // execution inner loop.
+        let instructions =
+            unsafe { core::mem::transmute::<&[u8], &[u8]>(agent.current_instructions()) };
         let stack_depth = agent.stack_refs.borrow().len();
+        let print_internals = agent.options.print_internals;
         while let Some(instr) = Instr::consume_instruction(instructions, &mut agent.vm.ip) {
             if agent.check_gc() {
                 agent.gc(gc.reborrow());
             }
-            if agent.options.print_internals {
+            if print_internals {
                 Self::print_executing(instr.kind);
             }
             let result = Self::execute_instruction(agent, instr, gc.reborrow());
@@ -335,7 +330,9 @@ impl Vm {
                     Self::print_yielding(yielded_value);
                 }
                 Some(ExecutionResult::Yield {
-                    vm: core::mem::take(agent.vm).suspend(),
+                    vm: agent
+                        .vm
+                        .suspend(agent.running_execution_context().get_stack_bases()),
                     yielded_value,
                 })
             }
@@ -347,7 +344,9 @@ impl Vm {
                     unreachable!()
                 };
                 Some(ExecutionResult::Await {
-                    vm: core::mem::take(agent.vm).suspend(),
+                    vm: agent
+                        .vm
+                        .suspend(agent.running_execution_context().get_stack_bases()),
                     promise,
                 })
             }
@@ -1436,7 +1435,7 @@ impl HeapMarkAndSweep for SuspendedVm {
             stack,
             reference_stack,
             iterator_stack,
-            exception_jump_target_stack,
+            exception_handler_stack: exception_jump_target_stack,
         } = self;
         stack.mark_values(queues);
         reference_stack.mark_values(queues);
@@ -1450,7 +1449,7 @@ impl HeapMarkAndSweep for SuspendedVm {
             stack,
             reference_stack,
             iterator_stack,
-            exception_jump_target_stack,
+            exception_handler_stack: exception_jump_target_stack,
         } = self;
         stack.sweep_values(compactions);
         reference_stack.sweep_values(compactions);

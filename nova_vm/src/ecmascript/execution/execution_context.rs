@@ -21,7 +21,15 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
     /// Instruction pointer.
     pub(crate) ip: usize,
     /// Executable being evaluated.
-    pub(crate) executable: Executable<'static>,
+    pub(crate) executable: Option<Executable<'static>>,
+    /// Names the Vm stack 0 position for the code being evaluated.
+    pub(crate) stack_base: u32,
+    /// Names the Vm reference stack 0 position for the code being evaluated.
+    pub(crate) reference_stack_base: u32,
+    /// Names the Vm iterator stack 0 position for the code being evaluated.
+    pub(crate) iterator_stack_base: u32,
+    /// Names the Vm exception jump target stack 0 position for the code being evaluated.
+    pub(crate) exception_handler_stack_base: u32,
     /// ### LexicalEnvironment
     ///
     /// Identifies the Environment Record used to resolve identifier references
@@ -96,6 +104,16 @@ impl ExecutionContext {
     pub(crate) fn suspend(&self) {
         // TODO: What does this actually mean in the end?
     }
+
+    pub(crate) fn get_stack_bases(&self) -> (u32, u32, u32, u32) {
+        let ecmascript_code = self.ecmascript_code.as_ref().unwrap();
+        (
+            ecmascript_code.stack_base,
+            ecmascript_code.reference_stack_base,
+            ecmascript_code.iterator_stack_base,
+            ecmascript_code.exception_handler_stack_base,
+        )
+    }
 }
 
 impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
@@ -103,7 +121,10 @@ impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
         let Self {
             ip: _,
             executable,
-            bytecode: _,
+            stack_base: _,
+            reference_stack_base: _,
+            iterator_stack_base: _,
+            exception_handler_stack_base: _,
             lexical_environment,
             variable_environment,
             private_environment,
@@ -121,7 +142,10 @@ impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
         let Self {
             ip: _,
             executable,
-            bytecode: _,
+            stack_base: _,
+            reference_stack_base: _,
+            iterator_stack_base: _,
+            exception_handler_stack_base: _,
             lexical_environment,
             variable_environment,
             private_environment,
