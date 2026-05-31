@@ -12,11 +12,11 @@ use wtf8::Wtf8Buf;
 
 use crate::{
     ecmascript::{
-        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, BigInt, Environment, ExceptionType, JsError,
-        JsResult, Number, Object, Primitive, Promise, Reference, ScopedArgumentsList, String,
-        Value, call_function, get_method, is_callable, ordinary_has_instance, to_boolean,
-        to_numeric, to_numeric_primitive, to_primitive, to_property_key, to_string_primitive,
-        try_get_object_method, try_result_into_option_js,
+        Agent, ArgumentsList, BUILTIN_STRING_MEMORY, BigInt, ECMAScriptCodeEvaluationState,
+        Environment, ExceptionType, JsError, JsResult, Number, Object, Primitive, Promise,
+        Reference, ScopedArgumentsList, String, Value, call_function, get_method, is_callable,
+        ordinary_has_instance, to_boolean, to_numeric, to_numeric_primitive, to_primitive,
+        to_property_key, to_string_primitive, try_get_object_method, try_result_into_option_js,
     },
     engine::{
         Bindable, GcScope, NoGcScope, Scopable, bindable_handle,
@@ -87,9 +87,13 @@ pub(crate) struct Vm {
     /// Instruction pointer.
     ip: usize,
     stack: Vec<Value<'static>>,
+    stack_base: u32,
     reference_stack: Vec<Reference<'static>>,
+    reference_stack_base: u32,
     iterator_stack: Vec<VmIteratorRecord<'static>>,
+    iterator_stack_base: u32,
     exception_handler_stack: Vec<ExceptionHandler<'static>>,
+    exception_handler_stack_base: u32,
     result: Option<Value<'static>>,
     reference: Option<Reference<'static>>,
 }
@@ -122,32 +126,6 @@ impl SuspendedVm {
 }
 
 impl Vm {
-    /// Returns the current stack sizes in the order:
-    /// * stack
-    /// * reference stack
-    /// * iterator stack
-    /// * exception jump target stack
-    pub(crate) fn get_stack_sizes(&self) -> (u32, u32, u32, u32) {
-        let stack = u32::try_from(self.stack.len());
-        let reference_stack = u32::try_from(self.reference_stack.len());
-        let iterator_stack = u32::try_from(self.iterator_stack.len());
-        let exception_handler_stack = u32::try_from(self.exception_handler_stack.len());
-        let (Ok(stack), Ok(reference_stack), Ok(iterator_stack), Ok(exception_handler_stack)) = (
-            stack,
-            reference_stack,
-            iterator_stack,
-            exception_handler_stack,
-        ) else {
-            panic!("VM stack size too large");
-        };
-        (
-            stack,
-            reference_stack,
-            iterator_stack,
-            exception_handler_stack,
-        )
-    }
-
     fn suspend(
         &mut self,
         (stack_base, reference_stack_base, iterator_stack_base, exception_handler_stack_base): (
@@ -173,6 +151,67 @@ impl Vm {
                 .split_off(exception_handler_stack_base as usize)
                 .into_boxed_slice(),
         }
+    }
+
+    pub(crate) fn get_instruction_pointer(&mut self) -> usize {
+        self.ip
+    }
+
+    pub(crate) fn set_instruction_pointer(&mut self, ip: usize) {
+        self.ip = ip;
+    }
+
+    pub(crate) fn get_stack_frame(&self) -> (u32, u32, u32, u32) {
+        let stack_base = self.stack_base;
+        let reference_stack_base = self.reference_stack_base;
+        let iterator_stack_base = self.iterator_stack_base;
+        let exception_handler_stack_base = self.exception_handler_stack_base;
+        (
+            stack_base,
+            reference_stack_base,
+            iterator_stack_base,
+            exception_handler_stack_base,
+        )
+    }
+
+    pub(crate) fn push_stack_frame(&mut self) -> (u32, u32, u32, u32) {
+        let stack_frame = self.get_stack_frame();
+        self.stack_base = u32::try_from(self.stack.len()).unwrap();
+        self.reference_stack_base = u32::try_from(self.reference_stack.len()).unwrap();
+        self.iterator_stack_base = u32::try_from(self.iterator_stack.len()).unwrap();
+        self.exception_handler_stack_base =
+            u32::try_from(self.exception_handler_stack.len()).unwrap();
+        stack_frame
+    }
+
+    pub(crate) fn pop_stack_frame(&mut self, eval_state: Option<&ECMAScriptCodeEvaluationState>) {
+        // Pop off the current stack frame.
+        self.stack.truncate(self.stack_base as usize);
+        self.reference_stack
+            .truncate(self.reference_stack_base as usize);
+        self.iterator_stack
+            .truncate(self.iterator_stack_base as usize);
+        self.exception_handler_stack
+            .truncate(self.exception_handler_stack_base as usize);
+        if let Some(eval_state) = eval_state {
+            self.ip = eval_state.ip;
+            self.stack_base = eval_state.stack_base;
+            self.reference_stack_base = eval_state.reference_stack_base;
+            self.iterator_stack_base = eval_state.iterator_stack_base;
+            self.exception_handler_stack_base = eval_state.exception_handler_stack_base;
+        }
+    }
+
+    pub(crate) fn clear_stack(&mut self) {
+        self.stack.clear();
+        self.reference_stack.clear();
+        self.iterator_stack.clear();
+        self.exception_handler_stack.clear();
+        self.ip = 0;
+        self.stack_base = 0;
+        self.reference_stack_base = 0;
+        self.iterator_stack_base = 0;
+        self.exception_handler_stack_base = 0;
     }
 
     pub(crate) fn unsuspend(
@@ -282,12 +321,21 @@ impl Vm {
             unsafe { core::mem::transmute::<&[u8], &[u8]>(agent.current_instructions()) };
         let stack_depth = agent.stack_refs.borrow().len();
         let print_internals = agent.options.print_internals;
-        while let Some(instr) = Instr::consume_instruction(instructions, &mut agent.vm.ip) {
+        if print_internals {
+            eprintln!("Instructions buffer: {instructions:?}");
+        }
+        // while let Some(instr) = Instr::consume_instruction(instructions, &mut agent.vm.ip) {
+        loop {
+            let ip = agent.vm.ip;
+            let Some(instr) = Instr::consume_instruction(instructions, &mut agent.vm.ip) else {
+                break;
+            };
             if agent.check_gc() {
                 agent.gc(gc.reborrow());
             }
             if print_internals {
-                Self::print_executing(instr.kind);
+                Self::print_executing(ip, instr.kind);
+                eprintln!("Post call IP: {}", agent.vm.ip);
             }
             let result = Self::execute_instruction(agent, instr, gc.reborrow());
             match result {
@@ -365,8 +413,8 @@ impl Vm {
 
     #[inline(never)]
     #[cold]
-    fn print_executing(instruction: Instruction) {
-        eprintln!("Executing: {instruction:?}");
+    fn print_executing(ip: usize, instruction: Instruction) {
+        eprintln!("Executing ({ip}): {instruction:?}");
     }
 
     #[inline(never)]
@@ -809,7 +857,7 @@ impl Vm {
 
     #[inline(always)]
     fn execute_load_to_index(&mut self, index: usize) {
-        self.stack[index] = self.result.take().unwrap();
+        self.stack[index + self.stack_base as usize] = self.result.take().unwrap();
     }
 
     #[inline(always)]
@@ -852,7 +900,7 @@ impl Vm {
 
     #[inline(always)]
     fn execute_store_from_index(&mut self, index: usize) {
-        self.result = Some(self.stack[index]);
+        self.result = Some(self.stack[index + self.stack_base as usize]);
     }
 
     #[inline(always)]
@@ -1393,16 +1441,20 @@ impl HeapMarkAndSweep for Vm {
         let Vm {
             ip: _,
             stack,
+            stack_base: _,
             reference_stack,
+            reference_stack_base: _,
             iterator_stack,
-            exception_handler_stack: exception_jump_target_stack,
+            iterator_stack_base: _,
+            exception_handler_stack,
+            exception_handler_stack_base: _,
             result,
             reference,
         } = self;
         stack.as_slice().mark_values(queues);
         reference_stack.as_slice().mark_values(queues);
         iterator_stack.as_slice().mark_values(queues);
-        exception_jump_target_stack.as_slice().mark_values(queues);
+        exception_handler_stack.as_slice().mark_values(queues);
         result.mark_values(queues);
         reference.mark_values(queues);
     }
@@ -1411,16 +1463,20 @@ impl HeapMarkAndSweep for Vm {
         let Vm {
             ip: _,
             stack,
+            stack_base: _,
             reference_stack,
+            reference_stack_base: _,
             iterator_stack,
-            exception_handler_stack: exception_jump_target_stack,
+            iterator_stack_base: _,
+            exception_handler_stack,
+            exception_handler_stack_base: _,
             result,
             reference,
         } = self;
         stack.as_mut_slice().sweep_values(compactions);
         reference_stack.as_mut_slice().sweep_values(compactions);
         iterator_stack.as_mut_slice().sweep_values(compactions);
-        exception_jump_target_stack
+        exception_handler_stack
             .as_mut_slice()
             .sweep_values(compactions);
         result.sweep_values(compactions);

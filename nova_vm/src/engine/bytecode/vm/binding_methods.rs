@@ -150,7 +150,7 @@ pub(super) fn execute_simple_array_binding<'a>(
                 }
             }
             Instruction::BindingPatternBindToIndex | Instruction::BindingPatternBindRestToIndex => {
-                let stack_slot = instr.get_first_index();
+                let stack_slot = instr.get_first_index() + agent.vm.stack_base as usize;
                 agent.vm.stack[stack_slot] = value.unbind();
             }
             Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
@@ -270,7 +270,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                 let value = get(agent, object.get(agent), key_value.unbind(), gc.reborrow())
                     .unbind()?
                     .bind(gc.nogc());
-                let stack_slot = instr.get_first_index();
+                let stack_slot = instr.get_first_index() + agent.vm.stack_base as usize;
                 agent.vm.stack[stack_slot] = value.unbind();
             }
             Instruction::BindingPatternGetValueNamed => {
@@ -356,7 +356,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                 )
                 .unbind()?
                 .bind(gc.nogc());
-                let stack_slot = instr.get_first_index();
+                let stack_slot = instr.get_first_index() + agent.vm.stack_base as usize;
                 agent.vm.stack[stack_slot] = rest_obj.unbind().into();
                 break;
             }

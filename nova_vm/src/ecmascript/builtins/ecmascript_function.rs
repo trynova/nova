@@ -21,7 +21,7 @@ use crate::{
         new_function_environment, ordinary_create_from_constructor,
         ordinary_object_create_with_intrinsics, to_object,
     },
-    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, bindable_handle},
+    engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -300,11 +300,6 @@ impl<'a> ECMAScriptFunction<'a> {
     /// Returns this function's ThisMode.
     pub(crate) fn get_this_mode(self, agent: &Agent) -> ThisMode {
         self.get(agent).ecmascript_function.this_mode
-    }
-
-    #[inline]
-    pub(crate) fn get_executable(self, agent: &Agent) -> Executable<'a> {
-        self.get(agent).compiled_bytecode.unwrap().unbind()
     }
 
     #[inline]

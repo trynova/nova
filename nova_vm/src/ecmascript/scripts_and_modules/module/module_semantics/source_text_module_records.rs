@@ -33,7 +33,7 @@ use crate::{
     },
     engine::{
         Bindable, Executable, ExecutionResult, GcScope, GcToken, HeapRootData, NoGcScope, Scopable,
-        Scoped, Vm, bindable_handle,
+        Scoped, bindable_handle,
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
     ndt,
@@ -1540,9 +1540,7 @@ fn async_module_start(
     agent.push_execution_context(async_context);
     // 5. Resume the suspended evaluation of asyncContext. Let result be the
     //    value returned by the resumed computation.
-    let result = Vm::execute(agent, None, gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let result = agent.execute(None, gc.reborrow()).unbind().bind(gc.nogc());
 
     // AsyncBlockStart will run the module until it returns, throws or
     // gets suspended with an await.

@@ -1155,6 +1155,7 @@ impl Agent {
         arguments: Option<&mut [Value]>,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
+        let _ = self.vm.push_stack_frame();
         Vm::execute(self, arguments, gc)
     }
 
@@ -1358,19 +1359,48 @@ impl Agent {
     }
 
     pub(crate) fn push_execution_context(&mut self, mut context: ExecutionContext) {
-        if let Some(eval_state) = &mut context.ecmascript_code {
+        let previous_stack_frame = self.vm.push_stack_frame();
+        // Store previous VM state to previous ExecutionContext.
+        if let Some(eval_state) = self
+            .execution_context_stack
+            .last_mut()
+            .and_then(|ctx| ctx.ecmascript_code.as_mut())
+        {
+            eval_state.ip = self.vm.get_instruction_pointer();
             (
                 eval_state.stack_base,
                 eval_state.reference_stack_base,
                 eval_state.iterator_stack_base,
                 eval_state.exception_handler_stack_base,
-            ) = self.vm.get_stack_sizes()
+            ) = previous_stack_frame;
+        }
+        // If we're executing more ECMAScript code then store the instruction
+        // pointer from the ExecutionContext we're pushing and store the current
+        // VM stack frame data into the ExecutionContext we're pushing.
+        if let Some(eval_state) = &mut context.ecmascript_code {
+            self.vm.set_instruction_pointer(eval_state.ip);
+            (
+                eval_state.stack_base,
+                eval_state.reference_stack_base,
+                eval_state.iterator_stack_base,
+                eval_state.exception_handler_stack_base,
+            ) = self.vm.get_stack_frame();
         }
         self.execution_context_stack.push(context);
     }
 
     pub(crate) fn pop_execution_context(&mut self) -> Option<ExecutionContext> {
-        self.execution_context_stack.pop()
+        let result = self.execution_context_stack.pop();
+        if self.execution_context_stack.is_empty() {
+            self.vm.clear_stack();
+        } else {
+            self.vm.pop_stack_frame(
+                self.execution_context_stack
+                    .last()
+                    .and_then(|ctx| ctx.ecmascript_code.as_ref()),
+            );
+        }
+        result
     }
 
     pub(crate) fn current_source_code<'a>(&self, gc: NoGcScope<'a, '_>) -> SourceCode<'a> {

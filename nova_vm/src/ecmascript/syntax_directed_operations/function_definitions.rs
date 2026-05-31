@@ -15,7 +15,7 @@ use crate::{
         ordinary_populate_from_constructor, set_function_name, try_define_property_or_throw,
         unwrap_try,
     },
-    engine::{Bindable, Executable, ExecutionResult, GcScope, NoGcScope, Scopable, Vm},
+    engine::{Bindable, Executable, ExecutionResult, GcScope, NoGcScope, Scopable},
     heap::{ArenaAccess, ArenaAccessMut, CreateHeapData},
 };
 use oxc_ast::ast::{self};
@@ -242,7 +242,9 @@ pub(crate) fn evaluate_function_body<'gc>(
         exe
     };
     agent.set_running_executable(exe);
-    Vm::execute(agent, Some(arguments_list.unbind().as_mut_slice()), gc).into_js_result()
+    agent
+        .execute(Some(arguments_list.unbind().as_mut_slice()), gc)
+        .into_js_result()
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
@@ -278,12 +280,9 @@ pub(crate) fn evaluate_async_function_body<'a>(
     };
     agent.set_running_executable(exe);
 
-    let result = Vm::execute(
-        agent,
-        Some(arguments_list.unbind().as_mut_slice()),
-        gc.reborrow(),
-    )
-    .unbind();
+    let result = agent
+        .execute(Some(arguments_list.unbind().as_mut_slice()), gc.reborrow())
+        .unbind();
     let gc = gc.into_nogc();
     let result = result.bind(gc);
     // SAFETY: not shared.
@@ -368,11 +367,7 @@ pub(crate) fn evaluate_generator_body<'gc>(
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     // Note: FunctionDeclarationInstantiation is done at the beginning of the
     // bytecode, followed by a Yield.
-    let vm = match Vm::execute(
-        agent,
-        Some(arguments_list.unbind().as_mut_slice()),
-        gc.reborrow(),
-    ) {
+    let vm = match agent.execute(Some(arguments_list.unbind().as_mut_slice()), gc.reborrow()) {
         ExecutionResult::Throw(err) => {
             return Err(err.unbind().bind(gc.into_nogc()));
         }
@@ -440,11 +435,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     // Note: FunctionDeclarationInstantiation is done at the beginning of the
     // bytecode, followed by a Yield.
-    let vm = match Vm::execute(
-        agent,
-        Some(arguments_list.unbind().as_mut_slice()),
-        gc.reborrow(),
-    ) {
+    let vm = match agent.execute(Some(arguments_list.unbind().as_mut_slice()), gc.reborrow()) {
         ExecutionResult::Throw(err) => {
             return Err(err.unbind().bind(gc.into_nogc()));
         }
