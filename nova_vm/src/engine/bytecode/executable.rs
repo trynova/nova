@@ -208,28 +208,6 @@ impl<'gc> Executable<'gc> {
         ctx.finish()
     }
 
-    /// Drops the Executable's heap-allocated data if possible.
-    ///
-    /// ## Safety
-    ///
-    /// Any attempt to use the Executable after this call will lead to a crash
-    /// if the drop was performed.
-    pub(crate) unsafe fn try_drop(self, agent: &mut Agent) {
-        debug_assert!(!agent.heap.executables.is_empty());
-        let index = self.get_index();
-        let last_index = agent.heap.executables.len() - 1;
-        if last_index == index {
-            // This bytecode was the last-allocated bytecode, and we can drop
-            // it from the Heap without affecting any other indexes. The caller
-            // guarantees that the Executable will not be used anymore.
-            agent.heap.alloc_counter = agent
-                .heap
-                .alloc_counter
-                .saturating_sub(core::mem::size_of::<ExecutableHeapData>());
-            let _ = agent.heap.executables.pop().unwrap();
-        }
-    }
-
     /// SAFETY: The returned reference is valid until the Executable is garbage
     /// collected.
     #[inline]

@@ -1359,24 +1359,18 @@ impl Agent {
     }
 
     pub(crate) fn push_execution_context(&mut self, mut context: ExecutionContext) {
-        let previous_stack_frame = self.vm.push_stack_frame();
-        // Store previous VM state to previous ExecutionContext.
+        let new_stack_frame = self.vm.push_stack_frame();
+        // Store current instruction pointer to current ExecutionContext.
         if let Some(eval_state) = self
             .execution_context_stack
             .last_mut()
             .and_then(|ctx| ctx.ecmascript_code.as_mut())
         {
             eval_state.ip = self.vm.get_instruction_pointer();
-            (
-                eval_state.stack_base,
-                eval_state.reference_stack_base,
-                eval_state.iterator_stack_base,
-                eval_state.exception_handler_stack_base,
-            ) = previous_stack_frame;
         }
         // If we're executing more ECMAScript code then store the instruction
-        // pointer from the ExecutionContext we're pushing and store the current
-        // VM stack frame data into the ExecutionContext we're pushing.
+        // pointer from the ExecutionContext we're pushing and store the new VM
+        // stack frame data into the ExecutionContext we're pushing.
         if let Some(eval_state) = &mut context.ecmascript_code {
             self.vm.set_instruction_pointer(eval_state.ip);
             (
@@ -1384,21 +1378,36 @@ impl Agent {
                 eval_state.reference_stack_base,
                 eval_state.iterator_stack_base,
                 eval_state.exception_handler_stack_base,
-            ) = self.vm.get_stack_frame();
+            ) = new_stack_frame;
         }
         self.execution_context_stack.push(context);
     }
 
     pub(crate) fn pop_execution_context(&mut self) -> Option<ExecutionContext> {
+        // Pop current ExecutionContext.
         let result = self.execution_context_stack.pop();
-        if self.execution_context_stack.is_empty() {
+        // If we were evaluating ECMAScript code, then drop off any remnants it
+        // might've left on the VM stacks.
+        if let Some(eval_state) = result.as_ref().and_then(|r| r.ecmascript_code.as_ref()) {
+            self.vm.pop_stack_frame((
+                eval_state.stack_base,
+                eval_state.reference_stack_base,
+                eval_state.iterator_stack_base,
+                eval_state.exception_handler_stack_base,
+            ));
+        }
+        // If we're returning to evaluating ECMAScript code that was previously
+        // paused, then return the instruction pointer and stack base to their
+        // previous values.
+        if let Some(eval_state) = self
+            .execution_context_stack
+            .last()
+            .and_then(|ctx| ctx.ecmascript_code.as_ref())
+        {
+            self.vm.set_instruction_pointer(eval_state.ip);
+            self.vm.set_stack_base(eval_state.stack_base);
+        } else if self.execution_context_stack.is_empty() {
             self.vm.clear_stack();
-        } else {
-            self.vm.pop_stack_frame(
-                self.execution_context_stack
-                    .last()
-                    .and_then(|ctx| ctx.ecmascript_code.as_ref()),
-            );
         }
         result
     }
