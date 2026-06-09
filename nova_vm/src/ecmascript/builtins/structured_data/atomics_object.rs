@@ -1635,12 +1635,14 @@ impl WaitAsyncJob {
         self.0._has_timeout
     }
 
+    /// Implementation of the Job Abstract Closure for [WaitAsyncTimeoutJob](https://tc39.es/ecma262/#sec-enqueueatomicswaitasynctimeoutjob),
+    /// for the cases where no timeout is specified.
     pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
         let gc = gc.into_nogc();
 
         // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
         let waiters = unsafe { self.0.data_block.get_or_init_waiters() };
-        // a. Perform EnterCriticalSection(WL).
+
         let mut guard = waiters.lock().unwrap();
         let waiter_record = self.0.waiter_record;
         guard.remove_from_list(self.0.byte_index_in_buffer, waiter_record.clone());
@@ -1672,10 +1674,8 @@ impl WaitAsyncJob {
                 ));
             }
         }
-        // c. Perform LeaveCriticalSection(WL).
-        drop(guard);
 
-        // d. Return unused.
+        drop(guard);
         Ok(())
     }
 }
@@ -1735,12 +1735,10 @@ fn enqueue_atomics_wait_async_job<const IS_I64: bool>(
     gc: NoGcScope,
 ) {
     // 1. Let timeoutJob be a new Job Abstract Closure with no parameters that
-    //    captures WL and waiterRecord and performs the following steps when
-    //    called:
+    //    captures WL and waiterRecord and performs the following steps when called:
     // 2. Let now be the time value (UTC) identifying the current time.
     // 3. Let currentRealm be the current Realm Record.
     // 4. Perform HostEnqueueTimeoutJob(timeoutJob, currentRealm, 𝔽(waiterRecord.[[TimeoutTime]]) - now).
-
     let timeout_job_data = if t != u64::MAX {
         Some(WaitAsyncTimeoutJobInner {
             data_block: data_block.clone(),
