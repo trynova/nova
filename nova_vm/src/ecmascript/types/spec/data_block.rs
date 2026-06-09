@@ -512,6 +512,16 @@ pub(crate) enum WaitResult {
 }
 
 #[cfg(feature = "shared-array-buffer")]
+impl WaitResult {
+    pub(crate) fn to_string(self) -> crate::ecmascript::String<'static> {
+        match self {
+            WaitResult::Ok => crate::ecmascript::BUILTIN_STRING_MEMORY.ok,
+            WaitResult::TimedOut => crate::ecmascript::BUILTIN_STRING_MEMORY.timed_out,
+        }
+    }
+}
+
+#[cfg(feature = "shared-array-buffer")]
 #[derive(Default)]
 #[repr(transparent)]
 pub(crate) struct WaiterList {

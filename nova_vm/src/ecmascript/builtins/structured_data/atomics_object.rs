@@ -1658,22 +1658,7 @@ impl WaitAsyncJob {
 
         let promise = self.0.promise_to_resolve.take(agent).bind(gc);
         let promise_capability = PromiseCapability::from_promise(promise, true);
-        match result {
-            WaitResult::Ok => {
-                unwrap_try(promise_capability.try_resolve(
-                    agent,
-                    BUILTIN_STRING_MEMORY.ok.into(),
-                    gc,
-                ));
-            }
-            WaitResult::TimedOut => {
-                unwrap_try(promise_capability.try_resolve(
-                    agent,
-                    BUILTIN_STRING_MEMORY.timed_out.into(),
-                    gc,
-                ));
-            }
-        }
+        unwrap_try(promise_capability.try_resolve(agent, result.to_string().into(), gc));
 
         drop(guard);
         Ok(())
