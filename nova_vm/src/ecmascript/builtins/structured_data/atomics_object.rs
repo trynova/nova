@@ -2,7 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{hint::assert_unchecked, ops::ControlFlow, sync::Arc, time::Duration};
+use std::{
+    hint::assert_unchecked,
+    ops::ControlFlow,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use ecmascript_atomics::Ordering;
 
@@ -12,7 +17,7 @@ use crate::{
         BigInt, Builtin, ExceptionType, InnerJob, Job, JsResult, Number, Numeric, OrdinaryObject,
         Promise, PromiseCapability, Realm, SharedArrayBuffer, SharedDataBlock, SharedTypedArray,
         String, TryError, TryResult, TypedArrayAbstractOperations,
-        TypedArrayWithBufferWitnessRecords, Value, WaitResult, WaiterRecord,
+        TypedArrayWithBufferWitnessRecords, Value, WaitResult, WaiterLists, WaiterRecord,
         builders::OrdinaryObjectBuilder, compare_exchange_in_buffer, for_any_typed_array,
         get_modify_set_value_in_buffer, get_value_from_buffer,
         make_typed_array_with_buffer_witness_record, number_convert_to_integer_or_infinity,
@@ -1615,6 +1620,11 @@ fn create_wait_result_object<'gc>(
     .expect("Should perform GC here")
 }
 
+fn get_wait_async_job_waiters(data_block: &SharedDataBlock) -> &Mutex<WaiterLists> {
+    // SAFETY: the data block is a non-dangling clone captured in [`do_wait_critical`] after validation.
+    unsafe { data_block.get_or_init_waiters() }
+}
+
 struct WaitAsyncJobInner {
     data_block: SharedDataBlock,
     byte_index_in_buffer: usize,
@@ -1640,8 +1650,7 @@ impl WaitAsyncJob {
     pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
         let gc = gc.into_nogc();
 
-        // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
-        let waiters = unsafe { self.0.data_block.get_or_init_waiters() };
+        let waiters = get_wait_async_job_waiters(&self.0.data_block);
 
         let mut guard = waiters.lock().unwrap();
         let waiter_record = self.0.waiter_record;
@@ -1679,8 +1688,7 @@ impl WaitAsyncTimeoutJob {
             return Ok(());
         }
 
-        // SAFETY: buffer is a cloned SharedDataBlock; non-dangling.
-        let waiters = unsafe { self.0.data_block.get_or_init_waiters() };
+        let waiters = get_wait_async_job_waiters(&self.0.data_block);
         // a. Perform EnterCriticalSection(WL).
         let mut guard = waiters.lock().unwrap();
 
