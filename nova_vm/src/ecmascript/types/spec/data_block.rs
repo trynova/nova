@@ -1219,13 +1219,7 @@ pub(crate) fn create_byte_data_block<'a>(
     // 1. If size > 2**53 - 1, throw a RangeError exception.
     if let Some(db) = usize::try_from(size)
         .ok()
-        .and_then(|size| {
-            if size as u64 > DATA_BLOCK_SIZE_LIMIT {
-                None
-            } else {
-                Some(size)
-            }
-        })
+        .filter(|&size| size as u64 <= DATA_BLOCK_SIZE_LIMIT)
         .and_then(DataBlock::new)
     {
         // 2. Let db be a new Data Block value consisting of size bytes.
@@ -1269,13 +1263,7 @@ pub(crate) unsafe fn create_shared_byte_data_block<'a>(
     //    RangeError exception.
     if let Some(db) = usize::try_from(size)
         .ok()
-        .and_then(|size| {
-            if size as u64 > DATA_BLOCK_SIZE_LIMIT {
-                None
-            } else {
-                Some(size)
-            }
-        })
+        .filter(|&size| size as u64 <= DATA_BLOCK_SIZE_LIMIT)
         .and_then(|_| {
             // SAFETY: function precondition
             unsafe {
@@ -1376,9 +1364,22 @@ pub(crate) fn copy_shared_data_block_bytes(
     count: usize,
 ) {
     // 1. Assert: fromBlock and toBlock are distinct values.
+    // Note: the pointers must be cast to byte pointers before offsetting;
+    // offsetting the `NonNull<()>` directly would advance by zero bytes and
+    // make the non-overlap check vacuously true.
     debug_assert!(unsafe {
-        to_block.ptr.as_ptr().add(to_block.max_byte_length()) <= from_block.ptr.as_ptr()
-            || from_block.ptr.as_ptr().add(from_block.max_byte_length()) <= to_block.ptr.as_ptr()
+        to_block
+            .ptr
+            .as_ptr()
+            .cast::<u8>()
+            .add(to_block.max_byte_length())
+            <= from_block.ptr.as_ptr().cast::<u8>()
+            || from_block
+                .ptr
+                .as_ptr()
+                .cast::<u8>()
+                .add(from_block.max_byte_length())
+                <= to_block.ptr.as_ptr().cast::<u8>()
     });
     // 2. Let fromSize be the number of bytes in fromBlock.
     let from_size = from_block.max_byte_length();

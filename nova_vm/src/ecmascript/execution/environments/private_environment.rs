@@ -485,7 +485,7 @@ impl HeapMarkAndSweep for PrivateEnvironmentRecord {
         let mut replacements = Vec::new();
         // Sweep all binding values, while also sweeping keys and making note
         // of all changes in them: Those need to be updated in a separate loop.
-        for (key, _) in names.iter_mut() {
+        for key in names.keys() {
             if let String::String(old_key) = key {
                 let old_key = *old_key;
                 let mut new_key = old_key;

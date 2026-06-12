@@ -2294,7 +2294,7 @@ impl<K: HeapMarkAndSweep + core::fmt::Debug + Copy + Hash + Eq + Ord, V: HeapSwe
 {
     fn mark_values(&self, queues: &mut WorkQueues) {
         // Note: we do not mark values as they are held weakly.
-        for (key, _) in self.iter() {
+        for key in self.keys() {
             key.mark_values(queues);
         }
     }

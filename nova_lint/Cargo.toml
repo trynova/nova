@@ -45,7 +45,9 @@ name = "spec_header_level"
 path = "ui/spec_header_level.rs"
 
 [dependencies]
-clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "c936595d17413c1f08e162e117e504fb4ed126e4" }
+# Must match the nightly toolchain pinned in .github/workflows/ci.yml: each
+# clippy_utils release only builds with its contemporary nightly.
+clippy_utils = "0.1.98"
 dylint_linting = { version = "6.0.1", features = ["constituent"] }
 regex = "1"
 

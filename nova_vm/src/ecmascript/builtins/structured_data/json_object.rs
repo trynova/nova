@@ -1008,7 +1008,7 @@ fn serialize_json_object<'a, 'b>(
         // i. Let separator be the string-concatenation of the code unit
         //    0x002C (COMMA), the code unit 0x000A (LINE FEED), and
         //    state.[[Indent]].
-        separator_string = format!(",\n{}", &state.indent).into_boxed_str();
+        separator_string = format!(",\n{}", state.indent).into_boxed_str();
         // ii. Let properties be the String value formed by concatenating
         //     all the element Strings of partial with each adjacent pair
         //     of Strings separated with separator. The separator String is
@@ -1017,8 +1017,8 @@ fn serialize_json_object<'a, 'b>(
         // iii. Let final be the string-concatenation of "{", the code unit
         //      0x000A (LINE FEED), state.[[Indent]], properties, the code
         //      unit 0x000A (LINE FEED), stepBack, and "}".
-        open_string = format!("{{\n{}", &state.indent).into_boxed_str();
-        close_string = format!("\n{}}}", &step_back).into_boxed_str();
+        open_string = format!("{{\n{}", state.indent).into_boxed_str();
+        close_string = format!("\n{}}}", step_back).into_boxed_str();
         (
             open_string.as_ref(),
             separator_string.as_ref(),
@@ -1170,7 +1170,7 @@ fn serialize_json_array<'a, 'b>(
         // b. Else,
         // i. Let separator be the string-concatenation of the code unit 0x002C
         //    (COMMA), the code unit 0x000A (LINE FEED), and state.[[Indent]].
-        separator_string = format!(",\n{}", &state.indent).into_boxed_str();
+        separator_string = format!(",\n{}", state.indent).into_boxed_str();
         // ii. Let properties be the String value formed by concatenating all
         //     the element Strings of partial with each adjacent pair of
         //     Strings separated with separator. The separator String is not
@@ -1179,8 +1179,8 @@ fn serialize_json_array<'a, 'b>(
         // iii. Let final be the string-concatenation of "[", the code unit
         //      0x000A (LINE FEED), state.[[Indent]], properties, the code unit
         //      0x000A (LINE FEED), stepBack, and "]".
-        open_string = format!("[\n{}", &state.indent).into_boxed_str();
-        close_string = format!("\n{}]", &step_back).into_boxed_str();
+        open_string = format!("[\n{}", state.indent).into_boxed_str();
+        close_string = format!("\n{}]", step_back).into_boxed_str();
         (
             open_string.as_ref(),
             separator_string.as_ref(),

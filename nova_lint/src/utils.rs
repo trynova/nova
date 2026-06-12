@@ -51,7 +51,7 @@ pub fn match_def_paths(cx: &LateContext<'_>, did: DefId, syms: &[&[&str]]) -> bo
 
 pub fn is_trait_item(cx: &LateContext<'_>, hir_id: HirId) -> bool {
     if let Node::Item(item) = cx.tcx.parent_hir_node(hir_id) {
-        matches!(item.kind, ItemKind::Trait(..))
+        matches!(item.kind, ItemKind::Trait { .. })
     } else {
         false
     }
