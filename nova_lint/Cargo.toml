@@ -46,11 +46,11 @@ path = "ui/spec_header_level.rs"
 
 [dependencies]
 clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "c936595d17413c1f08e162e117e504fb4ed126e4" }
-dylint_linting = { version = "5.0.0", features = ["constituent"] }
+dylint_linting = { version = "6.0.1", features = ["constituent"] }
 regex = "1"
 
 [dev-dependencies]
-dylint_testing = "5.0.0"
+dylint_testing = "6.0.1"
 nova_vm = { path = "../nova_vm" }
 
 [package.metadata.rust-analyzer]

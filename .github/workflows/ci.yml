@@ -43,10 +43,18 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: warm
-      - name: Install Dylint
-        uses: taiki-e/install-action@v2
+      # Build Dylint from crates.io instead of using prebuilt binaries: the
+      # binaries attached to dylint's GitHub releases (since v6.0.1) are built
+      # inside the dylint repo and bake in a path dependency on
+      # /home/runner/work/dylint/dylint/driver, which breaks driver builds.
+      - name: Install cargo-dylint
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
-          tool: cargo-dylint@6.0.1,dylint-link@6.0.1
+          tool: cargo-dylint@6.0.1
+      - name: Install dylint-link
+        uses: taiki-e/cache-cargo-install-action@v2
+        with:
+          tool: dylint-link@6.0.1
       - name: Check formatting
         run: cargo fmt --check
       - name: Clippy
