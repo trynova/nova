@@ -240,8 +240,8 @@ impl<'gc> Executable<'gc> {
     }
 
     #[inline]
-    fn get_instruction(self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
-        Instr::consume_instruction(&self.get(agent).instructions, ip)
+    fn get_instruction<'a>(self, agent: &'a Agent, ip: &mut usize) -> Option<Instr<'a>> {
+        Instr::consume_instruction(&self.unbind().get(agent).instructions, ip)
     }
 
     #[inline]
@@ -333,8 +333,16 @@ impl Scoped<'_, Executable<'static>> {
     }
 
     #[inline]
-    pub(super) fn get_instruction(&self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
-        self.get(agent).get_instruction(agent, ip)
+    pub(super) fn get_instruction<'a>(
+        &'a self,
+        agent: &Agent,
+        ip: &mut usize,
+    ) -> Option<Instr<'a>> {
+        // SAFETY: Instructions are owned by Agent but Agent does not touch the
+        // buffer except during dropping. Dropping only happens during GC, and
+        // GC can only drop the executable if Scoped<Executable> no longer
+        // exists. Therefore, binding the lifetime to &self is valid.
+        unsafe { core::mem::transmute(self.get(agent).get_instruction(agent, ip)) }
     }
 
     #[inline]

@@ -162,7 +162,7 @@ impl SuspendedVm {
         // Following a yield point, the next instruction is a Jump to the
         // Normal continue handling. We need to ignore that.
         let next_instruction = executable.get_instruction(agent, &mut self.ip);
-        assert_eq!(next_instruction.map(|i| i.kind), Some(Instruction::Jump));
+        debug_assert_eq!(next_instruction.map(|i| *i.kind()), Some(Instruction::Jump));
         let peek_next_instruction = executable.get_instructions(agent).get(self.ip).copied();
         if peek_next_instruction == Some(Instruction::Return.as_u8()) {
             // Our return handling is to just return; we can do that without
@@ -305,7 +305,7 @@ impl Vm {
                 self.trigger_gc(agent, gc.reborrow());
             }
             if agent.options.print_internals {
-                Self::print_executing(instr.kind);
+                Self::print_executing(*instr.kind());
             }
             let result = Self::execute_instruction(
                 agent,
@@ -460,7 +460,7 @@ impl Vm {
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ContinuationKind> {
         // Hot instructions; apply #[inline(always)] to the execute methods.
-        match instr.kind {
+        match instr.kind() {
             Instruction::Load => {
                 vm.execute_load();
             }
@@ -492,18 +492,18 @@ impl Vm {
             | Instruction::GetValueKeepReference
             | Instruction::GetValueWithCacheKeepReference => {
                 let cache = matches!(
-                    instr.kind,
+                    instr.kind(),
                     Instruction::GetValueWithCache | Instruction::GetValueWithCacheKeepReference
                 );
                 let keep_reference = matches!(
-                    instr.kind,
+                    instr.kind(),
                     Instruction::GetValueKeepReference
                         | Instruction::GetValueWithCacheKeepReference
                 );
                 execute_get_value(agent, vm, executable, instr, cache, keep_reference, gc)?
             }
             Instruction::PutValue | Instruction::PutValueWithCache => {
-                let cache = matches!(instr.kind, Instruction::PutValueWithCache);
+                let cache = matches!(instr.kind(), Instruction::PutValueWithCache);
                 execute_put_value(agent, vm, executable, instr, cache, gc)?
             }
             Instruction::ToNumeric => execute_to_numeric(agent, vm, gc)?,
@@ -544,7 +544,7 @@ impl Vm {
         instr: Instr,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ContinuationKind> {
-        let _: () = match instr.kind {
+        let _: () = match instr.kind() {
             Instruction::Load
             | Instruction::LoadCopy
             | Instruction::PutValueToIndex
@@ -581,14 +581,12 @@ impl Vm {
             Instruction::IsNullOrUndefined => vm.execute_is_null_or_undefined(),
             Instruction::IsNull => vm.execute_is_null(),
             Instruction::IsUndefined => vm.execute_is_undefined(),
-            Instruction::IsObject => vm.execute_is_object(),
             Instruction::IsConstructor => execute_is_constructor(agent, vm),
             Instruction::JumpIfTrue => execute_jump_if_true(agent, vm, instr),
             Instruction::LoadReplace => vm.execute_load_replace(),
             Instruction::LoadConstant => {
                 execute_load_constant(agent, vm, executable, instr, gc.into_nogc())
             }
-            Instruction::LoadStoreSwap => vm.execute_load_store_swap(),
             Instruction::UpdateEmpty => vm.execute_update_empty(),
             Instruction::Swap => vm.execute_swap(),
             Instruction::Empty => vm.execute_empty(),
@@ -607,7 +605,7 @@ impl Vm {
             | Instruction::ApplyBitwiseORBinaryOperator
             | Instruction::ApplyBitwiseXORBinaryOperator
             | Instruction::ApplyBitwiseAndBinaryOperator => {
-                execute_apply_binary_operator(agent, vm, instr.kind, gc)?
+                execute_apply_binary_operator(agent, vm, *instr.kind(), gc)?
             }
             Instruction::ArrayCreate => execute_array_create(agent, vm, instr, gc.into_nogc())?,
             Instruction::ArrayPush => execute_array_push(agent, vm, gc)?,
@@ -699,7 +697,7 @@ impl Vm {
             Instruction::PushExceptionJumpTarget => {
                 execute_push_exception_jump_target(agent, vm, instr, gc.into_nogc())
             }
-            Instruction::TruncateStack => vm.stack.truncate(instr.get_first_arg() as usize),
+            Instruction::TruncateStack => vm.stack.truncate(instr.get_first_index()),
             Instruction::ResolveBindingWithCache => {
                 execute_resolve_binding_with_cache(agent, vm, executable, instr, gc)?
             }
@@ -873,16 +871,6 @@ impl Vm {
     }
 
     #[inline(always)]
-    fn execute_load_store_swap(&mut self) {
-        let temp = self
-            .result
-            .take()
-            .expect("Expected result value to not be empty");
-        self.result = Some(self.stack.pop().expect("Trying to pop from empty stack"));
-        self.stack.push(temp);
-    }
-
-    #[inline(always)]
     fn execute_load_replace(&mut self) {
         // Take result, if present, and replace the top of the stack
         // value with it.
@@ -959,13 +947,6 @@ impl Vm {
     fn execute_is_null(&mut self) {
         let val = self.result.take().unwrap();
         let result = val.is_null();
-        self.result = Some(result.into());
-    }
-
-    #[inline(always)]
-    fn execute_is_object(&mut self) {
-        let val = self.result.take().unwrap();
-        let result = val.is_object();
         self.result = Some(result.into());
     }
 
