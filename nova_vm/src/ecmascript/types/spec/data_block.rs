@@ -1364,22 +1364,13 @@ pub(crate) fn copy_shared_data_block_bytes(
     count: usize,
 ) {
     // 1. Assert: fromBlock and toBlock are distinct values.
-    // Note: the pointers must be cast to byte pointers before offsetting;
-    // offsetting the `NonNull<()>` directly would advance by zero bytes and
-    // make the non-overlap check vacuously true.
     debug_assert!(unsafe {
-        to_block
-            .ptr
-            .as_ptr()
-            .cast::<u8>()
-            .add(to_block.max_byte_length())
-            <= from_block.ptr.as_ptr().cast::<u8>()
+        to_block.ptr.as_ptr().byte_add(to_block.max_byte_length()) <= from_block.ptr.as_ptr()
             || from_block
                 .ptr
                 .as_ptr()
-                .cast::<u8>()
-                .add(from_block.max_byte_length())
-                <= to_block.ptr.as_ptr().cast::<u8>()
+                .byte_add(from_block.max_byte_length())
+                <= to_block.ptr.as_ptr()
     });
     // 2. Let fromSize be the number of bytes in fromBlock.
     let from_size = from_block.max_byte_length();
