@@ -1682,7 +1682,7 @@ struct WaitAsyncTimeoutJobInner {
 pub(crate) struct WaitAsyncTimeoutJob(Box<WaitAsyncTimeoutJobInner>);
 
 impl WaitAsyncTimeoutJob {
-    pub(crate) fn run<'gc>(self) {
+    pub(crate) fn run(self) {
         let WaitAsyncTimeoutJobInner {
             data_block,
             byte_index_in_buffer,
