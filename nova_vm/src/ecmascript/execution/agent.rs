@@ -316,9 +316,12 @@ impl Job {
             InnerJob::PromiseResolveThenable(job) => job.run(agent, gc),
             InnerJob::PromiseReaction(job) => job.run(agent, gc),
             #[cfg(feature = "atomics")]
-            InnerJob::WaitAsync(job) => job.run(agent, gc),
+            InnerJob::WaitAsync(job) => job.run(agent, gc.into_nogc()),
             #[cfg(feature = "atomics")]
-            InnerJob::WaitAsyncTimeout(job) => job.run(agent, gc),
+            InnerJob::WaitAsyncTimeout(job) => {
+                job.run();
+                Ok(())
+            }
             #[cfg(feature = "weak-refs")]
             InnerJob::FinalizationRegistry(job) => {
                 job.run(agent, gc);

@@ -541,12 +541,12 @@ impl WaiterList {
         self.waiters.push_back(w);
     }
 
-    pub(crate) fn remove(&mut self, w: Arc<WaiterRecord>) -> bool {
+    pub(crate) fn remove(&mut self, w: &Arc<WaiterRecord>) -> bool {
         let Some(index) = self
             .waiters
             .iter()
             .enumerate()
-            .find(|(_, e)| Arc::ptr_eq(e, &w))
+            .find(|(_, e)| Arc::ptr_eq(e, w))
             .map(|(i, _)| i)
         else {
             return false;
@@ -572,7 +572,7 @@ impl WaiterLists {
         self.map.entry(index).or_default().push(w);
     }
 
-    pub(crate) fn remove_from_list(&mut self, index: usize, w: Arc<WaiterRecord>) {
+    pub(crate) fn remove_from_list(&mut self, index: usize, w: &Arc<WaiterRecord>) {
         match self.map.entry(index) {
             Entry::Occupied(mut entry) => {
                 if entry.get_mut().remove(w) && entry.get().is_empty() {

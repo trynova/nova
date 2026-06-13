@@ -143,7 +143,6 @@ pub(crate) fn create_temporal_plain_time<'gc>(
 /// a normal completion containing a Temporal.PlainTime or a throw completion.
 /// It adds/subtracts temporalDurationLike to/from temporalTime, returning a
 /// point in time that is in the future/past relative to temporalTime.
-/// It performs the following steps when called:
 fn add_duration_to_time<'gc, const IS_ADD: bool>(
     agent: &mut Agent,
     plan_time: TemporalPlainTime,

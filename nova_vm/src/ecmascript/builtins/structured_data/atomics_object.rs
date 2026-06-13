@@ -1503,7 +1503,7 @@ fn do_wait_critical<'gc, const IS_ASYNC: bool, const IS_I64: bool>(
             let (new_guard, timeout) = waiter_record.wait_timeout(guard, dur);
             guard = new_guard;
             if timeout.timed_out() {
-                guard.remove_from_list(byte_index_in_buffer, waiter_record);
+                guard.remove_from_list(byte_index_in_buffer, &waiter_record);
 
                 // 31. Perform LeaveCriticalSection(WL).
                 // 32. If mode is sync, return waiterRecord.[[Result]].
@@ -1645,16 +1645,15 @@ impl WaitAsyncJob {
         self.0._has_timeout
     }
 
-    /// Implementation of the Job Abstract Closure for [WaitAsyncTimeoutJob](https://tc39.es/ecma262/#sec-enqueueatomicswaitasynctimeoutjob),
+    /// Implementation of the Job Abstract Closure for
+    /// [WaitAsyncTimeoutJob](https://tc39.es/ecma262/#sec-enqueueatomicswaitasynctimeoutjob),
     /// for the cases where no timeout is specified.
-    pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
-        let gc = gc.into_nogc();
-
+    pub(crate) fn run<'gc>(self, agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> JsResult<'gc, ()> {
         let waiters = get_wait_async_job_waiters(&self.0.data_block);
 
         let mut guard = waiters.lock().unwrap();
         let waiter_record = self.0.waiter_record;
-        guard.remove_from_list(self.0.byte_index_in_buffer, waiter_record.clone());
+        guard.remove_from_list(self.0.byte_index_in_buffer, &waiter_record);
 
         let result = match waiter_record.get_result() {
             Some(WaitResult::TimedOut) => WaitResult::TimedOut,
@@ -1683,12 +1682,17 @@ struct WaitAsyncTimeoutJobInner {
 pub(crate) struct WaitAsyncTimeoutJob(Box<WaitAsyncTimeoutJobInner>);
 
 impl WaitAsyncTimeoutJob {
-    pub(crate) fn run<'gc>(self, _agent: &mut Agent, _gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
-        if self.0.waiter_record.get_result().is_some() {
-            return Ok(());
+    pub(crate) fn run<'gc>(self) {
+        let WaitAsyncTimeoutJobInner {
+            data_block,
+            byte_index_in_buffer,
+            waiter_record,
+        } = *self.0;
+        if waiter_record.get_result().is_some() {
+            return;
         }
 
-        let waiters = get_wait_async_job_waiters(&self.0.data_block);
+        let waiters = get_wait_async_job_waiters(&data_block);
         // a. Perform EnterCriticalSection(WL).
         let mut guard = waiters.lock().unwrap();
 
@@ -1696,11 +1700,10 @@ impl WaitAsyncTimeoutJob {
         //         i. Let timeOfJobExecution be the time value (UTC) identifying the current time.
         //         ii. Assert: ℝ(timeOfJobExecution) ≥ waiterRecord.[[TimeoutTime]] (ignoring potential non-monotonicity of time values).
         //         iii. Set waiterRecord.[[Result]] to "timed-out".
-        self.0.waiter_record.set_result(WaitResult::TimedOut);
+        waiter_record.set_result(WaitResult::TimedOut);
 
         //         iv. Perform RemoveWaiter(WL, waiterRecord).
-        let waiter_record = self.0.waiter_record.clone();
-        guard.remove_from_list(self.0.byte_index_in_buffer, self.0.waiter_record);
+        guard.remove_from_list(byte_index_in_buffer, &waiter_record);
 
         //         v. Perform NotifyWaiter(WL, waiterRecord).
         waiter_record.notify_waiters();
@@ -1709,7 +1712,6 @@ impl WaitAsyncTimeoutJob {
         drop(guard);
 
         // d. Return unused.
-        Ok(())
     }
 }
 
