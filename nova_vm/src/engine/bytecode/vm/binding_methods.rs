@@ -150,7 +150,7 @@ pub(super) fn execute_simple_array_binding<'a>(
                 }
             }
             Instruction::BindingPatternBindToIndex | Instruction::BindingPatternBindRestToIndex => {
-                let stack_slot = instr.get_first_index() + agent.vm.stack_base as usize;
+                let stack_slot = instr.get_first_stack_slot(agent);
                 agent.vm.stack[stack_slot] = value.unbind();
             }
             Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
@@ -180,7 +180,7 @@ pub(super) fn execute_simple_array_binding<'a>(
     if !iterator_is_done {
         // SAFETY: requires_return_call cannot call into JavaScript and therefore
         // does not access agent.vm.
-        if !unsafe { NonNull::from_ref(agent.vm.get_active_iterator()).as_ref() }
+        if unsafe { NonNull::from_ref(agent.vm.get_active_iterator()).as_ref() }
             .requires_return_call(agent, gc.nogc())
         {
             let result = ActiveIterator::new(agent, gc.nogc()).r#return(
@@ -270,7 +270,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                 let value = get(agent, object.get(agent), key_value.unbind(), gc.reborrow())
                     .unbind()?
                     .bind(gc.nogc());
-                let stack_slot = instr.get_first_index() + agent.vm.stack_base as usize;
+                let stack_slot = instr.get_first_stack_slot(agent);
                 agent.vm.stack[stack_slot] = value.unbind();
             }
             Instruction::BindingPatternGetValueNamed => {
@@ -356,7 +356,7 @@ pub(super) fn execute_simple_object_binding<'a>(
                 )
                 .unbind()?
                 .bind(gc.nogc());
-                let stack_slot = instr.get_first_index() + agent.vm.stack_base as usize;
+                let stack_slot = instr.get_first_stack_slot(agent);
                 agent.vm.stack[stack_slot] = rest_obj.unbind().into();
                 break;
             }

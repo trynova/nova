@@ -808,6 +808,10 @@ impl Instr {
         }
     }
 
+    pub(crate) fn get_first_stack_slot(&self, agent: &Agent) -> usize {
+        self.get_first_arg() as usize + agent.vm.get_stack_base() as usize
+    }
+
     pub(crate) fn get_first_index(&self) -> usize {
         self.get_first_arg() as usize
     }

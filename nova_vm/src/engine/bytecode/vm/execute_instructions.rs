@@ -59,10 +59,10 @@ pub(super) fn execute_await_promise_resolve<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let value = agent.vm.result.take().unwrap();
+    let value = agent.vm.take_result(gc.nogc());
     // 1. Let asyncContext be the running execution context.
     // 2. Let promise be ? PromiseResolve(%Promise%, value).
-    let promise = Promise::resolve(agent, value, gc)?;
+    let promise = Promise::resolve(agent, value.unbind(), gc)?;
     agent.vm.result = Some(promise.unbind().into());
     Ok(())
 }
@@ -311,16 +311,16 @@ pub(super) fn execute_apply_addition_binary_operator<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let lval = agent.vm.stack.pop().unwrap();
-    let rval = agent.vm.result.take().unwrap();
+    let lval = agent.vm.pop_stack(gc.nogc());
+    let rval = agent.vm.take_result(gc.nogc());
     let result = if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lval), Number::try_from(rval)) {
         Number::add(agent, lnum, rnum).into()
     } else if let (Ok(lstr), Ok(rstr)) = (String::try_from(lval), String::try_from(rval)) {
-        String::concat(agent, [lstr, rstr], gc.into_nogc()).into()
+        String::concat(agent, [lstr.unbind(), rstr.unbind()], gc.into_nogc()).into()
     } else if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lval), BigInt::try_from(rval)) {
         BigInt::add(agent, lnum, rnum).into()
     } else {
-        apply_string_or_numeric_addition(agent, lval, rval, gc)?
+        apply_string_or_numeric_addition(agent, lval.unbind(), rval.unbind(), gc)?
     };
     agent.vm.result = Some(result.unbind());
     Ok(())
@@ -331,14 +331,34 @@ pub(super) fn execute_apply_binary_operator<'gc>(
     instruction: Instruction,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let lval = agent.vm.stack.pop().unwrap();
-    let rval = agent.vm.result.take().unwrap();
+    let lval = agent.vm.pop_stack(gc.nogc());
+    let rval = agent.vm.take_result(gc.nogc());
     let result = if let (Ok(lnum), Ok(rnum)) = (Number::try_from(lval), Number::try_from(rval)) {
-        number_binary_operator(agent, instruction, lnum, rnum, gc.into_nogc())?.into()
+        number_binary_operator(
+            agent,
+            instruction,
+            lnum.unbind(),
+            rnum.unbind(),
+            gc.into_nogc(),
+        )?
+        .into()
     } else if let (Ok(lnum), Ok(rnum)) = (BigInt::try_from(lval), BigInt::try_from(rval)) {
-        bigint_binary_operator(agent, instruction, lnum, rnum, gc.into_nogc())?.into()
+        bigint_binary_operator(
+            agent,
+            instruction,
+            lnum.unbind(),
+            rnum.unbind(),
+            gc.into_nogc(),
+        )?
+        .into()
     } else {
-        apply_string_or_numeric_binary_operator(agent, lval, instruction, rval, gc)?
+        apply_string_or_numeric_binary_operator(
+            agent,
+            lval.unbind(),
+            instruction,
+            rval.unbind(),
+            gc,
+        )?
     };
     agent.vm.result = Some(result.unbind());
     Ok(())
@@ -348,8 +368,8 @@ pub(super) fn execute_object_define_property<'gc>(
     agent: &mut Agent,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let key = agent.vm.stack.pop().unwrap();
-    let key = to_property_key(agent, key, gc.reborrow())
+    let key = agent.vm.pop_stack(gc.nogc());
+    let key = to_property_key(agent, key.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
     let key = key.unbind().bind(gc.nogc());
@@ -372,8 +392,8 @@ pub(super) fn execute_object_define_method<'gc>(
     let function_expression = expression.get();
     let enumerable = instr.get_second_bool();
     // 1. Let propKey be ? Evaluation of ClassElementName.
-    let prop_key = agent.vm.stack.pop().unwrap();
-    let prop_key = to_property_key(agent, prop_key, gc.reborrow())
+    let prop_key = agent.vm.pop_stack(gc.nogc());
+    let prop_key = to_property_key(agent, prop_key.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
     let object = Object::try_from(*agent.vm.stack.last().unwrap())
@@ -463,8 +483,8 @@ pub(super) fn execute_object_define_getter<'gc>(
     let function_expression = expression.get();
     let enumerable = instr.get_second_bool();
     // 1. Let propKey be ? Evaluation of ClassElementName.
-    let prop_key = agent.vm.stack.pop().unwrap();
-    let prop_key = to_property_key(agent, prop_key, gc.reborrow())
+    let prop_key = agent.vm.pop_stack(gc.nogc());
+    let prop_key = to_property_key(agent, prop_key.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
     // 2. Let env be the running execution context's LexicalEnvironment.
@@ -541,8 +561,8 @@ pub(super) fn execute_object_define_setter<'gc>(
     let function_expression = expression.get();
     let enumerable = instr.get_second_bool();
     // 1. Let propKey be ? Evaluation of ClassElementName.
-    let prop_key = agent.vm.stack.pop().unwrap();
-    let prop_key = to_property_key(agent, prop_key, gc.reborrow())
+    let prop_key = agent.vm.pop_stack(gc.nogc());
+    let prop_key = to_property_key(agent, prop_key.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
     // 2. Let env be the running execution context's LexicalEnvironment.
@@ -786,11 +806,11 @@ pub(super) fn execute_copy_data_properties<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let source = agent.vm.result.take().unwrap();
+    let source = agent.vm.take_result(gc.nogc());
     let Value::Object(target) = *agent.vm.stack.last().unwrap() else {
         unreachable!()
     };
-    copy_data_properties(agent, target, source, gc)?;
+    copy_data_properties(agent, target.unbind(), source.unbind(), gc)?;
     Ok(())
 }
 
@@ -807,7 +827,7 @@ pub(super) fn execute_copy_data_properties_into_object<'gc>(
     let mut excluded_items = PropertyKeySet::with_capacity(num_excluded_items, gc.nogc());
     assert!(agent.vm.reference.is_none());
     for _ in 0..num_excluded_items {
-        let reference = agent.vm.reference_stack.pop().unwrap();
+        let reference = agent.vm.pop_reference_stack();
         debug_assert_eq!(reference.base_value(), from.into());
         debug_assert!(!is_super_reference(&reference));
         excluded_items.insert(agent, reference.referenced_name_property_key());
@@ -1089,8 +1109,8 @@ pub(super) fn execute_class_define_constructor<'gc>(
     instr: Instr,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let name = agent.vm.stack.pop().unwrap();
-    let class_name = set_class_name(agent, name, gc.reborrow())
+    let name = agent.vm.pop_stack(gc.nogc());
+    let class_name = set_class_name(agent, name.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
 
@@ -1106,7 +1126,7 @@ pub(super) fn execute_class_define_constructor<'gc>(
     let has_constructor_parent = instr.get_second_bool();
 
     let function_prototype = if has_constructor_parent {
-        Some(Object::try_from(agent.vm.stack.pop().unwrap()).unwrap())
+        Some(Object::try_from(agent.vm.pop_stack(gc.nogc())).unwrap())
     } else {
         None
     };
@@ -1166,8 +1186,8 @@ pub(super) fn execute_class_define_default_constructor<'gc>(
     instr: Instr,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let name = agent.vm.stack.pop().unwrap();
-    let class_name = set_class_name(agent, name, gc.reborrow())
+    let name = agent.vm.pop_stack(gc.nogc());
+    let class_name = set_class_name(agent, name.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
 
@@ -1176,7 +1196,7 @@ pub(super) fn execute_class_define_default_constructor<'gc>(
         .current_executable(gc.nogc())
         .fetch_class_initializer_bytecode(agent, class_initializer_bytecode_index, gc.nogc());
     let function_prototype = if has_constructor_parent {
-        Some(Object::try_from(agent.vm.stack.pop().unwrap()).unwrap())
+        Some(Object::try_from(agent.vm.pop_stack(gc.nogc())).unwrap())
     } else {
         Some(
             agent
@@ -1391,7 +1411,7 @@ pub(super) fn execute_class_initialize_private_value<'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     let target = Object::try_from(agent.vm.stack.last().unwrap().bind(gc)).unwrap();
-    let value = agent.vm.result.take().unwrap().bind(gc);
+    let value = agent.vm.take_result(gc);
     if target.is_proxy() {
         return Err(throw_no_proxy_private_names(agent, gc));
     }
@@ -1486,7 +1506,7 @@ pub(super) fn execute_evaluate_call<'gc>(
         Value::Undefined
     };
     let mut args = agent.vm.get_call_args(instr, gc.nogc()).unbind();
-    let func = agent.vm.stack.pop().unwrap().unbind();
+    let func = agent.vm.pop_stack(gc.nogc()).unbind();
     let this_value = this_value.unbind();
     let result = call(
         agent,
@@ -1505,7 +1525,7 @@ pub(super) fn execute_evaluate_new<'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     let args = agent.vm.get_call_args(instr, gc.nogc());
-    let constructor = agent.vm.stack.pop().unwrap().bind(gc.nogc());
+    let constructor = agent.vm.pop_stack(gc.nogc()).bind(gc.nogc());
     let Some(constructor) = is_constructor(agent, constructor) else {
         let constructor_string = constructor.unbind().string_repr(agent, gc.reborrow());
         let error_message = format!(
@@ -1604,8 +1624,8 @@ pub(super) fn execute_evaluate_property_access_with_expression_key(
     agent: &mut Agent,
     gc: NoGcScope,
 ) {
-    let property_name_value = agent.vm.result.take().unwrap().bind(gc);
-    let base_value = agent.vm.stack.pop().unwrap().bind(gc);
+    let property_name_value = agent.vm.take_result(gc);
+    let base_value = agent.vm.pop_stack(gc);
     let strict = agent.is_evaluating_strict_code();
 
     agent.vm.reference = Some(
@@ -1624,7 +1644,7 @@ pub(super) fn execute_evaluate_property_access_with_identifier_key(
         agent
             .current_executable(gc)
             .fetch_property_key(agent, instr.get_first_index(), gc);
-    let base_value = agent.vm.result.take().unwrap().bind(gc);
+    let base_value = agent.vm.take_result(gc);
     let strict = agent.is_evaluating_strict_code();
 
     agent.vm.reference =
@@ -1636,7 +1656,7 @@ pub(super) fn execute_make_private_reference(agent: &mut Agent, instr: Instr, gc
         agent
             .current_executable(gc)
             .fetch_identifier(agent, instr.get_first_index(), gc);
-    let base_value = agent.vm.result.take().unwrap().bind(gc);
+    let base_value = agent.vm.take_result(gc);
     // 1. Let privateEnv be the running execution context's
     //    PrivateEnvironment.
     // 2. Assert: privateEnv is not null.
@@ -1669,7 +1689,7 @@ pub(super) fn execute_make_super_property_reference_with_expression_key<'gc>(
     let actual_this = env.get_this_binding(agent, gc).unbind()?.bind(gc);
     // 3. Let propertyNameReference be ? Evaluation of Expression.
     // 4. Let propertyNameValue be ? GetValue(propertyNameReference).
-    let property_name_value = agent.vm.result.take().unwrap().bind(gc);
+    let property_name_value = agent.vm.take_result(gc);
     // 5. Let strict be IsStrict(this SuperProperty).
     let strict = agent.is_evaluating_strict_code();
     // 6. NOTE: In most cases, ToPropertyKey will be performed on
@@ -1766,8 +1786,8 @@ pub(super) fn execute_jump(agent: &mut Agent, instr: Instr) {
 }
 
 #[inline(always)]
-pub(super) fn execute_jump_if_not(agent: &mut Agent, instr: Instr) {
-    let result = agent.vm.result.take().unwrap();
+pub(super) fn execute_jump_if_not(agent: &mut Agent, instr: Instr, gc: NoGcScope) {
+    let result = agent.vm.take_result(gc);
     let ip = instr.get_jump_slot();
     if !to_boolean(agent, result) {
         if agent.options.print_internals {
@@ -1778,8 +1798,8 @@ pub(super) fn execute_jump_if_not(agent: &mut Agent, instr: Instr) {
 }
 
 #[inline(always)]
-pub(super) fn execute_jump_if_true(agent: &mut Agent, instr: Instr) {
-    let result = agent.vm.result.take().unwrap();
+pub(super) fn execute_jump_if_true(agent: &mut Agent, instr: Instr, gc: NoGcScope) {
+    let result = agent.vm.take_result(gc);
     let Value::Boolean(result) = result else {
         unreachable!()
     };
@@ -1793,7 +1813,7 @@ pub(super) fn execute_jump_if_true(agent: &mut Agent, instr: Instr) {
 }
 
 pub(super) fn execute_increment(agent: &mut Agent, gc: NoGcScope) {
-    let lhs = agent.vm.result.take().unwrap().bind(gc);
+    let lhs = agent.vm.take_result(gc);
     // Note: This is done by the previous instruction.
     let old_value = Numeric::try_from(lhs).unwrap();
     let new_value: Value = if let Ok(old_value) = Number::try_from(old_value) {
@@ -1806,7 +1826,7 @@ pub(super) fn execute_increment(agent: &mut Agent, gc: NoGcScope) {
 }
 
 pub(super) fn execute_decrement(agent: &mut Agent, gc: NoGcScope) {
-    let lhs = agent.vm.result.take().unwrap().bind(gc);
+    let lhs = agent.vm.take_result(gc);
     // Note: This is done by the previous instruction.
     let old_value = Numeric::try_from(lhs).unwrap();
     let new_value: Value = if let Ok(old_value) = Number::try_from(old_value) {
@@ -1819,9 +1839,9 @@ pub(super) fn execute_decrement(agent: &mut Agent, gc: NoGcScope) {
 }
 
 pub(super) fn execute_less_than<'gc>(agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
-    let lval = agent.vm.stack.pop().unwrap();
-    let rval = agent.vm.result.take().unwrap();
-    let result = is_less_than::<true>(agent, lval, rval, gc)?;
+    let lval = agent.vm.pop_stack(gc.nogc());
+    let rval = agent.vm.take_result(gc.nogc());
+    let result = is_less_than::<true>(agent, lval.unbind(), rval.unbind(), gc)?;
     let result = result == Some(true);
     agent.vm.result = Some(result.into());
     Ok(())
@@ -1831,9 +1851,9 @@ pub(super) fn execute_less_than_equals<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let lval = agent.vm.stack.pop().unwrap();
-    let rval = agent.vm.result.take().unwrap();
-    let result = is_less_than::<false>(agent, rval, lval, gc)?;
+    let lval = agent.vm.pop_stack(gc.nogc());
+    let rval = agent.vm.take_result(gc.nogc());
+    let result = is_less_than::<false>(agent, rval.unbind(), lval.unbind(), gc)?;
     let result = result == Some(false);
     agent.vm.result = Some(result.into());
     Ok(())
@@ -1843,9 +1863,9 @@ pub(super) fn execute_greater_than<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let lval = agent.vm.stack.pop().unwrap();
-    let rval = agent.vm.result.take().unwrap();
-    let result = is_less_than::<false>(agent, rval, lval, gc)?;
+    let lval = agent.vm.pop_stack(gc.nogc());
+    let rval = agent.vm.take_result(gc.nogc());
+    let result = is_less_than::<false>(agent, rval.unbind(), lval.unbind(), gc)?;
     let result = result == Some(true);
     agent.vm.result = Some(result.into());
     Ok(())
@@ -1855,9 +1875,9 @@ pub(super) fn execute_greater_than_equals<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let lval = agent.vm.stack.pop().unwrap();
-    let rval = agent.vm.result.take().unwrap();
-    let result = is_less_than::<true>(agent, lval, rval, gc)?;
+    let lval = agent.vm.pop_stack(gc.nogc());
+    let rval = agent.vm.take_result(gc.nogc());
+    let result = is_less_than::<true>(agent, lval.unbind(), rval.unbind(), gc)?;
     let result = result == Some(false);
     agent.vm.result = Some(result.into());
     Ok(())
@@ -1867,7 +1887,7 @@ pub(super) fn execute_has_property<'gc>(
     agent: &mut Agent,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let lval = agent.vm.stack.pop().unwrap().bind(gc.nogc());
+    let lval = agent.vm.pop_stack(gc.nogc()).bind(gc.nogc());
     let rval = agent.vm.result.take().unwrap().bind(gc.nogc());
     // RelationalExpression : RelationalExpression in ShiftExpression
     // 5. If rval is not an Object, throw a TypeError exception.
@@ -1945,8 +1965,8 @@ pub(super) fn execute_has_private_element<'gc>(
 
 #[inline(always)]
 pub(super) fn execute_is_strictly_equal(agent: &mut Agent, gc: NoGcScope) {
-    let lval = agent.vm.stack.pop().unwrap().bind(gc);
-    let rval = agent.vm.result.take().unwrap().bind(gc);
+    let lval = agent.vm.pop_stack(gc);
+    let rval = agent.vm.take_result(gc);
     let result = is_strictly_equal(agent, lval, rval);
     agent.vm.result = Some(result.into());
 }
@@ -1955,16 +1975,16 @@ pub(super) fn execute_is_loosely_equal<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let lval = agent.vm.stack.pop().unwrap();
-    let rval = agent.vm.result.take().unwrap();
-    let result = is_loosely_equal(agent, lval, rval, gc)?;
+    let lval = agent.vm.pop_stack(gc.nogc());
+    let rval = agent.vm.take_result(gc.nogc());
+    let result = is_loosely_equal(agent, lval.unbind(), rval.unbind(), gc)?;
     agent.vm.result = Some(result.into());
     Ok(())
 }
 
 #[inline(always)]
-pub(super) fn execute_is_constructor(agent: &mut Agent) {
-    let val = agent.vm.result.take().unwrap();
+pub(super) fn execute_is_constructor(agent: &mut Agent, gc: NoGcScope) {
+    let val = agent.vm.take_result(gc);
     let result = if let Ok(val) = Function::try_from(val) {
         val.is_constructor(agent)
     } else {
@@ -1974,8 +1994,8 @@ pub(super) fn execute_is_constructor(agent: &mut Agent) {
 }
 
 #[inline(always)]
-pub(super) fn execute_logical_not(agent: &mut Agent) {
-    let value = agent.vm.result.take().unwrap();
+pub(super) fn execute_logical_not(agent: &mut Agent, gc: NoGcScope) {
+    let value = agent.vm.take_result(gc);
     // 2. Let oldValue be ToBoolean(? GetValue(expr)).
     let old_value = to_boolean(agent, value);
 
@@ -1987,7 +2007,7 @@ pub(super) fn execute_logical_not(agent: &mut Agent) {
 #[inline(always)]
 pub(super) fn execute_initialize_referenced_binding(agent: &mut Agent, gc: NoGcScope) {
     let v = agent.vm.reference.take().unwrap();
-    let w = agent.vm.result.take().unwrap();
+    let w = agent.vm.take_result(gc);
     // Note: https://tc39.es/ecma262/#sec-initializereferencedbinding
     // suggests this cannot call user code, hence NoGC.
     unwrap_try(try_initialize_referenced_binding(agent, v, w, gc));
@@ -2010,8 +2030,8 @@ pub(super) fn execute_initialize_variable_environment<'gc>(
 
     // e. For each element n of varNames, do
     for _ in 0..num_variables {
-        let n = String::try_from(agent.vm.stack.pop().unwrap()).unwrap();
-        let initial_value = agent.vm.stack.pop().unwrap();
+        let n = String::try_from(agent.vm.pop_stack(gc)).unwrap();
+        let initial_value = agent.vm.pop_stack(gc);
         // 2. Perform ! varEnv.CreateMutableBinding(n, false).
         var_env.create_mutable_binding(agent, n, false);
         // 5. Perform ! varEnv.InitializeBinding(n, initialValue).
@@ -2129,9 +2149,9 @@ pub(super) fn execute_instanceof_operator<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let lval = agent.vm.stack.pop().unwrap();
-    let rval = agent.vm.result.take().unwrap();
-    let result = instanceof_operator(agent, lval, rval, gc)?;
+    let lval = agent.vm.pop_stack(gc.nogc());
+    let rval = agent.vm.take_result(gc.nogc());
+    let result = instanceof_operator(agent, lval.unbind(), rval.unbind(), gc)?;
     agent.vm.result = Some(result.into());
     Ok(())
 }
@@ -2252,7 +2272,7 @@ pub(super) fn execute_string_concat<'gc>(
 }
 
 pub(super) fn execute_enumerate_object_properties(agent: &mut Agent, gc: NoGcScope) {
-    let result = agent.vm.result.take().unwrap().bind(gc);
+    let result = agent.vm.take_result(gc);
     let object = to_object(agent, result, gc).unwrap();
     agent.vm.iterator_stack.push(
         VmIteratorRecord::ObjectProperties(Box::new(ObjectPropertiesIteratorRecord::new(object)))
@@ -2264,8 +2284,8 @@ pub(super) fn execute_get_iterator_sync<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let expr_value = agent.vm.result.take().unwrap();
-    let result = VmIteratorRecord::from_value(agent, expr_value, gc)?;
+    let expr_value = agent.vm.take_result(gc.nogc());
+    let result = VmIteratorRecord::from_value(agent, expr_value.unbind(), gc)?;
     agent.vm.iterator_stack.push(result.unbind());
     Ok(())
 }
@@ -2274,8 +2294,8 @@ pub(super) fn execute_get_iterator_async<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let expr_value = agent.vm.result.take().unwrap();
-    let result = VmIteratorRecord::async_from_value(agent, expr_value, gc)?;
+    let expr_value = agent.vm.take_result(gc.nogc());
+    let result = VmIteratorRecord::async_from_value(agent, expr_value.unbind(), gc)?;
     agent.vm.iterator_stack.push(result.unbind());
     Ok(())
 }
@@ -2639,7 +2659,7 @@ pub(super) fn execute_get_new_target(agent: &mut Agent, gc: NoGcScope) {
 }
 
 pub(super) fn execute_import_call(agent: &mut Agent, gc: GcScope) {
-    let specifier = agent.vm.stack.pop().unwrap().bind(gc.nogc());
+    let specifier = agent.vm.pop_stack(gc.nogc()).bind(gc.nogc());
     let options = agent.vm.result.take().bind(gc.nogc());
     agent.vm.result = Some(
         evaluate_import_call(agent, specifier.unbind(), options.unbind(), gc)

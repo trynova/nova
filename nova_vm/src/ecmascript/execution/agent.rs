@@ -1193,7 +1193,7 @@ impl Agent {
 
     pub(crate) fn resume_return<'gc>(
         &mut self,
-        vm: SuspendedVm,
+        mut vm: SuspendedVm,
         result: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
@@ -1204,14 +1204,7 @@ impl Agent {
         // Following a yield point, the next instruction is a Jump to the
         // Normal continue handling. We need to ignore that.
         let executable = self.current_executable(gc.nogc());
-        let ip = &mut self
-            .execution_context_stack
-            .last_mut()
-            .unwrap()
-            .ecmascript_code
-            .as_mut()
-            .unwrap()
-            .ip;
+        let ip = vm.get_ip_mut();
         let instructions = &executable.get_direct(&self.heap.executables).instructions;
         let next_instruction = Instr::consume_instruction(instructions, ip);
         assert_eq!(next_instruction.map(|i| i.kind), Some(Instruction::Jump));
@@ -1405,7 +1398,14 @@ impl Agent {
             .and_then(|ctx| ctx.ecmascript_code.as_ref())
         {
             self.vm.set_instruction_pointer(eval_state.ip);
-            self.vm.set_stack_base(eval_state.stack_base);
+            self.vm.set_stack_bases(
+                eval_state.stack_base,
+                #[cfg(debug_assertions)]
+                eval_state.reference_stack_base,
+                #[cfg(debug_assertions)]
+                eval_state.iterator_stack_base,
+                eval_state.exception_handler_stack_base,
+            );
         } else if self.execution_context_stack.is_empty() {
             self.vm.clear_stack();
         }

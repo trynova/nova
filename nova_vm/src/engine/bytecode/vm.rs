@@ -24,6 +24,7 @@ use crate::{
             IndexType, Instruction, InstructionIter, instructions::Instr,
             iterator::VmIteratorRecord,
         },
+        trivially_bindable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
 };
@@ -62,10 +63,11 @@ enum ContinuationKind {
     Yield,
     Await,
 }
+trivially_bindable!(ContinuationKind);
 
 /// VM exception handler.
 #[derive(Debug)]
-enum ExceptionHandler<'a> {
+pub(crate) enum ExceptionHandler<'a> {
     /// Indicates a jump to catch block.
     CatchBlock {
         /// Instruction pointer.
@@ -77,6 +79,7 @@ enum ExceptionHandler<'a> {
     /// skipped. This is used in AsyncIteratorClose handling.
     IgnoreErrorAndNextInstruction,
 }
+bindable_handle!(ExceptionHandler);
 
 /// ## Notes
 ///
@@ -89,8 +92,13 @@ pub(crate) struct Vm {
     stack: Vec<Value<'static>>,
     stack_base: u32,
     reference_stack: Vec<Reference<'static>>,
+    #[cfg(debug_assertions)]
+    reference_stack_base: u32,
     iterator_stack: Vec<VmIteratorRecord<'static>>,
+    #[cfg(debug_assertions)]
+    iterator_stack_base: u32,
     exception_handler_stack: Vec<ExceptionHandler<'static>>,
+    exception_handler_stack_base: u32,
     result: Option<Value<'static>>,
     reference: Option<Reference<'static>>,
 }
@@ -116,6 +124,10 @@ pub(crate) struct SuspendedVm {
 }
 
 impl SuspendedVm {
+    pub(crate) fn get_ip_mut(&mut self) -> &mut usize {
+        &mut self.ip
+    }
+
     #[inline(always)]
     pub(crate) fn has_catch_handler(&self) -> bool {
         !self.exception_handler_stack.is_empty()
@@ -132,6 +144,10 @@ impl Vm {
             u32,
         ),
     ) -> SuspendedVm {
+        debug_assert!(self.stack.len() >= stack_base as usize);
+        debug_assert!(self.reference_stack.len() >= reference_stack_base as usize);
+        debug_assert!(self.iterator_stack.len() >= iterator_stack_base as usize);
+        debug_assert!(self.exception_handler_stack.len() >= exception_handler_stack_base as usize);
         SuspendedVm {
             ip: self.ip,
             stack: self.stack.split_off(stack_base as usize).into_boxed_slice(),
@@ -158,8 +174,24 @@ impl Vm {
         self.ip = ip;
     }
 
-    pub(crate) fn set_stack_base(&mut self, stack_base: u32) {
+    pub(crate) fn get_stack_base(&self) -> u32 {
+        self.stack_base
+    }
+
+    pub(crate) fn set_stack_bases(
+        &mut self,
+        stack_base: u32,
+        #[cfg(debug_assertions)] reference_stack_base: u32,
+        #[cfg(debug_assertions)] iterator_stack_base: u32,
+        exception_handler_stack_base: u32,
+    ) {
         self.stack_base = stack_base;
+        #[cfg(debug_assertions)]
+        {
+            self.reference_stack_base = reference_stack_base;
+            self.iterator_stack_base = iterator_stack_base;
+        }
+        self.exception_handler_stack_base = exception_handler_stack_base;
     }
 
     pub(crate) fn push_stack_frame(&mut self) -> (u32, u32, u32, u32) {
@@ -169,6 +201,12 @@ impl Vm {
         let iterator_stack_base = u32::try_from(self.iterator_stack.len()).unwrap();
         let exception_handler_stack_base =
             u32::try_from(self.exception_handler_stack.len()).unwrap();
+        self.exception_handler_stack_base = exception_handler_stack_base;
+        #[cfg(debug_assertions)]
+        {
+            self.reference_stack_base = reference_stack_base;
+            self.iterator_stack_base = iterator_stack_base;
+        }
         (
             stack_base,
             reference_stack_base,
@@ -181,6 +219,10 @@ impl Vm {
         let (stack_base, reference_stack_base, iterator_stack_base, exception_handler_stack_base) =
             stack_frame;
         // Truncate the stacks to what we're told.
+        debug_assert!(self.stack.len() >= stack_base as usize);
+        debug_assert!(self.reference_stack.len() >= reference_stack_base as usize);
+        debug_assert!(self.iterator_stack.len() >= iterator_stack_base as usize);
+        debug_assert!(self.exception_handler_stack.len() >= exception_handler_stack_base as usize);
         self.stack.truncate(stack_base as usize);
         self.reference_stack.truncate(reference_stack_base as usize);
         self.iterator_stack.truncate(iterator_stack_base as usize);
@@ -195,6 +237,27 @@ impl Vm {
         self.exception_handler_stack.clear();
         self.ip = 0;
         self.stack_base = 0;
+        #[cfg(debug_assertions)]
+        {
+            self.reference_stack_base = 0;
+            self.iterator_stack_base = 0;
+        }
+        self.exception_handler_stack_base = 0;
+    }
+
+    pub(crate) fn pop_stack<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
+        self.stack
+            .pop()
+            .expect("Attempted to pop from an empty stack")
+            .bind(gc)
+    }
+
+    pub(crate) fn take_result<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+        self.result
+            .take()
+            .expect("Attempted to take an empty result")
+            .bind(gc)
     }
 
     pub(crate) fn unsuspend(
@@ -316,7 +379,11 @@ impl Vm {
                 Ok(ContinuationKind::Normal) => {}
                 // SAFETY: result is not Ok(ContinuationKind::Normal).
                 _ => unsafe {
-                    if let Some(r) = Vm::handle_execute_instruction_abnormal_result(agent, result) {
+                    if let Some(r) = Vm::handle_execute_instruction_abnormal_result(
+                        agent,
+                        result.unbind(),
+                        gc.nogc(),
+                    ) {
                         return r.unbind().bind(gc.into_nogc());
                     }
                 },
@@ -335,6 +402,7 @@ impl Vm {
     unsafe fn handle_execute_instruction_abnormal_result<'a>(
         agent: &mut Agent,
         result: JsResult<'a, ContinuationKind>,
+        gc: NoGcScope<'a, '_>,
     ) -> Option<ExecutionResult<'a>> {
         match result {
             // SAFETY: method only called if result is not normal.
@@ -347,7 +415,7 @@ impl Vm {
                 Some(ExecutionResult::Return(result))
             }
             Ok(ContinuationKind::Yield) => {
-                let yielded_value = agent.vm.result.take().unwrap();
+                let yielded_value = agent.vm.take_result(gc);
                 if agent.options.print_internals {
                     Self::print_yielding(yielded_value);
                 }
@@ -379,6 +447,7 @@ impl Vm {
                     }
                     Some(ExecutionResult::Throw(err.unbind()))
                 } else {
+                    eprintln!("None?");
                     None
                 }
             }
@@ -419,7 +488,7 @@ impl Vm {
     #[cold]
     #[must_use]
     fn handle_error(agent: &mut Agent, err: JsError) -> bool {
-        if let Some(handler) = agent.vm.exception_handler_stack.pop() {
+        if let Some(handler) = agent.vm.pop_exception_handler_stack() {
             match handler {
                 ExceptionHandler::CatchBlock {
                     ip,
@@ -460,13 +529,17 @@ impl Vm {
                 agent.vm.execute_load_copy();
             }
             Instruction::PutValueToIndex => {
-                agent.vm.execute_load_to_index(instr.get_first_index());
+                agent
+                    .vm
+                    .execute_load_to_index(instr.get_first_stack_slot(agent));
             }
             Instruction::Store => {
                 agent.vm.execute_store();
             }
             Instruction::GetValueFromIndex => {
-                agent.vm.execute_store_from_index(instr.get_first_index());
+                agent
+                    .vm
+                    .execute_store_from_index(instr.get_first_stack_slot(agent));
             }
             Instruction::StoreConstant => {
                 execute_store_constant(agent, instr, gc.into_nogc());
@@ -475,7 +548,7 @@ impl Vm {
                 agent.vm.execute_pop_stack();
             }
             Instruction::Jump => execute_jump(agent, instr),
-            Instruction::JumpIfNot => execute_jump_if_not(agent, instr),
+            Instruction::JumpIfNot => execute_jump_if_not(agent, instr, gc.into_nogc()),
             Instruction::ResolveBinding => {
                 execute_resolve_binding(agent, instr, gc)?;
             }
@@ -566,15 +639,15 @@ impl Vm {
             Instruction::IsNull => agent.vm.execute_is_null(),
             Instruction::IsUndefined => agent.vm.execute_is_undefined(),
             Instruction::IsObject => agent.vm.execute_is_object(),
-            Instruction::IsConstructor => execute_is_constructor(agent),
-            Instruction::JumpIfTrue => execute_jump_if_true(agent, instr),
+            Instruction::IsConstructor => execute_is_constructor(agent, gc.into_nogc()),
+            Instruction::JumpIfTrue => execute_jump_if_true(agent, instr, gc.into_nogc()),
             Instruction::LoadReplace => agent.vm.execute_load_replace(),
             Instruction::LoadConstant => execute_load_constant(agent, instr, gc.into_nogc()),
             Instruction::LoadStoreSwap => agent.vm.execute_load_store_swap(),
             Instruction::UpdateEmpty => agent.vm.execute_update_empty(),
             Instruction::Swap => agent.vm.execute_swap(),
             Instruction::Empty => agent.vm.execute_empty(),
-            Instruction::LogicalNot => execute_logical_not(agent),
+            Instruction::LogicalNot => execute_logical_not(agent, gc.into_nogc()),
             Instruction::ApplyAdditionBinaryOperator => {
                 execute_apply_addition_binary_operator(agent, gc)?
             }
@@ -667,7 +740,9 @@ impl Vm {
             Instruction::PushExceptionJumpTarget => {
                 execute_push_exception_jump_target(agent, instr, gc.into_nogc())
             }
-            Instruction::TruncateStack => agent.vm.stack.truncate(instr.get_first_arg() as usize),
+            Instruction::TruncateStack => {
+                agent.vm.stack.truncate(instr.get_first_stack_slot(agent))
+            }
             Instruction::ResolveBindingWithCache => {
                 execute_resolve_binding_with_cache(agent, instr, gc)?
             }
@@ -761,7 +836,7 @@ impl Vm {
         if instr_arg0 != IndexType::MAX {
             // Static number of arguments less than IndexType::MAX.
             let arg_count = instr_arg0 as usize;
-            debug_assert!(self.stack.len() >= arg_count);
+            debug_assert!(self.stack.len() >= self.stack_base as usize + arg_count);
             self.stack.split_off(self.stack.len() - arg_count)
         } else {
             // Dynamic number of arguments, or exactly IndexType::MAX or more
@@ -772,8 +847,9 @@ impl Vm {
                 panic!("Expected the number of function arguments to be an integer")
             };
             let arg_count = usize::try_from(integer.into_i64()).unwrap();
-            debug_assert!(self.stack.len() > arg_count);
+            debug_assert!(self.stack.len() > self.stack_base as usize + arg_count);
             let args = self.stack.split_off(self.stack.len() - arg_count);
+            debug_assert!(self.stack.len() > self.stack_base as usize);
             let integer_copy = self.stack.pop().unwrap();
             debug_assert_eq!(Value::Integer(integer), integer_copy);
             args
@@ -786,6 +862,7 @@ impl Vm {
     ///
     /// Panics if the iterator stack is empty.
     pub(super) fn pop_iterator<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> VmIteratorRecord<'gc> {
+        debug_assert!(self.iterator_stack.len() > self.iterator_stack_base as usize);
         self.iterator_stack
             .pop()
             .expect("Iterator stack is empty")
@@ -798,6 +875,7 @@ impl Vm {
     ///
     /// Panics if the iterator stack is empty.
     pub(super) fn get_active_iterator(&self) -> &VmIteratorRecord<'static> {
+        debug_assert!(self.iterator_stack.len() > self.iterator_stack_base as usize);
         self.iterator_stack.last().expect("Iterator stack is empty")
     }
 
@@ -807,6 +885,7 @@ impl Vm {
     ///
     /// Panics if the iterator stack is empty.
     pub(super) fn get_active_iterator_mut(&mut self) -> &mut VmIteratorRecord<'static> {
+        debug_assert!(self.iterator_stack.len() > self.iterator_stack_base as usize);
         self.iterator_stack
             .last_mut()
             .expect("Iterator stack is empty")
@@ -831,7 +910,7 @@ impl Vm {
 
     #[inline(always)]
     fn execute_load_to_index(&mut self, index: usize) {
-        self.stack[index + self.stack_base as usize] = self.result.take().unwrap();
+        self.stack[index] = self.result.take().unwrap();
     }
 
     #[inline(always)]
@@ -840,6 +919,7 @@ impl Vm {
             .result
             .take()
             .expect("Expected result value to not be empty");
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         self.result = Some(self.stack.pop().expect("Trying to pop from empty stack"));
         self.stack.push(temp);
     }
@@ -859,6 +939,7 @@ impl Vm {
 
     #[inline(always)]
     fn execute_update_empty(&mut self) {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         // Take top of the stack value, set it as the result if no
         // result exists yet.
         let temp = self.stack.pop().expect("Trying to pop from empty stack");
@@ -869,12 +950,13 @@ impl Vm {
 
     #[inline(always)]
     fn execute_store(&mut self) {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         self.result = Some(self.stack.pop().expect("Trying to pop from empty stack"));
     }
 
     #[inline(always)]
     fn execute_store_from_index(&mut self, index: usize) {
-        self.result = Some(self.stack[index + self.stack_base as usize]);
+        self.result = Some(self.stack[index]);
     }
 
     #[inline(always)]
@@ -884,6 +966,7 @@ impl Vm {
 
     #[inline(always)]
     fn execute_pop_stack(&mut self) {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         let _ = self.stack.pop().expect("Trying to pop from empty stack");
     }
 
@@ -892,14 +975,23 @@ impl Vm {
         self.reference_stack.push(self.reference.take().unwrap());
     }
 
+    fn pop_reference_stack(&mut self) -> Reference<'static> {
+        debug_assert!(self.reference_stack.len() > self.reference_stack_base as usize);
+        self.reference_stack
+            .pop()
+            .expect("Attempted to pop a Reference from an empty stack")
+    }
+
     #[inline(always)]
     fn execute_pop_reference(&mut self) {
-        self.reference = Some(self.reference_stack.pop().unwrap());
+        self.reference = Some(self.pop_reference_stack());
     }
 
     #[inline(always)]
     fn execute_swap(&mut self) {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         let a = self.stack.pop().unwrap();
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         let b = self.stack.pop().unwrap();
         self.stack.push(a);
         self.stack.push(b);
@@ -931,9 +1023,22 @@ impl Vm {
         self.result = Some(result.into());
     }
 
+    pub(crate) fn pop_exception_handler_stack(&mut self) -> Option<ExceptionHandler<'static>> {
+        if self.exception_handler_stack.len() > self.exception_handler_stack_base as usize {
+            self.exception_handler_stack.pop()
+        } else {
+            None
+        }
+    }
+
     #[inline(always)]
     fn execute_pop_exception_jump_target(&mut self) {
-        self.exception_handler_stack.pop().unwrap();
+        // Bytecode should never attempt to pop an exception handler past the
+        // stack base.
+        debug_assert!(
+            self.exception_handler_stack.len() > self.exception_handler_stack_base as usize
+        );
+        self.pop_exception_handler_stack().unwrap();
     }
 
     #[inline(always)]
@@ -1417,8 +1522,14 @@ impl HeapMarkAndSweep for Vm {
             stack,
             stack_base: _,
             reference_stack,
+            #[cfg(debug_assertions)]
+                reference_stack_base: _,
             iterator_stack,
+            #[cfg(debug_assertions)]
+                iterator_stack_base: _,
             exception_handler_stack,
+            #[cfg(debug_assertions)]
+                exception_handler_stack_base: _,
             result,
             reference,
         } = self;
@@ -1436,8 +1547,14 @@ impl HeapMarkAndSweep for Vm {
             stack,
             stack_base: _,
             reference_stack,
+            #[cfg(debug_assertions)]
+                reference_stack_base: _,
             iterator_stack,
+            #[cfg(debug_assertions)]
+                iterator_stack_base: _,
             exception_handler_stack,
+            #[cfg(debug_assertions)]
+                exception_handler_stack_base: _,
             result,
             reference,
         } = self;
