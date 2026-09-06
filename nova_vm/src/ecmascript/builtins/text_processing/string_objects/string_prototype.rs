@@ -10,23 +10,20 @@ use unicode_normalization::{
 };
 use wtf8::{CodePoint, Wtf8Buf};
 
+#[cfg(feature = "regexp")]
+use crate::ecmascript::{Object, get_object_method, invoke, reg_exp_create};
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinIntrinsic,
         ExceptionType, JsResult, Number, Primitive, PrimitiveObjectData, PrimitiveObjectRecord,
         PropertyKey, Realm, String, StringIterator, Value, builders::OrdinaryObjectBuilder,
-        call_function, create_array_from_list, is_callable, is_reg_exp, is_trimmable_whitespace,
-        require_object_coercible, to_integer_or_infinity, to_integer_or_infinity_number, to_length,
-        to_number, to_string, to_string_primitive, to_uint32, try_result_into_js,
-        try_to_integer_or_infinity, try_to_length, try_to_string,
+        call_function, create_array_from_list, get, is_callable, is_reg_exp,
+        is_trimmable_whitespace, require_object_coercible, to_integer_or_infinity,
+        to_integer_or_infinity_number, to_length, to_number, to_string, to_string_primitive,
+        to_uint32, try_result_into_js, try_to_integer_or_infinity, try_to_length, try_to_string,
     },
-    engine::{Bindable, GcScope, NoGcScope, Scopable},
+    engine::{Bindable, GcScope, NoGcScope, Scopable, Scoped},
     heap::{ArenaAccess, HeapIndexHandle, IntrinsicFunctionIndexes, WellKnownSymbols},
-};
-#[cfg(feature = "regexp")]
-use crate::{
-    ecmascript::{Object, get, get_object_method, invoke, reg_exp_create},
-    engine::Scoped,
 };
 
 pub(crate) struct StringPrototype;
@@ -1754,13 +1751,47 @@ impl StringPrototype {
         // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
         let replace_string = to_string(agent, replace_value.get(agent), gc.reborrow())
             .unbind()?
-            .bind(gc.nogc());
+            .scope(agent, gc.nogc());
 
-        // Everything are strings: `"foo".replace("o", "a")` => use rust's replace
-        let result = s.to_string_lossy(agent).into_owned().replacen(
-            search_string_root.to_string_lossy(agent).deref(),
-            &replace_string.to_string_lossy_(agent),
-            1,
+        // 8. Let position be StringIndexOf(s, searchString, 0).
+        let subject = s.get(agent).to_string_lossy(agent).into_owned();
+        let search_str = search_string_root
+            .get(agent)
+            .to_string_lossy(agent)
+            .into_owned();
+        let utf8_position = match subject.find(search_str.deref()) {
+            Some(position) => position,
+            // 9. If position is not-found, return s.
+            None => return Ok(s.get(agent).into()),
+        };
+        // 10. Let preceding be the substring of s from 0 to position.
+        let preceding = subject[..utf8_position].to_string();
+        // 11. Let following be the substring of s from position + searchLength.
+        let following = subject[utf8_position + search_str.len()..].to_string();
+        let position = s.get(agent).utf16_index_(agent, utf8_position);
+
+        // 13. Else,
+        //     a. Let captures be a new empty List.
+        //     b. Let replacement be ? GetSubstitution(searchString, s, position, captures, undefined, replaceValue).
+        let replacement = get_substitution(
+            agent,
+            search_string_root.clone(),
+            s.clone(),
+            position,
+            vec![],
+            None,
+            replace_string,
+            gc.reborrow(),
+        )
+        .unbind()?
+        .bind(gc.nogc());
+
+        // 14. Return the string-concatenation of preceding, replacement, and following.
+        let result = format!(
+            "{}{}{}",
+            preceding,
+            replacement.to_string_lossy_(agent),
+            following
         );
         Ok(String::from_string(agent, result, gc.into_nogc()).into())
     }
@@ -1857,7 +1888,7 @@ impl StringPrototype {
             .scope(agent, gc.nogc());
 
         // 4. Let searchString be ? ToString(searchValue).
-        let mut search_string = to_string(agent, scoped_search_value.get(agent), gc.reborrow())
+        let search_string = to_string(agent, scoped_search_value.get(agent), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
         let search_string_root = search_string.scope(agent, gc.nogc());
@@ -1945,14 +1976,70 @@ impl StringPrototype {
         // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
         let replace_string = to_string(agent, replace_value.get(agent), gc.reborrow())
             .unbind()?
+            .scope(agent, gc.nogc());
+
+        // 7. Let searchLength be the length of searchString.
+        let search_str = search_string_root
+            .get(agent)
+            .to_string_lossy(agent)
+            .into_owned();
+        let search_length = search_str.len();
+        // 8. Let advanceBy be max(1, searchLength).
+        let advance_by = max(1, search_length);
+
+        // 9-11. Collect all match positions (as UTF-8 byte offsets).
+        let subject = s.get(agent).to_string_lossy(agent).into_owned();
+        let mut match_positions: Vec<usize> = vec![];
+        let mut position = 0;
+        while let Some(pos) = subject
+            .split_at_checked(position)
+            .and_then(|(_, str)| str.find(search_str.deref()))
+        {
+            match_positions.push(position + pos);
+            position += advance_by + pos;
+        }
+
+        // If none has found, return s.
+        if match_positions.is_empty() {
+            return Ok(s.get(agent).into());
+        }
+
+        // 12. Let endOfLastMatch be 0.
+        let mut end_of_last_match = 0;
+        // 13. Let result be the empty String.
+        let mut result = std::string::String::with_capacity(subject.len());
+        // 14. For each element p of matchPositions, do
+        for p in match_positions {
+            //     b. Else, let replacement be
+            //        ? GetSubstitution(searchString, string, p, «», undefined, replaceValue).
+            let utf16_position = s.get(agent).utf16_index_(agent, p);
+            let replacement = get_substitution(
+                agent,
+                search_string_root.clone(),
+                s.clone(),
+                utf16_position,
+                vec![],
+                None,
+                replace_string.clone(),
+                gc.reborrow(),
+            )
+            .unbind()?
             .bind(gc.nogc());
-        // Everything are strings: `"foo".replaceAll("o", "a")` => use rust's replace
-        search_string = search_string_root.get(agent).bind(gc.nogc());
-        let s = s.get(agent).bind(gc.nogc());
-        let result = s.to_string_lossy_(agent).into_owned().replace(
-            search_string.to_string_lossy_(agent).deref(),
-            &replace_string.to_string_lossy_(agent),
-        );
+            // a. Let preserved be the substring of string from endOfLastMatch to p.
+            let preserved = &subject[end_of_last_match..p];
+            // d. Set result to the string-concatenation of result, preserved, and replacement.
+            let replacement_str = replacement.to_string_lossy_(agent);
+            result.reserve(preserved.len() + replacement_str.len());
+            result.push_str(preserved);
+            result.push_str(&replacement_str);
+            end_of_last_match = p + search_length;
+        }
+
+        // 15. If endOfLastMatch < the length of string, append the remainder.
+        if end_of_last_match < subject.len() {
+            result.push_str(&subject[end_of_last_match..]);
+        }
+        // 16. Return result.
         Ok(String::from_string(agent, result, gc.into_nogc()).into())
     }
 
@@ -3337,7 +3424,6 @@ pub(crate) fn to_zero_padded_decimal_string(
 /// abstract operation, a decimal digit is a code unit in the inclusive
 /// interval from 0x0030 (DIGIT ZERO) to 0x0039 (DIGIT NINE).
 #[allow(clippy::too_many_arguments)]
-#[cfg(feature = "regexp")]
 pub(crate) fn get_substitution<'gc, 'scope>(
     agent: &mut Agent,
     scoped_matched: Scoped<'scope, String>,
@@ -3376,13 +3462,15 @@ pub(crate) fn get_substitution<'gc, 'scope>(
         // a. NOTE: The following steps isolate ref (a prefix of
         //    templateRemainder), determine refReplacement (its replacement),
         //    and then append that replacement to result.
-        let mut r#ref = template_remainder;
-        let mut ref_replacement = std::borrow::Cow::Borrowed(template_remainder);
-        if template_remainder_bytes.len() == 1 {
-            // h. Else,
-            // i. Let ref be the substring of templateRemainder from 0 to 1.
-            // ii. Let refReplacement be ref.
-        } else if template_remainder_bytes[0] == b'$' {
+        // h. Else, let ref be the first code point of templateRemainder and
+        //    let refReplacement be ref.
+        let first_char_len = template_remainder
+            .chars()
+            .next()
+            .map_or(1, |c| c.len_utf8());
+        let mut r#ref = &template_remainder[..first_char_len];
+        let mut ref_replacement = std::borrow::Cow::Borrowed(r#ref);
+        if template_remainder_bytes[0] == b'$' && template_remainder_bytes.len() > 1 {
             if template_remainder_bytes[1] == b'$' {
                 // b. If templateRemainder starts with "$$", then
                 // i. Let ref be "$$".
@@ -3409,7 +3497,7 @@ pub(crate) fn get_substitution<'gc, 'scope>(
                 // ii. Let matchLength be the length of matched.
                 let match_length = matched.len();
                 // iii. Let tailPos be position + matchLength.
-                let tail_pos = position.saturating_add(match_length);
+                let tail_pos = utf8_position.saturating_add(match_length);
                 // iv. Let refReplacement be the substring of str from
                 //     min(tailPos, stringLength).
                 ref_replacement = str[tail_pos.min(utf8_string_length)..].into();
