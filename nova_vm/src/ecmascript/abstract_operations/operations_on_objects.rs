@@ -9,11 +9,11 @@ use core::ops::ControlFlow;
 use crate::{
     ecmascript::{
         Agent, ArgumentsList, Array, BUILTIN_STRING_MEMORY, BuiltinConstructorFunction,
-        ECMAScriptCodeEvaluationState, Environment, ExceptionType, ExecutionContext, Function,
-        InternalMethods, InternalSlots, IteratorRecord, JsError, JsResult, KeyedGroup, Number,
-        Object, OrdinaryObject, PrivateName, PropertyDescriptor, PropertyKey, PropertyKeySet,
-        PropertyLookupCache, ProtoIntrinsics, Realm, SetResult, SmallInteger, String, TryError,
-        TryGetResult, TryHasResult, TryResult, Value, array_create,
+        ECMAScriptCodeEvaluationState, ECMAScriptFunction, Environment, ExceptionType,
+        ExecutionContext, Function, InternalMethods, InternalSlots, IteratorRecord, JsError,
+        JsResult, KeyedGroup, Number, Object, OrdinaryObject, PrivateName, PropertyDescriptor,
+        PropertyKey, PropertyKeySet, PropertyLookupCache, ProtoIntrinsics, Realm, SetResult,
+        SmallInteger, String, TryError, TryGetResult, TryHasResult, TryResult, Value, array_create,
         canonicalize_keyed_collection_key, get_iterator, if_abrupt_close_iterator, is_callable,
         is_constructor, iterator_close_with_error, iterator_step_value, js_result_into_try,
         new_class_field_initializer_environment, require_object_coercible, to_length, to_object,
@@ -2745,6 +2745,59 @@ pub(crate) fn initialize_instance_elements<'a>(
         result?;
     }
     Ok(())
+}
+
+/// Runs the deferred class field initializer bytecode associated with a
+/// user-written ECMAScript function constructor.
+///
+/// For a user-written derived class constructor that has instance fields
+/// declared on the class, the field initializers must not run before
+/// `super()` (because `this` is uninitialized at that point). The compiler
+/// stores them as a separate executable on the function. This helper runs
+/// that executable in a new function environment where `this` is bound to
+/// the constructed instance, mirroring the behaviour of
+/// [`initialize_instance_elements`] for built-in default constructors.
+pub(crate) fn initialize_ecmascript_function_class_field_initializers<'a>(
+    agent: &mut Agent,
+    f: ECMAScriptFunction,
+    instance: Object,
+    gc: GcScope<'a, '_>,
+) -> JsResult<'a, ()> {
+    // Read everything we need before mutating the agent.
+    let bytecode = f.get(agent).class_field_initializer_bytecode;
+    let bytecode = match bytecode {
+        Some(b) => b.unbind(),
+        None => return Ok(()),
+    };
+    let f = f.bind(gc.nogc());
+    let outer_env = f.get(agent).ecmascript_function.environment;
+    let outer_priv_env = f.get(agent).ecmascript_function.private_environment;
+    let source_code = f.get(agent).ecmascript_function.source_code;
+    let realm = f.get(agent).ecmascript_function.realm;
+    let instance = instance.bind(gc.nogc());
+    let decl_env = new_class_field_initializer_environment(
+        agent,
+        Function::ECMAScriptFunction(f),
+        instance,
+        outer_env,
+        gc.nogc(),
+    );
+    agent.push_execution_context(ExecutionContext {
+        ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+            lexical_environment: Environment::Function(decl_env.unbind()),
+            variable_environment: Environment::Function(decl_env.unbind()),
+            private_environment: outer_priv_env.unbind(),
+            is_strict_mode: true,
+            source_code: source_code.unbind(),
+        }),
+        function: Some(Function::ECMAScriptFunction(f.unbind())),
+        realm: realm.unbind(),
+        script_or_module: None,
+    });
+    let bytecode = bytecode.scope(agent, gc.nogc());
+    let result = Vm::execute(agent, bytecode, None, gc).into_js_result();
+    agent.pop_execution_context();
+    result.map(|_| ())
 }
 
 /// ### [7.3.34 AddValueToKeyedGroup ( groups, key, value )](https://tc39.es/ecma262/#sec-add-value-to-keyed-group)

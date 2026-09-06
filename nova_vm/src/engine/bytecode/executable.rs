@@ -64,6 +64,11 @@ pub(crate) struct FunctionExpression<'a> {
     pub(crate) identifier: Option<NamedEvaluationParameter>,
     /// Optionally eagerly compile the FunctionExpression into bytecode.
     pub(crate) compiled_bytecode: Option<Executable<'a>>,
+    /// For a class constructor with instance fields defined on a derived
+    /// class, holds a separate executable that runs the field initializers
+    /// after `super()` has bound `this`. The executable is invoked from
+    /// `EvaluateSuper` step 11 (InitializeInstanceElements).
+    pub(crate) class_field_initializer_bytecode: Option<Executable<'a>>,
 }
 
 bindable_handle!(FunctionExpression);
@@ -74,8 +79,10 @@ impl HeapMarkAndSweep for FunctionExpression<'static> {
             expression: _,
             identifier: _,
             compiled_bytecode,
+            class_field_initializer_bytecode,
         } = self;
         compiled_bytecode.mark_values(queues);
+        class_field_initializer_bytecode.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
@@ -83,8 +90,10 @@ impl HeapMarkAndSweep for FunctionExpression<'static> {
             expression: _,
             identifier: _,
             compiled_bytecode,
+            class_field_initializer_bytecode,
         } = self;
         compiled_bytecode.sweep_values(compactions);
+        class_field_initializer_bytecode.sweep_values(compactions);
     }
 }
 

@@ -105,6 +105,10 @@ pub(crate) struct ECMAScriptFunctionHeapData<'a> {
     /// Stores the compiled bytecode of an ECMAScript function.
     pub(crate) compiled_bytecode: Option<Executable<'a>>,
     pub(crate) name: Option<String<'a>>,
+    /// For a user-written derived class constructor with instance fields,
+    /// holds the compiled bytecode that initializes those fields. It is run
+    /// after `super()` has bound `this` (from `EvaluateSuper` step 11).
+    pub(crate) class_field_initializer_bytecode: Option<Executable<'a>>,
 }
 
 unsafe impl Send for ECMAScriptFunctionHeapData<'_> {}
