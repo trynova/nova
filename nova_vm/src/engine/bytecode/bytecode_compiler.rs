@@ -1237,6 +1237,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Functi
                 }),
                 identifier,
                 compiled_bytecode: None,
+                class_field_initializer_bytecode: None,
             },
         );
     }
@@ -1436,6 +1437,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                                         }),
                                         identifier,
                                         compiled_bytecode: None,
+                                        class_field_initializer_bytecode: None,
                                     },
                                     // enumerable: true,
                                     true.into(),
@@ -1484,6 +1486,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Object
                                     }),
                                     identifier: None,
                                     compiled_bytecode: None,
+                                    class_field_initializer_bytecode: None,
                                 },
                                 // enumerable: true,
                                 true.into(),

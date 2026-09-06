@@ -890,6 +890,7 @@ pub(crate) fn ordinary_function_create<'gc>(
         ecmascript_function,
         compiled_bytecode: None,
         name: None,
+        class_field_initializer_bytecode: None,
     };
     if let Some(function_prototype) = params.function_prototype
         && function_prototype
@@ -1226,6 +1227,7 @@ impl HeapMarkAndSweep for ECMAScriptFunctionHeapData<'static> {
             ecmascript_function,
             compiled_bytecode,
             name,
+            class_field_initializer_bytecode,
         } = self;
         let ECMAScriptFunctionObjectHeapData {
             environment,
@@ -1243,6 +1245,7 @@ impl HeapMarkAndSweep for ECMAScriptFunctionHeapData<'static> {
         object_index.mark_values(queues);
         compiled_bytecode.mark_values(queues);
         name.mark_values(queues);
+        class_field_initializer_bytecode.mark_values(queues);
         environment.mark_values(queues);
         private_environment.mark_values(queues);
         realm.mark_values(queues);
@@ -1258,6 +1261,7 @@ impl HeapMarkAndSweep for ECMAScriptFunctionHeapData<'static> {
             ecmascript_function,
             compiled_bytecode,
             name,
+            class_field_initializer_bytecode,
         } = self;
         let ECMAScriptFunctionObjectHeapData {
             environment,
@@ -1275,6 +1279,7 @@ impl HeapMarkAndSweep for ECMAScriptFunctionHeapData<'static> {
         object_index.sweep_values(compactions);
         compiled_bytecode.sweep_values(compactions);
         name.sweep_values(compactions);
+        class_field_initializer_bytecode.sweep_values(compactions);
         environment.sweep_values(compactions);
         private_environment.sweep_values(compactions);
         realm.sweep_values(compactions);

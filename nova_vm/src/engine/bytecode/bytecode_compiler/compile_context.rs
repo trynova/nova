@@ -1258,6 +1258,15 @@ impl<'agent, 'script, 'gc, 'scope> CompileContext<'agent, 'script, 'gc, 'scope> 
             .set_function_expression_bytecode(index, executable);
     }
 
+    pub(super) fn set_function_expression_class_field_initializer_bytecode(
+        &mut self,
+        index: IndexType,
+        executable: Executable<'gc>,
+    ) {
+        self.executable
+            .set_function_expression_class_field_initializer_bytecode(index, executable);
+    }
+
     pub(super) fn add_class_initializer_bytecode(
         &mut self,
         executable: Executable<'gc>,

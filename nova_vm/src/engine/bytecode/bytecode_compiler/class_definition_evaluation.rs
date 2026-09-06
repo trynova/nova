@@ -636,16 +636,44 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
             constructor_ctx.add_instruction(Instruction::Store);
             let source_code = constructor_ctx.get_source_code();
             if let Some(constructor) = constructor {
-                let constructor_data = CompileFunctionBodyData {
-                    source_code,
-                    is_lexical: false,
-                    // Class code is always strict.
-                    is_strict: true,
-                    ast: FunctionAstRef::ClassConstructor(&constructor.value),
-                };
-                constructor_ctx.compile_function_body(constructor_data);
-                let executable = constructor_ctx.finish();
-                ctx.set_function_expression_bytecode(constructor_index, executable);
+                // For a user-written constructor on a derived class, the
+                // instance field initializers cannot run before `super()`
+                // because `this` is uninitialized at that point. Build the
+                // prelude as a separate executable and register it so it
+                // runs from `EvaluateSuper` step 11 after `super()` has
+                // bound `this`. For base classes the existing
+                // prelude-inside-body approach is preserved because
+                // `OrdinaryCallBindThis` runs before the user body and so
+                // `this` is already initialized.
+                if has_constructor_parent {
+                    let initializer_executable = constructor_ctx.finish();
+                    let mut body_ctx = CompileContext::new(agent, source_code, gc);
+                    let constructor_data = CompileFunctionBodyData {
+                        source_code,
+                        is_lexical: false,
+                        // Class code is always strict.
+                        is_strict: true,
+                        ast: FunctionAstRef::ClassConstructor(&constructor.value),
+                    };
+                    body_ctx.compile_function_body(constructor_data);
+                    let body_executable = body_ctx.finish();
+                    ctx.set_function_expression_class_field_initializer_bytecode(
+                        constructor_index,
+                        initializer_executable,
+                    );
+                    ctx.set_function_expression_bytecode(constructor_index, body_executable);
+                } else {
+                    let constructor_data = CompileFunctionBodyData {
+                        source_code,
+                        is_lexical: false,
+                        // Class code is always strict.
+                        is_strict: true,
+                        ast: FunctionAstRef::ClassConstructor(&constructor.value),
+                    };
+                    constructor_ctx.compile_function_body(constructor_data);
+                    let executable = constructor_ctx.finish();
+                    ctx.set_function_expression_bytecode(constructor_index, executable);
+                }
             } else {
                 let executable = constructor_ctx.finish();
                 ctx.add_class_initializer_bytecode(executable, has_constructor_parent);
@@ -854,6 +882,7 @@ fn define_constructor_method(
             // CompileContext holds a name identifier for us if this is NamedEvaluation.
             identifier: None,
             compiled_bytecode: None,
+            class_field_initializer_bytecode: None,
         },
         has_constructor_parent.into(),
     )
@@ -915,6 +944,7 @@ fn define_method<'s>(
             // Note: method name is always found in the result register.
             identifier: Some(NamedEvaluationParameter::Result),
             compiled_bytecode: None,
+            class_field_initializer_bytecode: None,
         },
         // enumerable: false,
         false.into(),
@@ -998,6 +1028,7 @@ fn define_private_method<'s>(
             }),
             identifier: Some(NamedEvaluationParameter::Result),
             compiled_bytecode: None,
+            class_field_initializer_bytecode: None,
         },
         immediate.into(),
     );

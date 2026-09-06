@@ -474,6 +474,15 @@ impl<'agent, 'gc, 'scope> ExecutableContext<'agent, 'gc, 'scope> {
         self.function_expressions[index as usize].compiled_bytecode = Some(executable);
     }
 
+    pub(super) fn set_function_expression_class_field_initializer_bytecode(
+        &mut self,
+        index: IndexType,
+        executable: Executable<'gc>,
+    ) {
+        self.function_expressions[index as usize].class_field_initializer_bytecode =
+            Some(executable);
+    }
+
     pub(super) fn add_class_initializer_bytecode(
         &mut self,
         executable: Executable<'gc>,

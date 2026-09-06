@@ -17,17 +17,17 @@ use crate::{
         copy_data_properties, copy_data_properties_into_object, create_builtin_constructor,
         create_data_property_or_throw, create_unmapped_arguments_object, define_property_or_throw,
         evaluate_import_call, get_this_environment, get_this_value, get_value, has_property,
-        is_constructor, is_less_than, is_loosely_equal, is_private_reference,
-        is_property_reference, is_strictly_equal, is_super_reference, is_unresolvable_reference,
-        iterator_complete, iterator_value, make_constructor, make_method,
-        new_class_static_element_environment, new_declarative_environment, new_private_environment,
-        ordinary_function_create, ordinary_object_create_with_intrinsics, perform_eval,
-        private_element_find, put_value, resolve_binding, resolve_private_identifier,
-        resolve_this_binding, set, set_function_name, throw_no_proxy_private_names,
-        throw_read_undefined_or_null_error, to_boolean, to_number, to_number_primitive, to_numeric,
-        to_numeric_primitive, to_object, to_property_key, to_property_key_complex,
-        to_property_key_primitive, to_property_key_simple, to_string, to_string_primitive,
-        try_copy_data_properties_into_object, try_create_data_property,
+        initialize_ecmascript_function_class_field_initializers, is_constructor, is_less_than,
+        is_loosely_equal, is_private_reference, is_property_reference, is_strictly_equal,
+        is_super_reference, is_unresolvable_reference, iterator_complete, iterator_value,
+        make_constructor, make_method, new_class_static_element_environment,
+        new_declarative_environment, new_private_environment, ordinary_function_create,
+        ordinary_object_create_with_intrinsics, perform_eval, private_element_find, put_value,
+        resolve_binding, resolve_private_identifier, resolve_this_binding, set, set_function_name,
+        throw_no_proxy_private_names, throw_read_undefined_or_null_error, to_boolean, to_number,
+        to_number_primitive, to_numeric, to_numeric_primitive, to_object, to_property_key,
+        to_property_key_complex, to_property_key_primitive, to_property_key_simple, to_string,
+        to_string_primitive, try_copy_data_properties_into_object, try_create_data_property,
         try_define_property_or_throw, try_get_value, try_has_property,
         try_initialize_referenced_binding, try_put_value, try_resolve_binding, try_result_into_js,
         try_result_into_option_js, unwrap_try,
@@ -1220,10 +1220,12 @@ pub(super) fn execute_class_define_constructor<'gc>(
     let FunctionExpression {
         expression,
         compiled_bytecode,
+        class_field_initializer_bytecode,
         ..
     } = executable.fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
     let function_expression = expression.get();
     let compiled_bytecode = *compiled_bytecode;
+    let class_field_initializer_bytecode = *class_field_initializer_bytecode;
     let has_constructor_parent = instr.get_second_bool();
 
     let function_prototype = if has_constructor_parent {
@@ -1251,6 +1253,10 @@ pub(super) fn execute_class_define_constructor<'gc>(
     let function = ordinary_function_create(agent, params, gc.nogc());
     if let Some(compiled_bytecode) = compiled_bytecode {
         function.get_mut(agent).compiled_bytecode = Some(compiled_bytecode.unbind());
+    }
+    if let Some(class_field_initializer_bytecode) = class_field_initializer_bytecode {
+        function.get_mut(agent).class_field_initializer_bytecode =
+            Some(class_field_initializer_bytecode.unbind());
     }
     set_function_name(agent, function, class_name.into(), None, gc.nogc());
     make_constructor(agent, function, Some(false), Some(proto), gc.nogc());
@@ -1766,7 +1772,8 @@ pub(super) fn execute_evaluate_super<'gc>(
         result.unbind().bind(gc.nogc())
     };
     // 7. Let thisER be GetThisEnvironment().
-    let Environment::Function(this_er) = get_this_environment(agent, gc.nogc()) else {
+    let this_er = get_this_environment(agent, gc.nogc());
+    let Environment::Function(this_er) = this_er else {
         unreachable!();
     };
     // 8. Perform ? thisER.BindThisValue(result).
@@ -1776,12 +1783,24 @@ pub(super) fn execute_evaluate_super<'gc>(
         .bind(gc.nogc());
     // 9. Let F be thisER.[[FunctionObject]].
     // 10. Assert: F is an ECMAScript function object.
-    let Function::ECMAScriptFunction(_f) = this_er.get_function_object(agent) else {
-        unreachable!();
+    let f_unbound = match this_er.get_function_object(agent) {
+        Function::ECMAScriptFunction(f) => f.unbind(),
+        _ => unreachable!(),
     };
     // 11. Perform ? InitializeInstanceElements(result, F).
+    // For a user-written derived class constructor with instance fields
+    // declared on the class, the field initializers must run after `super()`
+    // has bound `this`. They are stored on the function as a separate
+    // executable and invoked here.
+    let result_object_unbound = result.unbind();
+    initialize_ecmascript_function_class_field_initializers(
+        agent,
+        f_unbound,
+        result_object_unbound,
+        gc,
+    )?;
     // 12. Return result.
-    vm.result = Some(result.unbind().into());
+    vm.result = Some(result_object_unbound.into());
     Ok(())
 }
 
