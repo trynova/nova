@@ -758,7 +758,7 @@ impl Drop for SharedDataBlock {
         // containing the byte data.
         let _ = unsafe { memory.exit() };
         // SAFETY: layout guaranteed by type.
-        let layout = unsafe { Layout::from_size_align(size, 8).unwrap_unchecked() };
+        let layout = unsafe { Layout::from_size_align_unchecked(size, 8) };
         unsafe { dealloc(base_ptr.cast::<u8>().as_ptr(), layout) }
     }
 }
