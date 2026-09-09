@@ -32,7 +32,7 @@ arena_vec_access!(
     FinalizationRegistry,
     'a,
     FinalizationRegistryRecord,
-    finalization_registrys,
+    finalization_registries,
     FinalizationRegistryRecordRef,
     FinalizationRegistryRecordMut
 );
@@ -65,7 +65,7 @@ impl<'fr> FinalizationRegistry<'fr> {
     pub(crate) fn enqueue_cleanup_jobs(agent: &mut Agent) {
         let frs_to_enqueue = agent
             .heap
-            .finalization_registrys
+            .finalization_registries
             .as_mut_slice()
             .cleanup
             .iter_mut()
@@ -147,8 +147,8 @@ impl<'a> InternalMethods<'a> for FinalizationRegistry<'a> {}
 
 impl<'a> CreateHeapData<FinalizationRegistryRecord<'a>, FinalizationRegistry<'a>> for Heap {
     fn create(&mut self, data: FinalizationRegistryRecord<'a>) -> FinalizationRegistry<'a> {
-        let i = self.finalization_registrys.len();
-        self.finalization_registrys
+        let i = self.finalization_registries.len();
+        self.finalization_registries
             .push(data.unbind())
             .expect("Failed to allocate FinalizationRegistry");
         self.alloc_counter += core::mem::size_of::<FinalizationRegistryRecord<'static>>();
@@ -158,18 +158,18 @@ impl<'a> CreateHeapData<FinalizationRegistryRecord<'a>, FinalizationRegistry<'a>
 
 impl HeapMarkAndSweep for FinalizationRegistry<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        queues.finalization_registrys.push(*self);
+        queues.finalization_registries.push(*self);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        compactions.finalization_registrys.shift_index(&mut self.0);
+        compactions.finalization_registries.shift_index(&mut self.0);
     }
 }
 
 impl HeapSweepWeakReference for FinalizationRegistry<'static> {
     fn sweep_weak_reference(self, compactions: &CompactionLists) -> Option<Self> {
         compactions
-            .finalization_registrys
+            .finalization_registries
             .shift_weak_index(self.0)
             .map(Self)
     }
