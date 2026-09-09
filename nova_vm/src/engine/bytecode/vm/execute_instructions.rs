@@ -81,8 +81,8 @@ pub(super) fn execute_array_push<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let value = agent.vm.result.take().unwrap().bind(gc.nogc());
-    let array = agent.vm.stack.last().unwrap().bind(gc.nogc());
+    let value = agent.vm.take_result(gc.nogc());
+    let array = agent.vm.get_last_stack_value(gc.nogc());
     let Ok(array) = Array::try_from(array) else {
         unreachable!();
     };
@@ -98,7 +98,7 @@ pub(super) fn execute_array_elision<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let array = agent.vm.stack.last().unwrap().bind(gc.nogc());
+    let array = agent.vm.get_last_stack_value(gc.nogc());
     let Ok(array) = Array::try_from(array) else {
         unreachable!();
     };
@@ -121,7 +121,7 @@ pub(super) fn execute_bitwise_not<'gc>(
 ) -> JsResult<'gc, ()> {
     // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
     // Note: This step is a separate instruction.
-    let old_value = Numeric::try_from(agent.vm.result.take().unwrap())
+    let old_value = Numeric::try_from(agent.vm.take_result(gc))
         .unwrap()
         .bind(gc);
 
@@ -241,7 +241,7 @@ pub(super) fn execute_store_constant(agent: &mut Agent, instr: Instr, gc: NoGcSc
 }
 
 pub(super) fn execute_unary_minus(agent: &mut Agent, gc: NoGcScope) {
-    let old_value = agent.vm.result.unwrap().bind(gc);
+    let old_value = agent.vm.take_result(gc);
 
     // 3. If oldValue is a Number, then
     let result: Value = if let Ok(old_value) = Number::try_from(old_value) {
@@ -260,7 +260,7 @@ pub(super) fn execute_unary_minus(agent: &mut Agent, gc: NoGcScope) {
 }
 
 pub(super) fn execute_to_number<'gc>(agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<'gc, ()> {
-    let arg0 = agent.vm.result.unwrap().bind(gc.nogc());
+    let arg0 = agent.vm.take_result(gc.nogc());
     let result = if let Ok(arg0) = Primitive::try_from(arg0) {
         to_number_primitive(agent, arg0.unbind(), gc.into_nogc())
     } else {
@@ -275,7 +275,7 @@ pub(super) fn execute_to_numeric<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let arg0 = agent.vm.result.unwrap().bind(gc.nogc());
+    let arg0 = agent.vm.take_result(gc.nogc());
     let result = if let Ok(arg0) = Primitive::try_from(arg0) {
         to_numeric_primitive(agent, arg0.unbind(), gc.into_nogc())
     } else {
@@ -299,11 +299,8 @@ pub(super) fn execute_to_object<'gc>(
     agent: &mut Agent,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    agent.vm.result = Some(
-        to_object(agent, agent.vm.result.unwrap(), gc)?
-            .unbind()
-            .into(),
-    );
+    let value = agent.vm.take_result(gc);
+    agent.vm.result = Some(to_object(agent, value, gc)?.unbind().into());
     Ok(())
 }
 
@@ -369,12 +366,13 @@ pub(super) fn execute_object_define_property<'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     let key = agent.vm.pop_stack(gc.nogc());
+    agent.vm.execute_load();
     let key = to_property_key(agent, key.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
     let key = key.unbind().bind(gc.nogc());
-    let value = agent.vm.result.take().unwrap().bind(gc.nogc());
-    let object = agent.vm.stack.last().unwrap().bind(gc.nogc());
+    let value = agent.vm.pop_stack(gc.nogc());
+    let object = agent.vm.get_last_stack_value(gc.nogc());
     let object = Object::try_from(object).unwrap();
 
     create_data_property_or_throw(agent, object.unbind(), key.unbind(), value.unbind(), gc)?;
@@ -396,7 +394,7 @@ pub(super) fn execute_object_define_method<'gc>(
     let prop_key = to_property_key(agent, prop_key.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
-    let object = Object::try_from(*agent.vm.stack.last().unwrap())
+    let object = Object::try_from(agent.vm.get_last_stack_value(gc.nogc()))
         .unwrap()
         .bind(gc.nogc());
 
@@ -516,7 +514,7 @@ pub(super) fn execute_object_define_getter<'gc>(
     //  ).
     let closure = ordinary_function_create(agent, params, gc.nogc());
     // 7. Perform MakeMethod(closure, object).
-    let object = Object::try_from(*agent.vm.stack.last().unwrap())
+    let object = Object::try_from(agent.vm.get_last_stack_value(gc.nogc()))
         .unwrap()
         .bind(gc.nogc());
     make_method(agent, closure, object);
@@ -590,7 +588,7 @@ pub(super) fn execute_object_define_setter<'gc>(
     //  ).
     let closure = ordinary_function_create(agent, params, gc.nogc());
     // 6. Perform MakeMethod(closure, object).
-    let object = Object::try_from(*agent.vm.stack.last().unwrap())
+    let object = Object::try_from(agent.vm.get_last_stack_value(gc.nogc()))
         .unwrap()
         .bind(gc.nogc());
     make_method(agent, closure, object);
@@ -628,9 +626,9 @@ pub(super) fn execute_object_set_prototype<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let prop_value = agent.vm.result.take().unwrap().bind(gc.nogc());
+    let prop_value = agent.vm.take_result(gc.nogc());
     // i. Perform ! object.[[SetPrototypeOf]](propValue).
-    let object = Object::try_from(*agent.vm.stack.last().unwrap())
+    let object = Object::try_from(agent.vm.get_last_stack_value(gc.nogc()))
         .unwrap()
         .bind(gc.nogc());
 
@@ -657,7 +655,7 @@ pub(super) fn execute_put_value<'gc>(
     cache: bool,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let value = agent.vm.result.take().unwrap().bind(gc.nogc());
+    let value = agent.vm.take_result(gc.nogc());
     let mut reference = agent.vm.reference.take().unwrap().bind(gc.nogc());
 
     let cache = if cache {
@@ -723,7 +721,16 @@ pub(super) fn execute_get_value<'gc>(
         ControlFlow::Break(TryError::Err(err)) => {
             return Err(err.unbind().bind(gc.into_nogc()));
         }
-        _ => handle_get_value_break(agent, &reference.unbind(), result.unbind(), gc)?,
+        _ => {
+            if keep_reference {
+                agent.vm.execute_push_reference();
+            }
+            let result = handle_get_value_break(agent, &reference.unbind(), result.unbind(), gc);
+            if keep_reference {
+                agent.vm.execute_pop_reference();
+            }
+            result?
+        }
     };
     agent.vm.result = Some(result.unbind());
     Ok(())
@@ -776,7 +783,7 @@ pub(super) fn execute_typeof<'gc>(
             }
         }
     } else {
-        agent.vm.result.unwrap().bind(gc.nogc())
+        agent.vm.take_result(gc.nogc())
     };
     agent.vm.result = Some(typeof_operator(agent, val, gc.nogc()).into());
     Ok(())
@@ -807,7 +814,7 @@ pub(super) fn execute_copy_data_properties<'gc>(
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     let source = agent.vm.take_result(gc.nogc());
-    let Value::Object(target) = *agent.vm.stack.last().unwrap() else {
+    let Value::Object(target) = agent.vm.get_last_stack_value(gc.nogc()) else {
         unreachable!()
     };
     copy_data_properties(agent, target.unbind(), source.unbind(), gc)?;
@@ -819,9 +826,7 @@ pub(super) fn execute_copy_data_properties_into_object<'gc>(
     instr: Instr,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let from = Object::try_from(agent.vm.result.unwrap())
-        .unwrap()
-        .bind(gc.nogc());
+    let from = Object::try_from(agent.vm.take_result(gc.nogc())).unwrap();
 
     let num_excluded_items = instr.get_first_index();
     let mut excluded_items = PropertyKeySet::with_capacity(num_excluded_items, gc.nogc());
@@ -882,7 +887,7 @@ pub(super) fn execute_instantiate_arrow_function_expression<'gc>(
     let name = if let Some(parameter) = &identifier {
         let pk_result = match parameter {
             NamedEvaluationParameter::Result => {
-                let value = agent.vm.result.take().unwrap().bind(gc.nogc());
+                let value = agent.vm.take_result(gc.nogc());
                 if let Some(pk) = to_property_key_simple(agent, value, gc.nogc()) {
                     Ok(pk)
                 } else {
@@ -890,7 +895,7 @@ pub(super) fn execute_instantiate_arrow_function_expression<'gc>(
                 }
             }
             NamedEvaluationParameter::Stack => {
-                let value = agent.vm.stack.last().unwrap().bind(gc.nogc());
+                let value = agent.vm.get_last_stack_value(gc.nogc());
                 if let Some(pk) = to_property_key_simple(agent, value, gc.nogc()) {
                     Ok(pk)
                 } else {
@@ -940,10 +945,10 @@ pub(super) fn execute_instantiate_ordinary_function_expression<'gc>(
         debug_assert!(function_expression.id.is_none());
         // 1. If name is not present, set name to "".
         let pk = match parameter {
-            NamedEvaluationParameter::Result => agent.vm.result.take().unwrap(),
-            NamedEvaluationParameter::Stack => *agent.vm.stack.last().unwrap(),
+            NamedEvaluationParameter::Result => agent.vm.take_result(gc.nogc()),
+            NamedEvaluationParameter::Stack => agent.vm.get_last_stack_value(gc.nogc()),
         };
-        let name = to_property_key(agent, pk, gc.reborrow())
+        let name = to_property_key(agent, pk.unbind(), gc.reborrow())
             .unbind()?
             .bind(gc.nogc());
         // 2. Let env be the LexicalEnvironment of the running execution
@@ -1130,7 +1135,7 @@ pub(super) fn execute_class_define_constructor<'gc>(
     } else {
         None
     };
-    let proto = OrdinaryObject::try_from(*agent.vm.stack.last().unwrap()).unwrap();
+    let proto = OrdinaryObject::try_from(agent.vm.get_last_stack_value(gc.nogc())).unwrap();
 
     let is_null_derived_class = !has_constructor_parent
         && unwrap_try(proto.try_get_prototype_of(agent, gc.nogc())).is_none();
@@ -1206,7 +1211,7 @@ pub(super) fn execute_class_define_default_constructor<'gc>(
                 .into(),
         )
     };
-    let proto = Object::try_from(*agent.vm.stack.last().unwrap()).unwrap();
+    let proto = Object::try_from(agent.vm.get_last_stack_value(gc.nogc())).unwrap();
 
     let env = agent.current_lexical_environment(gc.nogc());
     let private_env = agent.current_private_environment(gc.nogc());
@@ -1251,7 +1256,7 @@ pub(super) fn execute_class_define_private_method<'gc>(
     instr: Instr,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let description = String::try_from(agent.vm.result.take().unwrap().bind(gc.nogc())).unwrap();
+    let description = String::try_from(agent.vm.take_result(gc.nogc())).unwrap();
     let FunctionExpression { expression, .. } = agent
         .current_executable(gc.nogc())
         .fetch_function_expression(agent, instr.get_first_index(), gc.nogc());
@@ -1377,7 +1382,7 @@ pub(super) fn execute_class_define_private_property<'gc>(
         .expect("Attempted to define private property with no PrivateEnvironment");
     if is_static {
         let private_name = private_env.add_static_private_field(agent, description);
-        let object = agent.vm.stack.last().unwrap().bind(gc);
+        let object = agent.vm.get_last_stack_value(gc);
         let object = Object::try_from(object).unwrap();
         if let Err(err) = object
             .get_or_create_backing_object(agent)
@@ -1397,7 +1402,7 @@ pub(super) fn execute_class_initialize_private_elements<'gc>(
     agent: &mut Agent,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let target = Object::try_from(agent.vm.stack.last().unwrap().bind(gc)).unwrap();
+    let target = Object::try_from(agent.vm.get_last_stack_value(gc)).unwrap();
     target
         .get_or_create_backing_object(agent)
         .property_storage()
@@ -1410,7 +1415,7 @@ pub(super) fn execute_class_initialize_private_value<'gc>(
     instr: Instr,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let target = Object::try_from(agent.vm.stack.last().unwrap().bind(gc)).unwrap();
+    let target = Object::try_from(agent.vm.get_last_stack_value(gc)).unwrap();
     let value = agent.vm.take_result(gc);
     if target.is_proxy() {
         return Err(throw_no_proxy_private_names(agent, gc));
@@ -1887,8 +1892,8 @@ pub(super) fn execute_has_property<'gc>(
     agent: &mut Agent,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let lval = agent.vm.pop_stack(gc.nogc()).bind(gc.nogc());
-    let rval = agent.vm.result.take().unwrap().bind(gc.nogc());
+    let lval = agent.vm.pop_stack(gc.nogc());
+    let rval = agent.vm.take_result(gc.nogc());
     // RelationalExpression : RelationalExpression in ShiftExpression
     // 5. If rval is not an Object, throw a TypeError exception.
     let Ok(rval) = Object::try_from(rval) else {
@@ -2059,9 +2064,7 @@ pub(super) fn execute_enter_declarative_environment(agent: &mut Agent, gc: NoGcS
 }
 
 pub(super) fn execute_enter_class_static_element_environment(agent: &mut Agent, gc: NoGcScope) {
-    let class_constructor = Function::try_from(*agent.vm.stack.last().unwrap())
-        .unwrap()
-        .bind(gc);
+    let class_constructor = Function::try_from(agent.vm.get_last_stack_value(gc)).unwrap();
     let local_env = new_class_static_element_environment(agent, class_constructor, gc);
     let local_env = Environment::Function(local_env);
 
@@ -2126,7 +2129,7 @@ pub(super) fn execute_throw_error<'gc>(
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
     let exception_type_immediate = instr.get_first_arg();
-    let message = String::try_from(agent.vm.result.take().unwrap()).unwrap();
+    let message = String::try_from(agent.vm.take_result(gc)).unwrap();
 
     let exception_type = ExceptionType::try_from(exception_type_immediate).unwrap();
 
@@ -2194,7 +2197,7 @@ pub(super) fn execute_begin_simple_object_binding_pattern<'gc>(
         // Var binding, var {} = a;
         None
     };
-    let result = agent.vm.result.take().unwrap().bind(gc.nogc());
+    let result = agent.vm.take_result(gc.nogc());
     let object = to_object(agent, result, gc.nogc())
         .unbind()?
         .bind(gc.nogc());
@@ -2345,10 +2348,10 @@ pub(super) fn execute_iterator_call_next_method<'gc>(
     agent: &mut Agent,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let result = agent.vm.result.take();
+    let result = agent.vm.take_any_result(gc.nogc());
     agent.vm.result = Some(
         ActiveIterator::new(agent, gc.nogc())
-            .call_next(agent, result, gc)?
+            .call_next(agent, result.unbind(), gc)?
             .unbind(),
     );
     Ok(())
@@ -2369,10 +2372,12 @@ pub(super) fn execute_iterator_complete<'gc>(
     let Ok(result) = Object::try_from(result) else {
         return Err(throw_iterator_returned_non_object(agent, gc.into_nogc()));
     };
+    agent.vm.execute_load();
     // 2. Let done be ? IteratorComplete(innerResult).
     let done = iterator_complete(agent, result.unbind(), gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
+    agent.vm.execute_store();
     // 3. If done is true, then
     if done {
         // SAFETY: Result was checked to be an Object already.
@@ -2416,8 +2421,8 @@ pub(super) fn execute_iterator_throw<'gc>(
     instr: Instr,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<'gc, ()> {
-    let result = agent.vm.result.take().expect("IteratorThrow with no error");
-    let result = ActiveIterator::new(agent, gc.nogc()).throw(agent, result, gc)?;
+    let result = agent.vm.take_result(gc.nogc());
+    let result = ActiveIterator::new(agent, gc.nogc()).throw(agent, result.unbind(), gc)?;
     if let Some(result) = result {
         // Throw method was found and called successfully.
         agent.vm.result = Some(result.unbind());
@@ -2441,6 +2446,7 @@ pub(super) fn execute_iterator_return<'gc>(
     let result = agent
         .vm
         .result
+        .take()
         .expect("IteratorReturn with no received value");
     let value = ActiveIterator::new(agent, gc.nogc()).r#return(agent, Some(result), gc)?;
     if let Some(value) = value {
@@ -2517,10 +2523,17 @@ pub(super) fn execute_iterator_close<'gc>(
     {
         return Ok(());
     }
+    let load_result_to_stack = agent.vm.result.is_some();
+    if load_result_to_stack {
+        agent.vm.execute_load();
+    }
     let result = ActiveIterator::new(agent, gc.nogc())
         .r#return(agent, None, gc.reborrow())
         .unbind()?
         .bind(gc.nogc());
+    if load_result_to_stack {
+        agent.vm.execute_store();
+    }
     if let Some(result) = result {
         // We did get innerResult from return method call: we have
         // to check that it is an object.
@@ -2542,7 +2555,14 @@ pub(super) fn execute_async_iterator_close<'gc>(
         agent.vm.ip += 4;
         return Ok(false);
     }
+    let load_result_to_stack = agent.vm.result.is_some();
+    if load_result_to_stack {
+        agent.vm.execute_load();
+    }
     let result = ActiveIterator::new(agent, gc.nogc()).r#return(agent, None, gc)?;
+    if load_result_to_stack {
+        agent.vm.execute_store();
+    }
     if let Some(result) = result {
         // AsyncIteratorClose
         // Iterator return method did return a value: we should
@@ -2563,13 +2583,17 @@ pub(super) fn execute_iterator_close_with_error(agent: &mut Agent, gc: GcScope) 
     // perform said call.
     // SAFETY: requires_return_call cannot call into JavaScript and therefore
     // does not access agent.vm.
-    if !unsafe { NonNull::from_ref(agent.vm.get_active_iterator()).as_ref() }
+    if unsafe { NonNull::from_ref(agent.vm.get_active_iterator()).as_ref() }
         .requires_return_call(agent, gc.nogc())
     {
         // We don't care if the return call throws an error or not,
         // nor if its returned value is an object or not: the
         // original throw completion will be rethrown before that.
+        // let load_result_to_stack = agent.vm.result.is_some();
+        debug_assert!(agent.vm.result.is_some());
+        agent.vm.execute_load();
         let _ = ActiveIterator::new(agent, gc.nogc()).r#return(agent, None, gc);
+        agent.vm.execute_store();
     }
     // Continue to the next instruction which should either be a
     // throw or an IteratorPop followed by a throw.
@@ -2578,9 +2602,10 @@ pub(super) fn execute_iterator_close_with_error(agent: &mut Agent, gc: GcScope) 
 pub(super) fn execute_async_iterator_close_with_error(agent: &mut Agent, gc: GcScope) -> bool {
     // SAFETY: requires_return_call cannot call into JavaScript and therefore
     // does not access agent.vm.
-    if !unsafe { NonNull::from_ref(agent.vm.get_active_iterator()).as_ref() }
+    if unsafe { NonNull::from_ref(agent.vm.get_active_iterator()).as_ref() }
         .requires_return_call(agent, gc.nogc())
     {
+        debug_assert!(agent.vm.result.is_none());
         let inner_result_value = ActiveIterator::new(agent, gc.nogc()).r#return(agent, None, gc);
         if let Ok(Some(value)) = inner_result_value {
             // ### 7.4.13 AsyncIteratorClose
@@ -2591,7 +2616,7 @@ pub(super) fn execute_async_iterator_close_with_error(agent: &mut Agent, gc: GcS
             // We need to await the value and ignore any errors it
             // might throw, then rethrow the error. First, we need
             // to load the error to the stack for later throwing.
-            agent.vm.stack.push(agent.vm.result.take().unwrap());
+            agent.vm.execute_load();
             // Then we can put our value as the result.
             agent.vm.result = Some(value.unbind());
             // Before we await we need to make sure that any error
@@ -2659,8 +2684,8 @@ pub(super) fn execute_get_new_target(agent: &mut Agent, gc: NoGcScope) {
 }
 
 pub(super) fn execute_import_call(agent: &mut Agent, gc: GcScope) {
-    let specifier = agent.vm.pop_stack(gc.nogc()).bind(gc.nogc());
-    let options = agent.vm.result.take().bind(gc.nogc());
+    let specifier = agent.vm.pop_stack(gc.nogc());
+    let options = agent.vm.take_any_result(gc.nogc());
     agent.vm.result = Some(
         evaluate_import_call(agent, specifier.unbind(), options.unbind(), gc)
             .unbind()

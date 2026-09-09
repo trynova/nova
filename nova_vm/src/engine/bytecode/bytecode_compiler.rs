@@ -2798,6 +2798,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         };
         lref.get_value_keep_reference(ctx)?;
+        ctx.add_instruction(Instruction::PushReference);
         ctx.add_instruction(Instruction::ToNumeric);
         let value_on_stack = if !self.prefix {
             // The return value of postfix increment/decrement is the value
@@ -2815,6 +2816,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
             }
         }
         let value_on_stack = value_on_stack.unwrap_or_else(|| ctx.load_copy_to_stack());
+        ctx.add_instruction(Instruction::PopReference);
         let result = lref.put_value(ctx, ValueOutput::Value);
         value_on_stack.store(ctx);
         result.map(|_| ValueOutput::Value)

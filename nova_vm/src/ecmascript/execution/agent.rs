@@ -1078,6 +1078,10 @@ impl Agent {
         {
             exe
         } else {
+            eprintln!(
+                "current_executable: {:#?}",
+                self.execution_context_stack.last()
+            );
             panic_corrupted_agent();
         }
     }
@@ -1087,6 +1091,7 @@ impl Agent {
     pub(crate) fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
         let realm = self.current_realm(gc);
         let Some(e) = realm.get(self).global_env else {
+            eprintln!("B");
             panic_corrupted_agent()
         };
         e
@@ -1105,6 +1110,7 @@ impl Agent {
     /// Set the current executiono context's Realm.
     pub(crate) fn set_current_realm(&mut self, realm: Realm) {
         let Some(ctx) = self.execution_context_stack.last_mut() else {
+            eprintln!("C");
             panic_corrupted_agent()
         };
         ctx.realm = realm.unbind();
@@ -1114,6 +1120,7 @@ impl Agent {
     #[inline]
     pub(crate) fn current_realm_id_internal(&self) -> Realm<'static> {
         let Some(r) = self.execution_context_stack.last().map(|ctx| ctx.realm) else {
+            eprintln!("D");
             panic_corrupted_agent()
         };
         r
@@ -1276,6 +1283,7 @@ impl Agent {
 
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
         let Some(ctx) = self.execution_context_stack.last() else {
+            eprintln!("E");
             panic_corrupted_agent()
         };
         ctx
@@ -1295,6 +1303,7 @@ impl Agent {
                 }
             })
         else {
+            eprintln!("F");
             panic_corrupted_agent()
         };
         eval_state.executable = Some(exe.unbind());
@@ -1307,6 +1316,10 @@ impl Agent {
             .and_then(|ctx| ctx.ecmascript_code.as_ref())
             .and_then(|code| code.executable.as_ref().cloned())
         else {
+            eprintln!(
+                "Current instructions: {:#?}",
+                self.execution_context_stack.last()
+            );
             panic_corrupted_agent()
         };
         exe.get_instructions(self)
@@ -1318,6 +1331,7 @@ impl Agent {
             .ecmascript_code
             .map(|e| e.is_strict_mode)
         else {
+            eprintln!("H");
             panic_corrupted_agent()
         };
         strict
@@ -1419,6 +1433,7 @@ impl Agent {
             .and_then(|s| s.ecmascript_code.as_ref())
             .map(|e| e.source_code.bind(gc))
         else {
+            eprintln!("J");
             panic_corrupted_agent()
         };
         s
@@ -1432,6 +1447,7 @@ impl Agent {
             .and_then(|s| s.ecmascript_code.as_ref())
             .map(|e| e.lexical_environment.bind(gc))
         else {
+            eprintln!("K");
             panic_corrupted_agent()
         };
         e
@@ -1448,6 +1464,7 @@ impl Agent {
             .and_then(|s| s.ecmascript_code.as_ref())
             .map(|e| e.variable_environment.bind(gc))
         else {
+            eprintln!("TTTT");
             panic_corrupted_agent()
         };
         e
@@ -1464,6 +1481,7 @@ impl Agent {
             .and_then(|s| s.ecmascript_code.as_ref())
             .map(|e| e.private_environment.bind(gc))
         else {
+            eprintln!("L");
             panic_corrupted_agent()
         };
         e
@@ -1479,6 +1497,7 @@ impl Agent {
                 e.lexical_environment = env.unbind();
             })
         else {
+            eprintln!("M");
             panic_corrupted_agent()
         };
     }
@@ -1493,6 +1512,7 @@ impl Agent {
                 e.variable_environment = env.unbind();
             })
         else {
+            eprintln!("N");
             panic_corrupted_agent()
         };
     }
@@ -1507,6 +1527,7 @@ impl Agent {
                 e.private_environment = env.unbind();
             })
         else {
+            eprintln!("O");
             panic_corrupted_agent()
         };
     }
@@ -1549,6 +1570,7 @@ impl Agent {
             .last()
             .and_then(|s| s.function.bind(gc))
         else {
+            eprintln!("P");
             panic_corrupted_agent()
         };
         f
@@ -1569,6 +1591,7 @@ impl Agent {
             .last()
             .map(|s| s.script_or_module.bind(gc))
         else {
+            eprintln!("R");
             panic_corrupted_agent()
         };
         s

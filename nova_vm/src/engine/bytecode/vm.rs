@@ -253,11 +253,23 @@ impl Vm {
             .bind(gc)
     }
 
+    pub(crate) fn get_last_stack_value<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
+        self.stack
+            .last()
+            .expect("Attempted to pop from an empty stack")
+            .bind(gc)
+    }
+
     pub(crate) fn take_result<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
         self.result
             .take()
             .expect("Attempted to take an empty result")
             .bind(gc)
+    }
+
+    pub(crate) fn take_any_result<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> Option<Value<'gc>> {
+        self.result.take().bind(gc)
     }
 
     pub(crate) fn unsuspend(
@@ -283,6 +295,7 @@ impl Vm {
         arguments: Option<&mut [Value]>,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
+        debug_assert_eq!(agent.vm.reference, None);
         if let Some(arguments) = arguments {
             ArgumentsList::from_mut_slice(arguments).with_scoped(
                 agent,
@@ -351,6 +364,8 @@ impl Vm {
             if agent.options.print_internals {
                 eprintln!("Exiting function with error\n");
             }
+            // Clear the result on throw.
+            agent.vm.result = None;
             return ExecutionResult::Throw(err);
         }
         Vm::inner_execute(agent, gc)
@@ -391,6 +406,8 @@ impl Vm {
             agent.stack_refs.borrow_mut().truncate(stack_depth);
         }
 
+        // Clear result on "fall-off-the-edge".
+        agent.vm.result = None;
         ExecutionResult::Return(Value::Undefined)
     }
 
@@ -430,7 +447,7 @@ impl Vm {
                 if agent.options.print_internals {
                     Self::print_awaiting();
                 }
-                let Value::Promise(promise) = agent.vm.result.take().unwrap() else {
+                let Value::Promise(promise) = agent.vm.take_result(gc) else {
                     unreachable!()
                 };
                 Some(ExecutionResult::Await {
@@ -441,13 +458,14 @@ impl Vm {
                 })
             }
             Err(err) => {
+                // Clear the result on error.
+                agent.vm.result = None;
                 if !Vm::handle_error(agent, err) {
                     if agent.options.print_internals {
                         Self::print_exiting_with_error();
                     }
                     Some(ExecutionResult::Throw(err.unbind()))
                 } else {
-                    eprintln!("None?");
                     None
                 }
             }
@@ -747,7 +765,7 @@ impl Vm {
                 execute_resolve_binding_with_cache(agent, instr, gc)?
             }
             Instruction::ResolveThisBinding => execute_resolve_this_binding(agent, gc.into_nogc())?,
-            Instruction::StoreCopy => agent.vm.execute_store_copy(),
+            Instruction::StoreCopy => agent.vm.execute_store_copy(gc.into_nogc()),
             Instruction::StringConcat => execute_string_concat(agent, instr, gc)?,
             Instruction::Throw => agent.vm.execute_throw(gc.into_nogc())?,
             Instruction::ThrowError => execute_throw_error(agent, instr, gc.into_nogc())?,
@@ -960,8 +978,8 @@ impl Vm {
     }
 
     #[inline(always)]
-    fn execute_store_copy(&mut self) {
-        self.result = Some(*self.stack.last().expect("Trying to get from empty stack"));
+    fn execute_store_copy(&mut self, gc: NoGcScope) {
+        self.result = Some(self.get_last_stack_value(gc).unbind());
     }
 
     #[inline(always)]

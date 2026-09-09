@@ -18,7 +18,7 @@ use crate::{
 
 use super::PrivateName;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct VariableReference<'a> {
     /// ### \[\[Base]]
     ///
@@ -32,7 +32,7 @@ pub(crate) struct VariableReference<'a> {
     cache: Option<PropertyLookupCache<'a>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PropertyExpressionReference<'a> {
     /// ### \[\[Base]]
     ///
@@ -44,7 +44,7 @@ pub(crate) struct PropertyExpressionReference<'a> {
     referenced_name: Value<'a>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PropertyReference<'a> {
     /// ### \[\[Base]]
     ///
@@ -56,7 +56,7 @@ pub(crate) struct PropertyReference<'a> {
     referenced_name: PropertyKey<'a>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct SuperExpressionReference<'a> {
     /// ### \[\[Base]]
     ///
@@ -73,7 +73,7 @@ pub(crate) struct SuperExpressionReference<'a> {
     this_value: Value<'a>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct SuperReference<'a> {
     /// ### \[\[Base]]
     ///
@@ -96,7 +96,7 @@ pub(crate) struct SuperReference<'a> {
 /// operators as delete, typeof, the assignment operators, the super keyword
 /// and other language features. For example, the left-hand operand of an
 /// assignment is expected to produce a Reference Record.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[repr(u8)]
 pub(crate) enum Reference<'a> {
     /// Unresolvable Reference.

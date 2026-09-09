@@ -1523,7 +1523,7 @@ fn async_module_start(
     agent: &mut Agent,
     promise_capability: PromiseCapability,
     module: SourceTextModule,
-    async_context: ExecutionContext,
+    mut async_context: ExecutionContext,
     mut gc: GcScope,
 ) {
     let promise_capability = promise_capability.bind(gc.nogc());
@@ -1534,7 +1534,8 @@ fn async_module_start(
     // 3. Set the code evaluation state of asyncContext such that when
     //    evaluation is resumed for that execution context, closure will be
     //    called with no arguments.
-    let bytecode = Executable::compile_module(agent, module, gc.nogc()).scope(agent, gc.nogc());
+    async_context.ecmascript_code.as_mut().unwrap().executable =
+        Some(Executable::compile_module(agent, module, gc.nogc()).unbind());
     // 4. Push asyncContext onto the execution context stack; asyncContext is
     //    now the running execution context.
     agent.push_execution_context(async_context);
@@ -1549,7 +1550,6 @@ fn async_module_start(
             let _ = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
             let promise = unsafe {
-                let _ = bytecode.take(agent);
                 let promise = promise.take(agent).bind(gc.nogc());
                 let _ = scoped_module.take(agent);
                 promise
@@ -1567,7 +1567,6 @@ fn async_module_start(
             let _ = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
             let promise = unsafe {
-                let _ = bytecode.take(agent);
                 let promise = promise.take(agent).bind(gc.nogc());
                 let _ = scoped_module.take(agent);
                 promise
@@ -1585,12 +1584,18 @@ fn async_module_start(
         } => {
             let async_context = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
-            let (bytecode, promise, module) = unsafe {
-                let bytecode = bytecode.take(agent).bind(gc.nogc());
+            let (promise, module) = unsafe {
                 let promise = promise.take(agent).bind(gc.nogc());
                 let module = scoped_module.take(agent).bind(gc.nogc());
-                (bytecode, promise, module)
+                (promise, module)
             };
+            let bytecode = async_context
+                .ecmascript_code
+                .as_ref()
+                .unwrap()
+                .executable
+                .unwrap()
+                .bind(gc.nogc());
             let promise_capability = PromiseCapability::from_promise(promise, true);
             let handler = agent
                 .heap

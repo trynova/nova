@@ -479,6 +479,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                                 break 'args;
                             }
                         };
+                        ctx.add_instruction(Instruction::PushReference);
                         // 2. Let value be undefined.
                         // 3. If iteratorRecord.[[Done]] is false, then
                         // a. Let next be ? IteratorStepValue(iteratorRecord).
@@ -490,6 +491,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                         // 5. Else,
                         // a. Let v be value.
                         // 7. Return ? PutValue(lRef, v).
+                        ctx.add_instruction(Instruction::PopReference);
                         if let Err(e) = lref.put_value(ctx, ValueOutput::Value) {
                             result = Err(e);
                             break 'args;
@@ -535,8 +537,10 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                             break 'args;
                         }
                     };
+                    ctx.add_instruction(Instruction::PushReference);
                     ctx.add_instruction(Instruction::IteratorRestIntoArray);
                     // a. Return ? PutValue(lRef, A).
+                    ctx.add_instruction(Instruction::PopReference);
                     if let Err(e) = lref.put_value(ctx, ValueOutput::Value) {
                         result = Err(e);
                         break 'args;
