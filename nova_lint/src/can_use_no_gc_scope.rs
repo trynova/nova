@@ -1,13 +1,13 @@
 use std::ops::ControlFlow;
 
 use clippy_utils::{
-    diagnostics::span_lint_and_sugg, fn_def_id, is_trait_impl_item, source::HasSession,
+    diagnostics::span_lint_and_sugg, fn_def_id, is_trait_impl_item,
     visitors::for_each_expr,
 };
 use rustc_errors::Applicability;
 use rustc_hir::{Body, Expr, ExprKind, FnDecl, def::Res, def_id::LocalDefId, intravisit::FnKind};
 use rustc_hir_analysis::lower_ty;
-use rustc_lint::{LateContext, LateLintPass};
+use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{BytePos, Span};
 
 use crate::{could_be_builtin_method_def, is_gc_scope_ty, is_no_gc_method, is_trait_item};
@@ -92,7 +92,7 @@ impl<'tcx> LateLintPass<'tcx> for CanUseNoGcScope {
             return;
         };
 
-        if for_each_expr(cx, body.value, |expr| {
+        if for_each_expr(cx.tcx, body.value, |expr| {
             // Checks if the expression is function or method call
             if let Some(did) = fn_def_id(cx, expr)
                 // If we encountered either a `nogc` och `into_nogc` method call

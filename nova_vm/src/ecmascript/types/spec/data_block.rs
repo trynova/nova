@@ -16,7 +16,6 @@ use std::{
 };
 
 use core::{
-    f32, f64,
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
     ptr::{NonNull, read_unaligned, write_unaligned},

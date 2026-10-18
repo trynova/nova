@@ -100,7 +100,7 @@ impl<'tcx> LateLintPass<'tcx> for ImmediatelyBindScoped {
                     // Check each expression in the current statement for use
                     // of the value, breaking when found and optionally marking
                     // it as valid.
-                    if for_each_expr(cx, stmt_expr, |expr_in_stmt| {
+                    if for_each_expr(cx.tcx, stmt_expr, |expr_in_stmt| {
                         if expr_in_stmt.res_local_id() == Some(local_hir_id) {
                             if is_valid_use_of_unbound_value(cx, expr_in_stmt, local_hir_id) {
                                 found_valid_next_use = true;
