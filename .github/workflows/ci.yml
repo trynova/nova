@@ -50,11 +50,11 @@ jobs:
       - name: Install cargo-dylint
         uses: taiki-e/cache-cargo-install-action@v2
         with:
-          tool: cargo-dylint@6.0.1
+          tool: cargo-dylint@6.2.0
       - name: Install dylint-link
         uses: taiki-e/cache-cargo-install-action@v2
         with:
-          tool: dylint-link@6.0.1
+          tool: dylint-link@6.2.0
       - name: Check formatting
         run: cargo fmt --check
       - name: Clippy
