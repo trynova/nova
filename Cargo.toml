@@ -51,7 +51,7 @@ unicode-normalization = "=0.1.26"
 usdt = "=0.6.0"
 wtf8 = "=0.1.0"
 xsum = "=0.1.6"
-temporal_rs = "=0.2.3"
+temporal_rs = "=0.2.6"
 
 [workspace.metadata.dylint]
 libraries = [{ path = "nova_lint" }]
