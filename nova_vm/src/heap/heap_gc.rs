@@ -63,7 +63,7 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
     agent.heap.prototype_shapes.mark_values(&mut queues);
     agent.heap.caches.mark_values(&mut queues);
     agent.mark_values(&mut queues);
-    let mut has_finalization_registrys = false;
+    let mut has_finalization_registries = false;
 
     while !queues.is_empty() {
         let Heap {
@@ -95,7 +95,7 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
             errors,
             executables,
             source_codes,
-            finalization_registrys,
+            finalization_registries,
             generators,
             globals: _,
             maps,
@@ -567,19 +567,19 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
                 }
             });
         }
-        if !queues.finalization_registrys.is_empty() {
+        if !queues.finalization_registries.is_empty() {
             let mut finalization_registry_marks: Box<[FinalizationRegistry]> =
-                queues.finalization_registrys.drain(..).collect();
+                queues.finalization_registries.drain(..).collect();
             finalization_registry_marks.sort();
             if !finalization_registry_marks.is_empty() {
-                has_finalization_registrys = true;
+                has_finalization_registries = true;
             }
             finalization_registry_marks.iter().for_each(|&idx| {
                 let index = idx.get_index();
-                if bits.finalization_registrys.set_bit(index, &bits.bits) {
+                if bits.finalization_registries.set_bit(index, &bits.bits) {
                     // Did mark.
 
-                    finalization_registrys
+                    finalization_registries
                         .get(index as u32)
                         .mark_values(&mut queues);
                 }
@@ -1221,7 +1221,7 @@ pub(crate) fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static
     }
 
     sweep(agent, &bits, root_realms, gc);
-    if has_finalization_registrys {
+    if has_finalization_registries {
         FinalizationRegistry::enqueue_cleanup_jobs(agent);
     }
     ndt::gc_done!(|| ());
@@ -1273,7 +1273,7 @@ fn sweep(
         errors,
         executables,
         source_codes,
-        finalization_registrys,
+        finalization_registries,
         generators,
         globals,
         maps,
@@ -1777,12 +1777,12 @@ fn sweep(
                 sweep_heap_vector_values(executables, &compactions, &bits.executables, &bits.bits);
             });
         }
-        if !finalization_registrys.is_empty() {
+        if !finalization_registries.is_empty() {
             s.spawn(|| {
                 sweep_heap_soa_vector_values(
-                    finalization_registrys,
+                    finalization_registries,
                     &compactions,
-                    &bits.finalization_registrys,
+                    &bits.finalization_registries,
                     &bits.bits,
                 );
             });

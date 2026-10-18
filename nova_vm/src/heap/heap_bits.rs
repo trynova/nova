@@ -429,7 +429,7 @@ pub(crate) struct HeapBits {
     pub(super) errors: BitRange,
     pub(super) executables: BitRange,
     pub(super) source_codes: BitRange,
-    pub(super) finalization_registrys: BitRange,
+    pub(super) finalization_registries: BitRange,
     pub(super) function_environments: BitRange,
     pub(super) generators: BitRange,
     pub(super) global_environments: BitRange,
@@ -533,7 +533,7 @@ pub(crate) struct WorkQueues<'a> {
     pub(crate) source_codes: Vec<SourceCode<'static>>,
     pub(crate) errors: Vec<Error<'static>>,
     pub(crate) executables: Vec<Executable<'static>>,
-    pub(crate) finalization_registrys: Vec<FinalizationRegistry<'static>>,
+    pub(crate) finalization_registries: Vec<FinalizationRegistry<'static>>,
     pub(crate) function_environments: Vec<FunctionEnvironment<'static>>,
     pub(crate) generators: Vec<Generator<'static>>,
     pub(crate) global_environments: Vec<GlobalEnvironment<'static>>,
@@ -670,9 +670,9 @@ impl HeapBits {
         let executables = BitRange::from_bit_count_and_len(&mut bit_count, heap.executables.len());
         let source_codes =
             BitRange::from_bit_count_and_len(&mut bit_count, heap.source_codes.len());
-        let finalization_registrys = BitRange::from_bit_count_and_len(
+        let finalization_registries = BitRange::from_bit_count_and_len(
             &mut bit_count,
-            heap.finalization_registrys.len() as usize,
+            heap.finalization_registries.len() as usize,
         );
         let function_environments =
             BitRange::from_bit_count_and_len(&mut bit_count, heap.environments.function.len());
@@ -801,7 +801,7 @@ impl HeapBits {
             errors,
             executables,
             source_codes,
-            finalization_registrys,
+            finalization_registries,
             function_environments,
             generators,
             global_environments,
@@ -891,7 +891,7 @@ impl HeapBits {
             WeakKey::PlainTime(d) => self.plain_times.get_bit(d.get_index(), &self.bits),
             WeakKey::Error(d) => self.errors.get_bit(d.get_index(), &self.bits),
             WeakKey::FinalizationRegistry(d) => self
-                .finalization_registrys
+                .finalization_registries
                 .get_bit(d.get_index(), &self.bits),
             WeakKey::Map(d) => self.maps.get_bit(d.get_index(), &self.bits),
             WeakKey::Promise(d) => self.promises.get_bit(d.get_index(), &self.bits),
@@ -1060,8 +1060,8 @@ impl<'a> WorkQueues<'a> {
             errors: Vec::with_capacity(heap.errors.len() / 4),
             executables: Vec::with_capacity(heap.executables.len() / 4),
             source_codes: Vec::with_capacity(heap.source_codes.len() / 4),
-            finalization_registrys: Vec::with_capacity(
-                heap.finalization_registrys.len() as usize / 4,
+            finalization_registries: Vec::with_capacity(
+                heap.finalization_registries.len() as usize / 4,
             ),
             function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
             generators: Vec::with_capacity(heap.generators.len() / 4),
@@ -1172,7 +1172,7 @@ impl<'a> WorkQueues<'a> {
             source_codes,
             errors,
             executables,
-            finalization_registrys,
+            finalization_registries,
             function_environments,
             generators,
             global_environments,
@@ -1300,7 +1300,7 @@ impl<'a> WorkQueues<'a> {
             && errors.is_empty()
             && executables.is_empty()
             && source_codes.is_empty()
-            && finalization_registrys.is_empty()
+            && finalization_registries.is_empty()
             && function_environments.is_empty()
             && generators.is_empty()
             && global_environments.is_empty()
@@ -1666,7 +1666,7 @@ pub(crate) struct CompactionLists {
     pub(crate) source_text_module_records: CompactionList,
     pub(crate) errors: CompactionList,
     pub(crate) executables: CompactionList,
-    pub(crate) finalization_registrys: CompactionList,
+    pub(crate) finalization_registries: CompactionList,
     pub(crate) function_environments: CompactionList,
     pub(crate) generators: CompactionList,
     pub(crate) global_environments: CompactionList,
@@ -1867,8 +1867,8 @@ impl CompactionLists {
             symbols: CompactionList::from_mark_bits(&bits.symbols, &bits.bits),
             #[cfg(feature = "array-buffer")]
             data_views: CompactionList::from_mark_bits(&bits.data_views, &bits.bits),
-            finalization_registrys: CompactionList::from_mark_bits(
-                &bits.finalization_registrys,
+            finalization_registries: CompactionList::from_mark_bits(
+                &bits.finalization_registries,
                 &bits.bits,
             ),
             proxies: CompactionList::from_mark_bits(&bits.proxies, &bits.bits),

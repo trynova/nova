@@ -8,7 +8,11 @@
     "  and other behaviors which are only needed for web compatibility. At this",
     "  point we don't plan on implementing them.",
     "- `intl402`: Tests for ECMA-402, which defines the `Intl`",
-    "  internationalization API. We currently have no plans to implement them.,"
+    "  internationalization API. We currently have no plans to implement them.,",
+    "",
+    "We also skip a fair number of tests because of our `Array.length` always",
+    "reserving memory directly. Tests use `Array.length = MAX_LENGTH` which",
+    "locally reserves 4 GiB of memory and timeouts, while on CI it fails to."
   ],
   "skip": [
     "annexB",
@@ -33,6 +37,7 @@
     "built-ins/Object/defineProperties/15.2.3.7-6-a-150.js",
     "built-ins/Object/defineProperties/15.2.3.7-6-a-151.js",
     "built-ins/Object/defineProperties/15.2.3.7-6-a-179.js",
+    "built-ins/Object/defineProperty/15.2.3.6-4-116.js",
     "built-ins/Object/defineProperty/15.2.3.6-4-154.js",
     "built-ins/Object/defineProperty/15.2.3.6-4-155.js",
     "built-ins/Object/defineProperty/15.2.3.6-4-183.js",

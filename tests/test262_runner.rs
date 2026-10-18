@@ -748,6 +748,16 @@ mod test_metadata {
             }
         }
 
+        // Special handling for a test file that uses CR instead of LF:
+        // serde_yml does not handle this, so replace CR with LF.
+        if path.ends_with("line-terminator-normalisation-CR.js") {
+            for byte in bytes.iter_mut() {
+                if *byte == b'\r' {
+                    *byte = b'\n';
+                }
+            }
+        }
+
         serde_yml::from_slice(&bytes).unwrap()
     }
 }

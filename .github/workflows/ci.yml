@@ -37,7 +37,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly-2026-05-28
+          toolchain: nightly-2026-10-01
           components: rustfmt, clippy, llvm-tools-preview, rustc-dev
       - name: Cache on ${{ github.ref_name }}
         uses: Swatinem/rust-cache@v2
@@ -50,17 +50,17 @@ jobs:
       - name: Install cargo-dylint
         uses: taiki-e/cache-cargo-install-action@v2
         with:
-          tool: cargo-dylint@6.0.1
+          tool: cargo-dylint@6.2.0
       - name: Install dylint-link
         uses: taiki-e/cache-cargo-install-action@v2
         with:
-          tool: dylint-link@6.0.1
+          tool: dylint-link@6.2.0
       - name: Check formatting
         run: cargo fmt --check
       - name: Clippy
         run: |
           cargo +stable clippy --all-targets -- -D warnings
-          cargo +nightly-2026-05-28 clippy --all-targets --all-features -- -D warnings
+          cargo +nightly-2026-10-01 clippy --all-targets --all-features -- -D warnings
       - name: Dylint tests
         working-directory: nova_lint
         run: cargo test
