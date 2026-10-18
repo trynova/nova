@@ -1095,15 +1095,19 @@ pub(crate) fn set_function_name<'a>(
             // a. Let description be name's [[Description]] value.
             // b. If description is undefined, set name to the empty String.
             // c. Else, set name to the string-concatenation of "[", description, and "]".
-            s.description(agent)
-                .map_or(String::EMPTY_STRING, |descriptor| {
-                    let descriptor = descriptor.to_string_lossy_(agent);
-                    String::from_string(
-                        agent,
-                        format!("{}[{descriptor}]", prefix_into_str(prefix)),
-                        gc,
-                    )
-                })
+            if let Some(descriptor) = s.description(agent) {
+                let descriptor = descriptor.to_string_lossy_(agent);
+                String::from_string(
+                    agent,
+                    format!("{}[{descriptor}]", prefix_into_str(prefix)),
+                    gc,
+                )
+            } else if let Some(prefix) = prefix {
+                // Step 5 applies even when description is None
+                String::from_static_str(agent, prefix.into_str(), gc)
+            } else {
+                String::EMPTY_STRING
+            }
         }
 
         PropertyKey::Integer(integer) => String::from_string(
