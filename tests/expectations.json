@@ -1111,7 +1111,6 @@
   "built-ins/Number/prototype/toExponential/return-values.js": "FAIL",
   "built-ins/Number/prototype/toExponential/tointeger-fractiondigits.js": "FAIL",
   "built-ins/Number/prototype/toExponential/undefined-fractiondigits.js": "FAIL",
-  "built-ins/Object/defineProperty/15.2.3.6-4-116.js": "FAIL",
   "built-ins/Object/defineProperty/15.2.3.6-4-292-1.js": "FAIL",
   "built-ins/Object/defineProperty/15.2.3.6-4-293-2.js": "FAIL",
   "built-ins/Object/defineProperty/15.2.3.6-4-293-3.js": "FAIL",
