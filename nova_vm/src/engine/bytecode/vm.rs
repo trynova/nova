@@ -304,6 +304,20 @@ impl Vm {
             if agent.check_gc() {
                 self.trigger_gc(agent, gc.reborrow());
             }
+            // NOTE: Nova extension: check the wall-clock deadline on every
+            // instruction. `Instant::now()` is only called when a deadline is
+            // active; in the common case (`execution_deadline` is `None`) the
+            // short-circuit prevents the syscall entirely.
+            if let Some(deadline) = agent.execution_deadline
+                && std::time::Instant::now() >= deadline
+            {
+                let err = agent.throw_exception_with_static_message(
+                    ExceptionType::Error,
+                    "Script execution timed out",
+                    gc.into_nogc(),
+                );
+                return ExecutionResult::Throw(err);
+            }
             if agent.options.print_internals {
                 Self::print_executing(instr.kind);
             }

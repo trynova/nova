@@ -67,6 +67,10 @@ pub struct AgentOptions {
     /// calling `Atomics.wait()` will throw an error to signal that blocking the
     /// main thread is not allowed.
     pub no_block: bool,
+    /// Wall-clock time limit for a single script execution. When set, any
+    /// script that runs longer than this duration will be terminated with a
+    /// JavaScript `Error`.
+    pub execution_timeout: Option<std::time::Duration>,
 }
 
 /// Result of methods that may throw a JavaScript error.
@@ -901,6 +905,10 @@ pub struct Agent {
     /// \[\[AsyncEvaluationOrder]] field of modules that are asynchronous or
     /// have asynchronous dependencies.
     module_async_evaluation_count: u32,
+    /// Per-execution deadline derived from `options.execution_timeout`.
+    /// Set at the start of `script_evaluation` and cleared when it returns.
+    /// `None` means no deadline is active.
+    pub(crate) execution_deadline: Option<std::time::Instant>,
 }
 
 impl Agent {
@@ -919,6 +927,7 @@ impl Agent {
             kept_alive: false,
             private_names_counter: 0,
             module_async_evaluation_count: 0,
+            execution_deadline: None,
         }
     }
 
@@ -1632,6 +1641,7 @@ impl HeapMarkAndSweep for Agent {
                 kept_alive: _,
             private_names_counter: _,
             module_async_evaluation_count: _,
+            execution_deadline: _,
         } = self;
 
         execution_context_stack.iter().for_each(|ctx| {
@@ -1683,6 +1693,7 @@ impl HeapMarkAndSweep for Agent {
                 kept_alive: _,
             private_names_counter: _,
             module_async_evaluation_count: _,
+            execution_deadline: _,
         } = self;
 
         execution_context_stack
