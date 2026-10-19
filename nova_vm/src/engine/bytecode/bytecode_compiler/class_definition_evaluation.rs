@@ -636,16 +636,39 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
             constructor_ctx.add_instruction(Instruction::Store);
             let source_code = constructor_ctx.get_source_code();
             if let Some(constructor) = constructor {
-                let constructor_data = CompileFunctionBodyData {
-                    source_code,
-                    is_lexical: false,
-                    // Class code is always strict.
-                    is_strict: true,
-                    ast: FunctionAstRef::ClassConstructor(&constructor.value),
-                };
-                constructor_ctx.compile_function_body(constructor_data);
-                let executable = constructor_ctx.finish();
-                ctx.set_function_expression_bytecode(constructor_index, executable);
+                // A derived constructor's field initializers can't run
+                // before `super()`; defer them to EvaluateSuper step 11.
+                if has_constructor_parent {
+                    let initializer_executable = constructor_ctx.finish();
+                    let mut body_ctx = CompileContext::new(agent, source_code, gc);
+                    let constructor_data = CompileFunctionBodyData {
+                        source_code,
+                        is_lexical: false,
+                        // Class code is always strict.
+                        is_strict: true,
+                        ast: FunctionAstRef::ClassConstructor(&constructor.value),
+                    };
+                    // Slot 0 is ours; nested class definitions compiled in
+                    // the body push their entries after it.
+                    body_ctx.add_class_initializer_bytecode(
+                        initializer_executable,
+                        has_constructor_parent,
+                    );
+                    body_ctx.compile_function_body(constructor_data);
+                    let body_executable = body_ctx.finish();
+                    ctx.set_function_expression_bytecode(constructor_index, body_executable);
+                } else {
+                    let constructor_data = CompileFunctionBodyData {
+                        source_code,
+                        is_lexical: false,
+                        // Class code is always strict.
+                        is_strict: true,
+                        ast: FunctionAstRef::ClassConstructor(&constructor.value),
+                    };
+                    constructor_ctx.compile_function_body(constructor_data);
+                    let executable = constructor_ctx.finish();
+                    ctx.set_function_expression_bytecode(constructor_index, executable);
+                }
             } else {
                 let executable = constructor_ctx.finish();
                 ctx.add_class_initializer_bytecode(executable, has_constructor_parent);
