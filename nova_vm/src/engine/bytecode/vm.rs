@@ -379,7 +379,7 @@ impl Vm {
     fn inner_execute<'gc>(agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> ExecutionResult<'gc> {
         // SAFETY: The instructions buffer is owned by the current Executable,
         // which is currently rooted by the execution context stack. The buffer
-        // is not accessible as exclusive excecpt for dropping the Executable's
+        // is not accessible as exclusive except for dropping the Executable's
         // heap data, and isn't dropped while the Executable is rooted. Thus,
         // the instructions slice is guaranteed to be valid while we perform the
         // execution inner loop.
