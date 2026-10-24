@@ -1291,13 +1291,9 @@ impl Agent {
             .execution_context_stack
             .last_mut()
             .and_then(|ctx| ctx.ecmascript_code.as_mut())
-            .and_then(|e| {
+            .filter(|e| {
                 // Check that we're not replacing an already-set executable.
-                if e.executable.is_none() {
-                    Some(e)
-                } else {
-                    None
-                }
+                e.executable.is_none()
             })
         else {
             panic_corrupted_agent()

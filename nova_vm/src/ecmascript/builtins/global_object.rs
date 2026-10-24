@@ -438,8 +438,7 @@ pub(crate) fn perform_eval<'gc>(
                 // a. Set result to Completion(Evaluation of body).
                 // 30. If result is a normal completion and result.[[Value]] is empty, then
                 // a. Set result to NormalCompletion(undefined).
-                let result = agent.execute(None, gc).into_js_result();
-                result
+                agent.execute(None, gc).into_js_result()
             }
             Err(err) => Err(err.unbind().bind(gc.into_nogc())),
         }

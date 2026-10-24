@@ -967,7 +967,7 @@ impl Instr {
             Instruction::BindingPatternBindNamed => {
                 format!(
                     "{{ {}: {} }}",
-                    debug_print_constant(agent, exe.clone(), arg1 as usize, gc),
+                    debug_print_constant(agent, exe, arg1 as usize, gc),
                     debug_print_identifier(agent, exe, arg0 as usize, gc)
                 )
             }
