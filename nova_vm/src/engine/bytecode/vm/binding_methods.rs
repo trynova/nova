@@ -64,25 +64,31 @@ pub(super) fn execute_simple_array_binding<'a>(
                         .unwrap()
                         .scope(agent, gc.nogc());
                     let mut idx = 0u32;
-                    while let Some(result) = iterator
-                        .step_value(agent, gc.reborrow())
-                        .unbind()?
-                        .bind(gc.nogc())
-                    {
-                        unwrap_try(try_create_data_property_or_throw(
-                            agent,
-                            rest.get(agent),
-                            PropertyKey::from(idx),
-                            result.unbind(),
-                            None,
-                            gc.nogc(),
-                        ));
-                        idx += 1;
+                    loop {
+                        match iterator
+                            .step_value(agent, gc.reborrow())
+                            .unbind()
+                            .bind(gc.nogc())
+                        {
+                            Ok(Some(result)) => {
+                                unwrap_try(try_create_data_property_or_throw(
+                                    agent,
+                                    rest.get(agent),
+                                    PropertyKey::from(idx),
+                                    result.unbind(),
+                                    None,
+                                    gc.nogc(),
+                                ));
+                                idx += 1;
+                            }
+                            Ok(None) => {
+                                iterator_is_done = true;
+                                // SAFETY: rest is not shared
+                                break Ok(unsafe { rest.take(agent).into() });
+                            }
+                            Err(err) => break Err(err),
+                        }
                     }
-                    iterator_is_done = true;
-                    // SAFETY: rest is not shared
-                    let rest: Value = unsafe { rest.take(agent).into() };
-                    JsResult::Ok(rest)
                 }
             }
             Instruction::FinishBindingPattern => break,
