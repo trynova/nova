@@ -2047,7 +2047,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ChainE
             ast::ChainElement::TSNonNullExpression(expr) => {
                 let result = expr.expression.compile(ctx).and_then(|r| match r {
                     PlaceOrValue::Value(r) => Ok(r),
-                    PlaceOrValue::Place(place) => handle_place_result(ctx, place),
+                    PlaceOrValue::Place(place) => handle_place_result(ctx, Ok(place)),
                 });
                 ctx.is_call_optional_chain_this = false;
                 result
