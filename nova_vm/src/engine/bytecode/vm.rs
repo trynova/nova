@@ -879,6 +879,7 @@ impl Vm {
     ///
     /// Panics if the iterator stack is empty.
     pub(super) fn pop_iterator<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> VmIteratorRecord<'gc> {
+        #[cfg(debug_assertions)]
         debug_assert!(self.iterator_stack.len() > self.iterator_stack_base as usize);
         self.iterator_stack
             .pop()
@@ -892,6 +893,7 @@ impl Vm {
     ///
     /// Panics if the iterator stack is empty.
     pub(super) fn get_active_iterator(&self) -> &VmIteratorRecord<'static> {
+        #[cfg(debug_assertions)]
         debug_assert!(self.iterator_stack.len() > self.iterator_stack_base as usize);
         self.iterator_stack.last().expect("Iterator stack is empty")
     }
@@ -902,6 +904,7 @@ impl Vm {
     ///
     /// Panics if the iterator stack is empty.
     pub(super) fn get_active_iterator_mut(&mut self) -> &mut VmIteratorRecord<'static> {
+        #[cfg(debug_assertions)]
         debug_assert!(self.iterator_stack.len() > self.iterator_stack_base as usize);
         self.iterator_stack
             .last_mut()
@@ -998,6 +1001,7 @@ impl Vm {
     }
 
     fn pop_reference_stack(&mut self) -> Reference<'static> {
+        #[cfg(debug_assertions)]
         debug_assert!(self.reference_stack.len() > self.reference_stack_base as usize);
         self.reference_stack
             .pop()
@@ -1542,8 +1546,7 @@ impl HeapMarkAndSweep for Vm {
             #[cfg(debug_assertions)]
                 iterator_stack_base: _,
             exception_handler_stack,
-            #[cfg(debug_assertions)]
-                exception_handler_stack_base: _,
+            exception_handler_stack_base: _,
             result,
             reference,
         } = self;
@@ -1567,8 +1570,7 @@ impl HeapMarkAndSweep for Vm {
             #[cfg(debug_assertions)]
                 iterator_stack_base: _,
             exception_handler_stack,
-            #[cfg(debug_assertions)]
-                exception_handler_stack_base: _,
+            exception_handler_stack_base: _,
             result,
             reference,
         } = self;

@@ -388,6 +388,7 @@ fn for_in_of_body_evaluation<'s, 'gc>(
                 let jump_over_await = ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
                 // We have to Await the result and ignore any rejections.
                 let try_catch = ctx.enter_try_catch_block();
+                ctx.add_instruction(Instruction::Store);
                 ctx.add_instruction(Instruction::Await);
                 let jump_to_error = try_catch.exit(ctx);
 

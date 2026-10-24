@@ -534,10 +534,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                             break 'args;
                         }
                     };
-                    ctx.add_instruction(Instruction::PushReference);
+                    if lref.has_reference() {
+                        ctx.add_instruction(Instruction::PushReference);
+                    }
                     ctx.add_instruction(Instruction::IteratorRestIntoArray);
                     // a. Return ? PutValue(lRef, A).
-                    ctx.add_instruction(Instruction::PopReference);
+                    if lref.has_reference() {
+                        ctx.add_instruction(Instruction::PopReference);
+                    }
                     if let Err(e) = lref.put_value(ctx, ValueOutput::Value) {
                         result = Err(e);
                         break 'args;

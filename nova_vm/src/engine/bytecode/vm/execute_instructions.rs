@@ -737,6 +737,7 @@ pub(super) fn execute_evaluate_reference<'gc>(
     } else {
         agent.vm.reference = Some(reference.clone());
     }
+    #[cfg(debug_assertions)]
     debug_assert_eq!(
         agent.vm.reference_stack.len(),
         stack_len,
