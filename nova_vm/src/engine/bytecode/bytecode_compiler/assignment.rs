@@ -17,6 +17,7 @@ use crate::engine::{
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::AssignmentExpression<'s> {
     type Output = Result<ValueOutput<'gc>, ExpressionError>;
     fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
+        ctx.add_instruction(Instruction::Empty);
         let mut do_named_evaluation = false;
         // 1. Let lref be ? Evaluation of LeftHandSideExpression.
         let lref = match &self.left {
@@ -120,10 +121,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
         } else if let Some(operator) = self.operator.to_logical_operator() {
             // 2. Let lval be ? GetValue(lref).
             lref.get_value_keep_reference(ctx)?;
-            let push_reference = lref.has_reference() && !self.right.is_literal();
-            if push_reference {
-                ctx.add_instruction(Instruction::PushReference);
-            }
+            let did_keep_reference = lref.has_reference();
             // We store the lval on the stack because we to branch based on its
             // value to either return lval directly, or go into the
             // `PutValue(lRef, rVal)` branch and return rval. For the lval
@@ -179,7 +177,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                 // it onto the stack.
                 let rval_copy = ctx.load_copy_to_stack();
 
-                if push_reference {
+                if did_keep_reference {
                     // Pop lref off the reference stack.
                     ctx.add_instruction(Instruction::PopReference);
                 }
@@ -189,7 +187,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
                     // a stand-in for lval_copy.
                     break 'rval (rval_copy, None);
                 };
-                if push_reference {
+                if did_keep_reference {
                     // If lref was pushed onto the reference stack then the we
                     // have to jump over the if-branch popping it as we already
                     // popped it above. As we return from 'rval we're
@@ -216,7 +214,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
 
             // 3. ..., return lval.
             value_on_stack.store(ctx);
-            if push_reference {
+            if did_keep_reference {
                 // Pop lref off the reference stack.
                 ctx.add_instruction(Instruction::PopReference);
             }
@@ -230,10 +228,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             // 2. let lval be ? GetValue(lref).
             let _lval = lref.get_value_keep_reference(ctx)?;
             let lval_copy = ctx.load_to_stack();
-            let do_push_reference = lref.has_reference() && !self.right.is_literal();
-            if do_push_reference {
-                ctx.add_instruction(Instruction::PushReference);
-            }
+            let did_keep_reference = lref.has_reference();
             // 3. Let rref be ? Evaluation of AssignmentExpression.
             // 4. Let rval be ? GetValue(rref).
             let _rval = match self.right.compile(ctx).and_then(|r| r.get_value(ctx)) {
@@ -272,7 +267,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Assign
             ctx.add_instruction(op_text);
             let r_copy = ctx.load_copy_to_stack();
             let r = ValueOutput::Value;
-            if do_push_reference {
+            if did_keep_reference {
                 ctx.add_instruction(Instruction::PopReference);
             }
             // 8. Perform ? PutValue(lref, r).
@@ -422,9 +417,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                                     break 'args;
                                 }
                             };
-                            let needs_push_reference =
-                                lref.has_reference() && !element.init.is_literal();
-                            if needs_push_reference {
+                            if lref.has_reference() {
                                 ctx.add_instruction(Instruction::PushReference);
                             }
                             // 2. Let value be undefined.
@@ -436,7 +429,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                             // 4. If Initializer is present and value is undefined, then
                             //    ...
                             compile_initializer(element, ctx);
-                            if needs_push_reference {
+                            if lref.has_reference() {
                                 ctx.add_instruction(Instruction::PopReference);
                             }
                             // 7. Return ? PutValue(lRef, v).
@@ -479,6 +472,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                                 break 'args;
                             }
                         };
+                        if lref.has_reference() {
+                            ctx.add_instruction(Instruction::PushReference);
+                        }
                         // 2. Let value be undefined.
                         // 3. If iteratorRecord.[[Done]] is false, then
                         // a. Let next be ? IteratorStepValue(iteratorRecord).
@@ -490,6 +486,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                         // 5. Else,
                         // a. Let v be value.
                         // 7. Return ? PutValue(lRef, v).
+                        if lref.has_reference() {
+                            ctx.add_instruction(Instruction::PopReference);
+                        }
                         if let Err(e) = lref.put_value(ctx, ValueOutput::Value) {
                             result = Err(e);
                             break 'args;
@@ -535,8 +534,14 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                             break 'args;
                         }
                     };
+                    if lref.has_reference() {
+                        ctx.add_instruction(Instruction::PushReference);
+                    }
                     ctx.add_instruction(Instruction::IteratorRestIntoArray);
                     // a. Return ? PutValue(lRef, A).
+                    if lref.has_reference() {
+                        ctx.add_instruction(Instruction::PopReference);
+                    }
                     if let Err(e) = lref.put_value(ctx, ValueOutput::Value) {
                         result = Err(e);
                         break 'args;
@@ -699,7 +704,6 @@ fn compile_assignment_target_property<'s>(
             place.get_value_maybe_keep_reference(ctx, has_rest)?;
             if has_rest {
                 debug_assert!(place.has_reference());
-                ctx.add_instruction(Instruction::PushReference);
             }
             // result: source.identifier
             // stack: [source?]
@@ -721,7 +725,6 @@ fn compile_assignment_target_property<'s>(
             place.get_value_maybe_keep_reference(ctx, has_rest)?;
             if has_rest {
                 debug_assert!(place.has_reference());
-                ctx.add_instruction(Instruction::PushReference);
             }
             // result: source.property
             // stack: [source?]

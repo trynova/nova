@@ -165,17 +165,14 @@ impl<'a> ActiveIterator<'a> {
     }
 
     pub(super) fn get<'agent>(&self, agent: &'agent Agent) -> &'agent VmIteratorRecord<'a> {
-        // SAFETY: VM is held exclusively in an above call stack.
-        unsafe { agent.vm_stack.last().expect("No VM found").as_ref() }.get_active_iterator()
+        agent.vm.get_active_iterator()
     }
 
     fn get_mut<'agent>(
         &mut self,
         agent: &'agent mut Agent,
     ) -> &'agent mut VmIteratorRecord<'static> {
-        // SAFETY: VM is held exclusively in an above call stack.
-        unsafe { agent.vm_stack.last_mut().expect("No VM found").as_mut() }
-            .get_active_iterator_mut()
+        agent.vm.get_active_iterator_mut()
     }
 }
 

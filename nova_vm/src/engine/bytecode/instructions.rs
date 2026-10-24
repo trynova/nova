@@ -7,7 +7,7 @@ use oxc_syntax::number::ToJsString;
 
 use crate::{
     ecmascript::{Agent, String},
-    engine::{Executable, NoGcScope, Scoped, bytecode::bytecode_compiler::IndexType},
+    engine::{Executable, NoGcScope, bytecode::bytecode_compiler::IndexType},
 };
 
 /// ## Notes
@@ -40,6 +40,9 @@ pub(crate) enum Instruction {
     JumpIfNot,
     /// Store ResolveBinding() in the reference register.
     ResolveBinding,
+    /// Evaluate the current top reference stack entry's key into a PropertyKey.
+    /// A copy is stored in the reference register.
+    EvaluateReference,
     /// Store [GetValue()](https://tc39.es/ecma262/#sec-getvalue) as the result
     /// value.
     ///
@@ -56,11 +59,6 @@ pub(crate) enum Instruction {
     /// analysed from the AST. Non-reference values are already in the result
     /// value so a `GetValue` call would be a no-op.
     GetValueWithCache,
-    /// Same as GetValue without taking the reference slot. Used for reference
-    /// property updates and function calls (where `this` comes from the
-    /// reference).
-    GetValueKeepReference,
-    GetValueWithCacheKeepReference,
     /// Call PutValue() with the last reference on the reference stack and the
     /// result value.
     PutValue,
@@ -77,10 +75,12 @@ pub(crate) enum Instruction {
     /// Perform InitializeReferencedBinding with parameters reference (V) and
     /// result (W).
     InitializeReferencedBinding,
-    /// Push the last evaluated reference, if any.
+    /// Push the last evaluated reference.
     PushReference,
     /// Pop the last stored reference.
     PopReference,
+    /// Push a copy of the last evaluated reference.
+    PushReferenceCopy,
     /// Perform EvaluatePropertyAccessWithIdentifierKey with the `baseValue` in
     /// the result register and the `propertyNameString` given as the first
     /// immediate argument, and store the result in the reference register.
@@ -553,7 +553,6 @@ impl Instruction {
             | Self::ClassDefinePrivateProperty
             | Self::InitializeVariableEnvironment
             | Self::IteratorStepValue
-            | Self::IteratorComplete
             | Self::IteratorThrow
             | Self::IteratorReturn
             | Self::Jump
@@ -584,7 +583,6 @@ impl Instruction {
             | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::EvaluateSuper
             | Self::GetValueWithCache
-            | Self::GetValueWithCacheKeepReference
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression
             | Self::LoadConstant
@@ -617,10 +615,7 @@ impl Instruction {
     pub const fn has_cache_index(self) -> bool {
         matches!(
             self,
-            Self::GetValueWithCache
-                | Self::GetValueWithCacheKeepReference
-                | Self::PutValueWithCache
-                | Self::ResolveBindingWithCache
+            Self::GetValueWithCache | Self::PutValueWithCache | Self::ResolveBindingWithCache
         )
     }
 
@@ -681,8 +676,7 @@ impl Instruction {
     pub const fn has_jump_slot(self) -> bool {
         matches!(
             self,
-            Self::IteratorComplete
-                | Self::IteratorThrow
+            Self::IteratorThrow
                 | Self::IteratorReturn
                 | Self::Jump
                 | Self::JumpIfNot
@@ -719,7 +713,7 @@ pub(crate) struct Instr {
 }
 
 impl Instr {
-    pub(super) fn consume_instruction(instructions: &[u8], ip: &mut usize) -> Option<Instr> {
+    pub(crate) fn consume_instruction(instructions: &[u8], ip: &mut usize) -> Option<Instr> {
         let len = instructions.len();
         let cur_ip = *ip;
         if cur_ip >= len {
@@ -808,6 +802,10 @@ impl Instr {
         }
     }
 
+    pub(crate) fn get_first_stack_slot(&self, agent: &Agent) -> usize {
+        self.get_first_arg() as usize + agent.vm.get_stack_base() as usize
+    }
+
     pub(crate) fn get_first_index(&self) -> usize {
         self.get_first_arg() as usize
     }
@@ -865,13 +863,7 @@ impl Instr {
         jump as usize
     }
 
-    pub(crate) fn debug_print(
-        &self,
-        agent: &mut Agent,
-        ip: usize,
-        exe: Scoped<Executable>,
-        gc: NoGcScope,
-    ) {
+    pub(crate) fn debug_print(&self, agent: &mut Agent, ip: usize, exe: Executable, gc: NoGcScope) {
         match self.kind.argument_count() {
             0 => {
                 eprintln!("  {}: {:?}", ip, self.kind);
@@ -909,7 +901,7 @@ impl Instr {
         agent: &mut Agent,
         kind: Instruction,
         arg: IndexType,
-        exe: Scoped<Executable>,
+        exe: Executable,
         gc: NoGcScope,
     ) -> std::string::String {
         let index = arg as usize;
@@ -964,7 +956,7 @@ impl Instr {
         kind: Instruction,
         arg0: IndexType,
         arg1: IndexType,
-        exe: Scoped<Executable>,
+        exe: Executable,
         gc: NoGcScope,
     ) -> std::string::String {
         match kind {
@@ -975,7 +967,7 @@ impl Instr {
             Instruction::BindingPatternBindNamed => {
                 format!(
                     "{{ {}: {} }}",
-                    debug_print_constant(agent, exe.clone(), arg1 as usize, gc),
+                    debug_print_constant(agent, exe, arg1 as usize, gc),
                     debug_print_identifier(agent, exe, arg0 as usize, gc)
                 )
             }
@@ -1031,7 +1023,7 @@ impl Instr {
 
 fn debug_print_constant(
     agent: &mut Agent,
-    exe: Scoped<Executable>,
+    exe: Executable,
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {
@@ -1048,7 +1040,7 @@ fn debug_print_constant(
 
 fn debug_print_identifier(
     agent: &Agent,
-    exe: Scoped<Executable>,
+    exe: Executable,
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {
@@ -1206,9 +1198,7 @@ impl TryFrom<u8> for Instruction {
             Instruction::MakeSuperPropertyReferenceWithIdentifierKey.as_u8();
         const GETVALUE: u8 = Instruction::GetValue.as_u8();
         const GETVALUEWITHCACHE: u8 = Instruction::GetValueWithCache.as_u8();
-        const GETVALUEKEEPREFERENCE: u8 = Instruction::GetValueKeepReference.as_u8();
-        const GETVALUEWITHCACHEKEEPREFERENCE: u8 =
-            Instruction::GetValueWithCacheKeepReference.as_u8();
+        const EVALUATE_REFERENCE: u8 = Instruction::EvaluateReference.as_u8();
         const GREATERTHAN: u8 = Instruction::GreaterThan.as_u8();
         const GREATERTHANEQUALS: u8 = Instruction::GreaterThanEquals.as_u8();
         const HASPROPERTY: u8 = Instruction::HasProperty.as_u8();
@@ -1262,6 +1252,7 @@ impl TryFrom<u8> for Instruction {
         const POPREFERENCE: u8 = Instruction::PopReference.as_u8();
         const PUSHEXCEPTIONJUMPTARGET: u8 = Instruction::PushExceptionJumpTarget.as_u8();
         const PUSHREFERENCE: u8 = Instruction::PushReference.as_u8();
+        const PUSHREFERENCECOPY: u8 = Instruction::PushReferenceCopy.as_u8();
         const PUTVALUE: u8 = Instruction::PutValue.as_u8();
         const PUTVALUEWITHCACHE: u8 = Instruction::PutValueWithCache.as_u8();
         const RESOLVEBINDING: u8 = Instruction::ResolveBinding.as_u8();
@@ -1373,8 +1364,7 @@ impl TryFrom<u8> for Instruction {
             }
             GETVALUE => Ok(Instruction::GetValue),
             GETVALUEWITHCACHE => Ok(Instruction::GetValueWithCache),
-            GETVALUEKEEPREFERENCE => Ok(Instruction::GetValueKeepReference),
-            GETVALUEWITHCACHEKEEPREFERENCE => Ok(Instruction::GetValueWithCacheKeepReference),
+            EVALUATE_REFERENCE => Ok(Instruction::EvaluateReference),
             GREATERTHAN => Ok(Instruction::GreaterThan),
             GREATERTHANEQUALS => Ok(Instruction::GreaterThanEquals),
             HASPROPERTY => Ok(Instruction::HasProperty),
@@ -1428,6 +1418,7 @@ impl TryFrom<u8> for Instruction {
             POPREFERENCE => Ok(Instruction::PopReference),
             PUSHEXCEPTIONJUMPTARGET => Ok(Instruction::PushExceptionJumpTarget),
             PUSHREFERENCE => Ok(Instruction::PushReference),
+            PUSHREFERENCECOPY => Ok(Instruction::PushReferenceCopy),
             PUTVALUE => Ok(Instruction::PutValue),
             PUTVALUEWITHCACHE => Ok(Instruction::PutValueWithCache),
             RESOLVEBINDING => Ok(Instruction::ResolveBinding),

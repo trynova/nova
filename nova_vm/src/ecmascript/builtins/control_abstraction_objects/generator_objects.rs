@@ -7,9 +7,7 @@ use crate::{
         Agent, ExceptionType, ExecutionContext, InternalMethods, InternalSlots, JsError, JsResult,
         OrdinaryObject, ProtoIntrinsics, Value, create_iter_result_object, object_handle,
     },
-    engine::{
-        Bindable, Executable, ExecutionResult, GcScope, Scopable, SuspendedVm, bindable_handle,
-    },
+    engine::{Bindable, ExecutionResult, GcScope, Scopable, SuspendedVm, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -63,7 +61,6 @@ impl Generator<'_> {
         // 7. Set generator.[[GeneratorState]] to executing.
         let SuspendedGeneratorState {
             vm,
-            executable,
             execution_context,
         } = match generator
             .get_mut(agent)
@@ -74,7 +71,6 @@ impl Generator<'_> {
             | Some(GeneratorState::SuspendedStart(state)) => state,
             _ => unreachable!(),
         };
-        let executable = executable.scope(agent, gc.nogc());
 
         // 4. Let genContext be generator.[[GeneratorContext]].
         // 5. Let methodContext be the running execution context.
@@ -88,9 +84,7 @@ impl Generator<'_> {
         // 9. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result = vm.resume(agent, executable.clone(), value.unbind(), gc.reborrow());
-
-        let execution_result = execution_result.unbind();
+        let execution_result = agent.resume(vm, value.unbind(), gc.reborrow()).unbind();
         let gc = gc.into_nogc();
         let generator = saved.get(agent).bind(gc);
         let execution_result = execution_result.bind(gc);
@@ -141,7 +135,6 @@ impl Generator<'_> {
                 generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
-                        executable: executable.get(agent),
                         execution_context,
                     }));
                 // 8. Resume callerContext passing NormalCompletion(iterNextObj). ...
@@ -197,7 +190,6 @@ impl Generator<'_> {
         // 8. Set generator.[[GeneratorState]] to executing.
         let Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
             vm,
-            executable,
             execution_context,
         })) = generator
             .get_mut(agent)
@@ -207,7 +199,6 @@ impl Generator<'_> {
             unreachable!()
         };
         let generator = generator.scope(agent, gc.nogc());
-        let executable = executable.scope(agent, gc.nogc());
 
         // 5. Let genContext be generator.[[GeneratorContext]].
         // 6. Let methodContext be the running execution context.
@@ -219,13 +210,11 @@ impl Generator<'_> {
         // 10. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result = vm
-            .resume_throw(agent, executable.clone(), value.unbind(), gc.reborrow())
+        let execution_result = agent
+            .resume_throw(vm, value.unbind(), gc.reborrow())
             .unbind();
         let gc = gc.into_nogc();
         let execution_result = execution_result.bind(gc);
-        // SAFETY: shared but not stored by resume.
-        let executable = unsafe { executable.take(agent).bind(gc) };
         // SAFETY: not shared.
         let generator = unsafe { generator.take(agent).bind(gc) };
 
@@ -253,7 +242,6 @@ impl Generator<'_> {
                 generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
-                        executable: executable.unbind(),
                         execution_context,
                     }));
                 Ok(yielded_value.unbind())
@@ -320,7 +308,6 @@ impl Generator<'_> {
         // 8. Set generator.[[GeneratorState]] to executing.
         let Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
             vm,
-            executable,
             execution_context,
         })) = generator
             .get_mut(agent)
@@ -330,7 +317,6 @@ impl Generator<'_> {
             unreachable!()
         };
         let generator = generator.scope(agent, gc.nogc());
-        let executable = executable.scope(agent, gc.nogc());
 
         // 5. Let genContext be generator.[[GeneratorContext]].
         // 6. Let methodContext be the running execution context.
@@ -343,18 +329,11 @@ impl Generator<'_> {
         //     abruptCompletion as the result of the operation that suspended
         //     it. Let result be the Completion Record returned by the resumed
         //     computation.
-        let execution_result = vm
-            .resume_return(
-                agent,
-                executable.clone(),
-                abrupt_completion.unbind(),
-                gc.reborrow(),
-            )
+        let execution_result = agent
+            .resume_return(vm, abrupt_completion.unbind(), gc.reborrow())
             .unbind();
         let gc = gc.into_nogc();
         let execution_result = execution_result.bind(gc);
-        // SAFETY: shared but not stored by resume.
-        let executable = unsafe { executable.take(agent).bind(gc) };
         // SAFETY: not shared.
         let generator = unsafe { generator.take(agent).bind(gc) };
 
@@ -381,7 +360,6 @@ impl Generator<'_> {
                 generator.get_mut(agent).generator_state =
                     Some(GeneratorState::SuspendedYield(SuspendedGeneratorState {
                         vm,
-                        executable: executable.unbind(),
                         execution_context,
                     }));
                 Ok(yielded_value)
@@ -444,7 +422,6 @@ pub(crate) struct GeneratorHeapData<'a> {
 #[derive(Debug)]
 pub(crate) struct SuspendedGeneratorState {
     pub(crate) vm: SuspendedVm,
-    pub(crate) executable: Executable<'static>,
     pub(crate) execution_context: ExecutionContext,
 }
 
@@ -460,22 +437,18 @@ impl HeapMarkAndSweep for SuspendedGeneratorState {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             vm,
-            executable,
             execution_context,
         } = self;
         vm.mark_values(queues);
-        executable.mark_values(queues);
         execution_context.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             vm,
-            executable,
             execution_context,
         } = self;
         vm.sweep_values(compactions);
-        executable.sweep_values(compactions);
         execution_context.sweep_values(compactions);
     }
 }

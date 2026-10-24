@@ -13,7 +13,7 @@ use crate::{
         script_lexically_declared_names, script_lexically_scoped_declarations,
         script_var_declared_names, script_var_scoped_declarations,
     },
-    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, Vm, bindable_handle},
+    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapIndexHandle, HeapMarkAndSweep, WorkQueues, arena_vec_access, index_handle,
@@ -315,6 +315,12 @@ pub fn script_evaluation<'a>(
         script_or_module: Some(ScriptOrModule::Script(script.unbind())),
 
         ecmascript_code: Some(ECMAScriptCode {
+            ip: 0,
+            executable: None,
+            stack_base: 0,
+            iterator_stack_base: 0,
+            reference_stack_base: 0,
+            exception_handler_stack_base: 0,
             // 6. Set the VariableEnvironment of scriptContext to globalEnv.
             variable_environment: Environment::Global(global_env.unbind()),
 
@@ -356,19 +362,12 @@ pub fn script_evaluation<'a>(
     // 13. If result.[[Type]] is normal, then
     let result: JsResult<Value> = match result {
         Ok(_) => {
-            let bytecode =
-                Executable::compile_script(agent, script, gc.nogc()).scope(agent, gc.nogc());
+            let bytecode = Executable::compile_script(agent, script, gc.nogc());
+            agent.set_running_executable(bytecode);
             // a. Set result to Completion(Evaluation of script).
             // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
             // i. Set result to NormalCompletion(undefined).
-            let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow())
-                .into_js_result()
-                .unbind()
-                .bind(gc.into_nogc());
-            // SAFETY: The bytecode is not accessible by anyone anymore and no one
-            // will try to re-run it.
-            unsafe { bytecode.take(agent).try_drop(agent) };
-            result
+            agent.execute(None, gc).into_js_result()
         }
         Err(err) => Err(err.unbind().bind(gc.into_nogc())),
     };
