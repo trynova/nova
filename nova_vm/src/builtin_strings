@@ -266,6 +266,7 @@ isNaN
 isPrototypeOf
 isSafeInteger
 isSealed
+isSubsetOf
 #[cfg(feature = "array-buffer")]isView
 isWellFormed
 #[cfg(feature = "annex-b-string")]italics
