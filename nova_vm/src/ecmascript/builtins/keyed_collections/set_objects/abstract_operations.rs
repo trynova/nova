@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! ## [24.2 Set Objects](https://tc39.es/ecma262/#sec-set-objects)
-
 use crate::{
     ecmascript::{
         Agent, BUILTIN_STRING_MEMORY,
