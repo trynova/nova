@@ -409,7 +409,10 @@ impl AsyncGeneratorState<'_> {
     }
 
     pub(crate) fn is_executing(&self) -> bool {
-        matches!(self, AsyncGeneratorState::Executing(_))
+        matches!(
+            self,
+            AsyncGeneratorState::Executing(_) | AsyncGeneratorState::ExecutingAwait { .. }
+        )
     }
 
     pub(crate) fn is_suspended(&self) -> bool {
