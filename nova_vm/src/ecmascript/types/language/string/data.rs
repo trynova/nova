@@ -163,8 +163,13 @@ impl StringRecord {
                             // We got a None; that means we're looking at a latter
                             // surrogate here.
                             // SAFETY: idx is not 0.
-                            let idx = mapping[unsafe { idx.unchecked_sub(1) }].unwrap();
-                            (idx.into(), true)
+                            let idx = unsafe { idx.unchecked_sub(1) };
+                            let idx = if idx == 0 {
+                                0
+                            } else {
+                                mapping[idx].unwrap().into()
+                            };
+                            (idx, true)
                         }
                     }
                 }
