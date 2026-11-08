@@ -21,7 +21,7 @@ use crate::{
         new_function_environment, ordinary_create_from_constructor,
         ordinary_object_create_with_intrinsics, to_object,
     },
-    engine::{Bindable, Executable, GcScope, NoGcScope, Scopable, bindable_handle},
+    engine::{Bindable, GcScope, NoGcScope, Scopable, bindable_handle},
     heap::{
         ArenaAccess, ArenaAccessMut, BaseIndex, CompactionLists, CreateHeapData, Heap,
         HeapMarkAndSweep, HeapSweepWeakReference, WorkQueues, arena_vec_access,
@@ -300,11 +300,6 @@ impl<'a> ECMAScriptFunction<'a> {
     /// Returns this function's ThisMode.
     pub(crate) fn get_this_mode(self, agent: &Agent) -> ThisMode {
         self.get(agent).ecmascript_function.this_mode
-    }
-
-    #[inline]
-    pub(crate) fn get_executable(self, agent: &Agent) -> Executable<'a> {
-        self.get(agent).compiled_bytecode.unwrap().unbind()
     }
 
     #[inline]
@@ -666,6 +661,12 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
         // 9. Set the VariableEnvironment of calleeContext to localEnv.
         // 10. Set the PrivateEnvironment of calleeContext to F.[[PrivateEnvironment]].
         ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+            ip: 0,
+            executable: None,
+            stack_base: 0,
+            iterator_stack_base: 0,
+            reference_stack_base: 0,
+            exception_handler_stack_base: 0,
             lexical_environment: Environment::Function(local_env.unbind()),
             variable_environment: Environment::Function(local_env.unbind()),
             private_environment: private_environment.unbind(),

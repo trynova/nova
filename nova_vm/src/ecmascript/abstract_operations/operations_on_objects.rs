@@ -22,7 +22,7 @@ use crate::{
     },
     engine::{
         Bindable, GcScope, NoGcScope, Rootable, Scopable, ScopableCollection, Scoped,
-        ScopedCollection, Vm, instanceof_operator,
+        ScopedCollection, instanceof_operator,
     },
     heap::{ArenaAccess, ElementDescriptor, ObjectEntry, WellKnownSymbols},
 };
@@ -2708,7 +2708,7 @@ pub(crate) fn initialize_instance_elements<'a>(
     // a. Perform ? DefineField(O, fieldRecord).
     // 5. Return unused.
     let constructor_data = constructor.get(agent);
-    if let Some(bytecode) = constructor_data.compiled_initializer_bytecode {
+    if let Some(executable) = constructor_data.compiled_initializer_bytecode {
         // Note: The code here looks quite a bit different from what the spec
         // says. For one, the spec is bugged and doesn't consider default
         // constructors at all. Second, we compile field initializers into
@@ -2729,6 +2729,12 @@ pub(crate) fn initialize_instance_elements<'a>(
         let decl_env = new_class_field_initializer_environment(agent, f, o, outer_env, gc.nogc());
         agent.push_execution_context(ExecutionContext {
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+                ip: 0,
+                executable: Some(executable.unbind()),
+                stack_base: 0,
+                iterator_stack_base: 0,
+                reference_stack_base: 0,
+                exception_handler_stack_base: 0,
                 lexical_environment: Environment::Function(decl_env.unbind()),
                 variable_environment: Environment::Function(decl_env.unbind()),
                 private_environment: outer_priv_env.unbind(),
@@ -2739,8 +2745,7 @@ pub(crate) fn initialize_instance_elements<'a>(
             realm: constructor.get(agent).realm.unbind(),
             script_or_module: None,
         });
-        let bytecode = bytecode.scope(agent, gc.nogc());
-        let result = Vm::execute(agent, bytecode, None, gc).into_js_result();
+        let result = agent.execute(None, gc).into_js_result();
         agent.pop_execution_context();
         result?;
     }

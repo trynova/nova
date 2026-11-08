@@ -208,19 +208,27 @@ impl<'s, 'gc> Place<'s, 'gc> {
                 // Variable is stored in the global environment. Caching helps with
                 // these accesses.
                 let cache = ctx.create_property_lookup_cache(name.to_property_key());
-                ctx.add_instruction_with_cache(Instruction::GetValueWithCacheKeepReference, cache);
+                // No need to evaluate property key since we already have a
+                // property key.
+                ctx.add_instruction(Instruction::PushReferenceCopy);
+                ctx.add_instruction_with_cache(Instruction::GetValueWithCache, cache);
                 Ok(ValueOutput::Value)
             }
             Self::Member { name: Some(name) } => {
                 // Property access. Caching helps with these.
                 let cache = ctx.create_property_lookup_cache(*name);
-                ctx.add_instruction_with_cache(Instruction::GetValueWithCacheKeepReference, cache);
+                // No need to evaluate property key since we already have a
+                // property key.
+                ctx.add_instruction(Instruction::PushReferenceCopy);
+                ctx.add_instruction_with_cache(Instruction::GetValueWithCache, cache);
                 Ok(ValueOutput::Value)
             }
             Self::Member { .. } | Self::Env { .. } => {
                 // Variable is stored in the environment or we don't know the
                 // property name at compile time. Caching doesn't help with these.
-                ctx.add_instruction(Instruction::GetValueKeepReference);
+                ctx.add_instruction(Instruction::PushReference);
+                ctx.add_instruction(Instruction::EvaluateReference);
+                ctx.add_instruction(Instruction::GetValue);
                 Ok(ValueOutput::Value)
             }
             Self::TemporalDeadZone { name } => {
@@ -662,13 +670,6 @@ pub(crate) fn is_boolean_literal_true(expression: &ast::Expression) -> bool {
 
 pub(crate) fn is_boolean_literal_false(expression: &ast::Expression) -> bool {
     matches!(expression.get_inner_expression(), ast::Expression::BooleanLiteral(lit) if !lit.value)
-}
-
-fn is_chain_expression(expression: &ast::Expression) -> bool {
-    matches!(
-        expression.get_inner_expression(),
-        ast::Expression::ChainExpression(_)
-    )
 }
 
 impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::NumericLiteral<'s> {
@@ -1190,16 +1191,6 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Logica
         lval_copy.store(ctx);
         ctx.set_jump_target_here(jump_to_end);
         combine_value_results(Ok(lval), rval)
-    }
-}
-
-impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
-    for ast::ParenthesizedExpression<'s>
-{
-    type Output = Result<PlaceOrValue<'s, 'gc>, ExpressionError>;
-
-    fn compile(&'s self, ctx: &mut CompileContext<'a, 's, 'gc, 'scope>) -> Self::Output {
-        self.expression.compile(ctx)
     }
 }
 
@@ -1737,18 +1728,18 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
             return Ok(ValueOutput::Value);
         }
         // 1. Let ref be ? Evaluation of CallExpression.
-        ctx.is_call_optional_chain_this = is_chain_expression(&self.callee);
-        let r#ref = self.callee.compile(ctx)?;
-        // Optimization: If we know arguments is empty, we don't need to
-        // worry about arguments evaluation clobbering our function's this
-        // reference.
-        let need_pop_reference = r#ref.has_reference() && !self.arguments.is_empty();
+        let r#ref =
+            if let ast::Expression::ChainExpression(callee) = self.callee.get_inner_expression() {
+                ctx.is_call_optional_chain_this = true;
+                let result = callee.compile(ctx)?.into();
+                ctx.is_call_optional_chain_this = false;
+                result
+            } else {
+                self.callee.compile(ctx)?
+            };
         // 2. Let func be ? GetValue(ref).
         let _func = r#ref.get_value_keep_reference(ctx)?;
-        if need_pop_reference {
-            ctx.add_instruction(Instruction::PushReference);
-        }
-
+        let did_keep_reference = r#ref.has_reference();
         let func_on_stack = if self.optional {
             // Optional Chains
 
@@ -1759,7 +1750,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
             // a. Return undefined
 
             // To return undefined we jump over the rest of the call handling.
-            let jump_over_call = if need_pop_reference {
+            let jump_over_call = if did_keep_reference {
                 // If we need to pop the reference stack, then we must do it
                 // here before we go to the nullish case handling.
                 // Note the inverted jump condition here!
@@ -1787,9 +1778,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
         let dynamic_arg_count = prep_arguments(ctx, &self.arguments);
         let result = compile_arguments(ctx, &self.arguments, &dynamic_arg_count);
         // After we're done with compiling parameters we go back into the chain.
-        if let Some(optional_chain) = optional_chain {
-            ctx.optional_chains.replace(optional_chain);
-        }
+        debug_assert_eq!(ctx.optional_chains, None);
+        ctx.optional_chains = optional_chain;
 
         // Note: func on stack and the possible dynamic arg count are consumed
         // by EvaluateCall.
@@ -1800,7 +1790,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::CallEx
 
         let num_arguments = result?;
 
-        if need_pop_reference {
+        if did_keep_reference {
             ctx.add_instruction(Instruction::PopReference);
         }
         ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
@@ -1911,9 +1901,8 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         let output = self.expression.compile(ctx).and_then(|r| r.get_value(ctx));
         // After we're done with compiling the member expression we go back
         // into the chain.
-        if let Some(optional_chain) = optional_chain {
-            ctx.optional_chains.replace(optional_chain);
-        }
+        debug_assert_eq!(ctx.optional_chains, None);
+        ctx.optional_chains = optional_chain;
 
         let output = match output {
             Ok(o) => o,
@@ -2023,39 +2012,42 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::ChainE
         } else {
             false
         };
+
+        fn handle_place_result<'s, 'gc>(
+            ctx: &mut CompileContext<'_, 's, 'gc, '_>,
+            place: Result<Place<'s, 'gc>, ExpressionError>,
+        ) -> Result<ValueOutput<'gc>, ExpressionError> {
+            let result = place.and_then(|p| {
+                let r = p.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this);
+                if ctx.is_call_optional_chain_this {
+                    // Move kept reference into register.
+                    ctx.add_instruction(Instruction::PopReference);
+                }
+                r
+            });
+            ctx.is_call_optional_chain_this = false;
+            result
+        }
+
         let result = match &self.expression {
             ast::ChainElement::CallExpression(expr) => expr.compile(ctx),
             ast::ChainElement::ComputedMemberExpression(expr) => {
                 let place = expr.compile(ctx);
-                let result = place.and_then(|p| {
-                    p.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)
-                });
-                ctx.is_call_optional_chain_this = false;
-                result
+                handle_place_result(ctx, place)
             }
             ast::ChainElement::StaticMemberExpression(expr) => {
                 let place = expr.compile(ctx);
-                let result = place.and_then(|p| {
-                    p.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)
-                });
-                ctx.is_call_optional_chain_this = false;
-                result
+                handle_place_result(ctx, place)
             }
             ast::ChainElement::PrivateFieldExpression(expr) => {
                 let place = expr.compile(ctx);
-                let result = place.and_then(|p| {
-                    p.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)
-                });
-                ctx.is_call_optional_chain_this = false;
-                result
+                handle_place_result(ctx, place)
             }
             #[cfg(feature = "typescript")]
             ast::ChainElement::TSNonNullExpression(expr) => {
                 let result = expr.expression.compile(ctx).and_then(|r| match r {
                     PlaceOrValue::Value(r) => Ok(r),
-                    PlaceOrValue::Place(place) => {
-                        place.get_value_maybe_keep_reference(ctx, ctx.is_call_optional_chain_this)
-                    }
+                    PlaceOrValue::Place(place) => handle_place_result(ctx, Ok(place)),
                 });
                 ctx.is_call_optional_chain_this = false;
                 result
@@ -2284,8 +2276,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         let tag_ref = self.tag.compile(ctx)?;
         // 2. Let tagFunc be ? GetValue(tagRef).
         let _tag_func = tag_ref.get_value_keep_reference(ctx)?;
-        let need_pop_reference =
-            tag_ref.has_reference() && !self.quasi.is_no_substitution_template();
+        let did_keep_reference = tag_ref.has_reference();
         // Load tagFunc to the stack.
         let tag_func_on_stack = ctx.load_to_stack();
 
@@ -2295,10 +2286,6 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
         //    3. Let argList be ? ArgumentListEvaluation of arguments.
 
         // ### 13.3.8.1 Runtime Semantics: ArgumentListEvaluation
-
-        if need_pop_reference {
-            ctx.add_instruction(Instruction::PushReference);
-        }
 
         //  TemplateLiteral : NoSubstitutionTemplate
         let mut arguments = Vec::with_capacity(self.quasi.expressions.len());
@@ -2337,7 +2324,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope>
                 // 5. Return the list-concatenation of « firstSub » and restSub.
             }
         }
-        if need_pop_reference {
+        if did_keep_reference {
             ctx.add_instruction(Instruction::PopReference);
         }
         let num_arguments = arguments.len();
@@ -2456,11 +2443,18 @@ fn compile_delegate_yield_expression<'s>(
             //     ? Await(innerResult).
             ctx.add_instruction(Instruction::Await);
         }
-        let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorComplete);
+        ctx.add_instruction(Instruction::LoadCopy);
+        // innerResult is duplicated on both top of stack and result.
+
         // iii. If innerResult is not an Object, throw a TypeError exception.
         // iv. Let done be ? IteratorComplete(innerResult).
+        ctx.add_instruction(Instruction::IteratorComplete);
+        // done is now in result and innerResult is on top of stack.
         // v. If done is true, then
         //     1. Return ? IteratorValue(innerResult).
+        let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+        // Bring innerResult back into result.
+        ctx.add_instruction(Instruction::Store);
 
         let inner_result_yield_label = ctx.get_jump_index_to_here();
         // vi. If generatorKind is async,
@@ -2495,11 +2489,16 @@ fn compile_delegate_yield_expression<'s>(
         // We should be +1 try-catch block here.
         // +0
         let jump_to_throw_result_handling = try_catch_block.exit(ctx);
+        ctx.add_instruction(Instruction::LoadCopy);
         let jump_over_return_call = ctx.add_instruction_with_jump_slot(Instruction::IteratorReturn);
         // ii. Let return be ? GetMethod(iterator, "return").
         // iii. If return is undefined, then ... (jump over return call)
         // iv. Let innerReturnResult be
         //     ? Call(return, iterator, « received.[[Value]] »).
+
+        // Return method result is in result, iterator result object on the
+        // stack as extra. Pop it off.
+        ctx.add_instruction(Instruction::PopStack);
         // v. If generatorKind is async,
         if generator_kind_is_async {
             // set innerReturnResult to ? Await(innerReturnResult).
@@ -2507,10 +2506,18 @@ fn compile_delegate_yield_expression<'s>(
         }
         // vi. If innerReturnResult is not an Object, throw a TypeError exception.
         // vii. Let done be ? IteratorComplete(innerReturnResult).
+        ctx.add_instruction(Instruction::LoadCopy);
+        // innerReturnResult is now top of stack and in result register.
+        ctx.add_instruction(Instruction::IteratorComplete);
+        // done is in result register, innerReturnResult on stack.
+
         // viii. If done is true, then
-        //     1. Set value to ? IteratorValue(innerReturnResult).
-        //     2. Return ReturnCompletion(value).
-        let jump_to_return = ctx.add_instruction_with_jump_slot(Instruction::IteratorComplete);
+        let jump_to_iterator_value = ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+
+        // else branch: innerReturnResult is on stack...
+        ctx.add_instruction(Instruction::Store);
+        // ...and now in result register.
+
         // ix. If generatorKind is async,
         //     set received to Completion(
         //         AsyncGeneratorYield(? IteratorValue(innerReturnResult))
@@ -2521,9 +2528,19 @@ fn compile_delegate_yield_expression<'s>(
         // completion handling, so we jump there to reduce duplication.
         ctx.add_jump_instruction_to_index(Instruction::Jump, inner_result_yield_label);
 
+        ctx.set_jump_target_here(jump_to_iterator_value);
+        // innerReturnResult now in result register.
+        ctx.add_instruction(Instruction::Store);
+        // viii. If done is true, then
+        //     1. Set value to ? IteratorValue(innerReturnResult).
+        ctx.add_instruction(Instruction::IteratorValue);
+        //     2. Return ReturnCompletion(value).
+        let jump_to_return = ctx.add_instruction_with_jump_slot(Instruction::Jump);
+
         // We should be +0 try-catch block here.
         ctx.set_jump_target_here(jump_over_return_call);
         // 1. Set value to received.[[Value]].
+        ctx.add_instruction(Instruction::Store);
         ctx.set_jump_target_here(jump_to_return);
         // 2. If generatorKind is async, then
         // a. Set value to ? Await(value).
@@ -2608,6 +2625,11 @@ fn compile_delegate_yield_expression<'s>(
 
     // We should be +0 try-catch block here.
     ctx.set_jump_target_here(jump_to_end);
+    // Top of stack is the iterator innerResult.
+    ctx.add_instruction(Instruction::Store);
+    // v. If done is true, then
+    //     1. Return ? IteratorValue(innerResult).
+    ctx.add_instruction(Instruction::IteratorValue);
     ctx.add_instruction(Instruction::PopExceptionJumpTarget);
     ctx.add_instruction(Instruction::IteratorPop);
     Ok(())
@@ -2709,7 +2731,7 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Expres
             ast::Expression::NullLiteral(x) => Ok(x.compile(ctx).into()),
             ast::Expression::NumericLiteral(x) => Ok(x.compile(ctx).into()),
             ast::Expression::ObjectExpression(x) => x.compile(ctx).map(Into::into),
-            ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
+            ast::Expression::ParenthesizedExpression(x) => x.expression.compile(ctx),
             ast::Expression::PrivateFieldExpression(x) => x.compile(ctx).map(Into::into),
             ast::Expression::PrivateInExpression(x) => x.compile(ctx).map(Into::into),
             #[cfg(feature = "regexp")]
@@ -2815,6 +2837,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Update
             }
         }
         let value_on_stack = value_on_stack.unwrap_or_else(|| ctx.load_copy_to_stack());
+        if lref.has_reference() {
+            ctx.add_instruction(Instruction::PopReference);
+        }
         let result = lref.put_value(ctx, ValueOutput::Value);
         value_on_stack.store(ctx);
         result.map(|_| ValueOutput::Value)
@@ -3354,8 +3379,7 @@ fn complex_object_pattern<'s>(
                 break 'iter Err(err);
             }
             if object_pattern.rest.is_some() {
-                assert!(place.has_reference());
-                ctx.add_instruction(Instruction::PushReference);
+                debug_assert!(place.has_reference());
             }
 
             if let Err(err) = property.value.compile(ctx) {

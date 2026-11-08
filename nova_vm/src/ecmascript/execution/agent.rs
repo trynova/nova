@@ -40,17 +40,17 @@ use crate::{
         parse_script, script_evaluation, to_string, try_get_identifier_reference,
     },
     engine::{
-        Bindable, GcScope, Global, HeapRootCollection, HeapRootData, HeapRootRef, NoGcScope,
-        Rootable, Vm, bindable_handle,
+        Bindable, Executable, ExecutionResult, GcScope, Global, HeapRootCollection, HeapRootData,
+        HeapRootRef, Instr, Instruction, NoGcScope, Rootable, SuspendedVm, Vm, bindable_handle,
     },
     heap::{
-        ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapIndexHandle, HeapMarkAndSweep,
-        PrimitiveHeapAccess, WorkQueues, heap_gc,
+        ArenaAccess, CompactionLists, CreateHeapData, DirectArenaAccess, Heap, HeapIndexHandle,
+        HeapMarkAndSweep, PrimitiveHeapAccess, WorkQueues, heap_gc,
     },
     ndt,
 };
 
-use core::{any::Any, cell::RefCell, ops::ControlFlow, ptr::NonNull};
+use core::{any::Any, cell::RefCell, ops::ControlFlow};
 use std::collections::TryReserveError;
 
 /// Creation options for [`GcAgent`].
@@ -810,7 +810,6 @@ impl GcAgent {
         #[cfg(feature = "weak-refs")]
         clear_kept_objects(&mut self.agent);
         assert!(self.agent.execution_context_stack.is_empty());
-        assert!(self.agent.vm_stack.is_empty());
         self.agent.stack_refs.borrow_mut().clear();
         result
     }
@@ -829,7 +828,6 @@ impl GcAgent {
         #[cfg(feature = "weak-refs")]
         clear_kept_objects(&mut self.agent);
         assert!(self.agent.execution_context_stack.is_empty());
-        assert!(self.agent.vm_stack.is_empty());
         self.agent.stack_refs.borrow_mut().clear();
         result
     }
@@ -885,8 +883,6 @@ pub struct Agent {
     pub(crate) stack_refs: RefCell<Vec<HeapRootData>>,
     /// Temporary storage for on-stack heap root collections.
     pub(crate) stack_ref_collections: RefCell<Vec<HeapRootCollection>>,
-    /// Temporary storage for on-stack VMs.
-    pub(crate) vm_stack: Vec<NonNull<Vm>>,
     /// ### \[\[KeptAlive]]
     ///
     /// > Note: instead of storing objects in a list here, we only store a
@@ -901,6 +897,7 @@ pub struct Agent {
     /// \[\[AsyncEvaluationOrder]] field of modules that are asynchronous or
     /// have asynchronous dependencies.
     module_async_evaluation_count: u32,
+    pub(crate) vm: Vm,
 }
 
 impl Agent {
@@ -914,7 +911,7 @@ impl Agent {
             execution_context_stack: Vec::new(),
             stack_refs: RefCell::new(Vec::with_capacity(64)),
             stack_ref_collections: RefCell::new(Vec::with_capacity(32)),
-            vm_stack: Vec::with_capacity(16),
+            vm: Vm::default(),
             #[cfg(feature = "weak-refs")]
             kept_alive: false,
             private_names_counter: 0,
@@ -1071,6 +1068,24 @@ impl Agent {
         result
     }
 
+    /// Get the `Executable` currently being executed.
+    pub(crate) fn current_executable<'a>(&self, gc: NoGcScope<'a, '_>) -> Executable<'a> {
+        if let Some(exe) = self
+            .running_execution_context()
+            .ecmascript_code
+            .as_ref()
+            .and_then(|r| r.executable.bind(gc))
+        {
+            exe
+        } else {
+            eprintln!(
+                "current_executable: {:#?}",
+                self.execution_context_stack.last()
+            );
+            panic_corrupted_agent();
+        }
+    }
+
     /// Get current Realm's global environment.
     #[cfg(test)]
     pub(crate) fn current_global_env<'a>(&self, gc: NoGcScope<'a, '_>) -> GlobalEnvironment<'a> {
@@ -1139,6 +1154,75 @@ impl Agent {
         )
     }
 
+    pub(crate) fn execute<'gc>(
+        &mut self,
+        arguments: Option<&mut [Value]>,
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        let _ = self.vm.push_stack_frame();
+        Vm::execute(self, arguments, gc)
+    }
+
+    pub(crate) fn resume<'gc>(
+        &mut self,
+        vm: SuspendedVm,
+        value: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        let value = value.bind(gc.nogc());
+        if self.options.print_internals {
+            eprintln!("Resuming function with value\n");
+        }
+        self.vm.unsuspend(vm);
+        Vm::resume(self, value.unbind(), gc)
+    }
+
+    pub(crate) fn resume_throw<'gc>(
+        &mut self,
+        vm: SuspendedVm,
+        err: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        let err = err.bind(gc.nogc());
+        if self.options.print_internals {
+            eprintln!("Resuming function with error\n");
+        }
+        // Optimisation: Avoid unsuspending the Vm if we're just going to throw
+        // out of it immediately.
+        if !vm.has_catch_handler() {
+            return ExecutionResult::Throw(JsError::new(err.unbind()));
+        }
+        self.vm.unsuspend(vm);
+        Vm::resume_throw(self, err.unbind(), gc)
+    }
+
+    pub(crate) fn resume_return<'gc>(
+        &mut self,
+        mut vm: SuspendedVm,
+        result: Value,
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        let result = result.bind(gc.nogc());
+        if self.options.print_internals {
+            eprintln!("Resuming function with return\n");
+        }
+        // Following a yield point, the next instruction is a Jump to the
+        // Normal continue handling. We need to ignore that.
+        let executable = self.current_executable(gc.nogc());
+        let ip = vm.get_ip_mut();
+        let instructions = &executable.get_direct(&self.heap.executables).instructions;
+        let next_instruction = Instr::consume_instruction(instructions, ip);
+        assert_eq!(next_instruction.map(|i| i.kind), Some(Instruction::Jump));
+        let peek_next_instruction = instructions.get(*ip).copied();
+        if peek_next_instruction == Some(Instruction::Return.as_u8()) {
+            // Our return handling is to just return; we can do that without
+            // unsuspending the VM.
+            return ExecutionResult::Return(result.unbind());
+        }
+        self.vm.unsuspend(vm);
+        Vm::resume(self, result.unbind(), gc)
+    }
+
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     #[must_use]
     pub fn throw_exception_with_static_message<'a>(
@@ -1202,6 +1286,37 @@ impl Agent {
         ctx
     }
 
+    pub(crate) fn set_running_executable(&mut self, exe: Executable) {
+        let Some(eval_state) = self
+            .execution_context_stack
+            .last_mut()
+            .and_then(|ctx| ctx.ecmascript_code.as_mut())
+            .filter(|e| {
+                // Check that we're not replacing an already-set executable.
+                e.executable.is_none()
+            })
+        else {
+            panic_corrupted_agent()
+        };
+        eval_state.executable = Some(exe.unbind());
+    }
+
+    pub(crate) fn current_instructions(&self) -> &[u8] {
+        let Some(exe) = self
+            .execution_context_stack
+            .last()
+            .and_then(|ctx| ctx.ecmascript_code.as_ref())
+            .and_then(|code| code.executable.as_ref().cloned())
+        else {
+            eprintln!(
+                "Current instructions: {:#?}",
+                self.execution_context_stack.last()
+            );
+            panic_corrupted_agent()
+        };
+        exe.get_instructions(self)
+    }
+
     pub(crate) fn is_evaluating_strict_code(&self) -> bool {
         let Some(strict) = self
             .running_execution_context()
@@ -1241,12 +1356,65 @@ impl Agent {
         previous_context.realm.bind(gc)
     }
 
-    pub(crate) fn push_execution_context(&mut self, context: ExecutionContext) {
+    pub(crate) fn push_execution_context(&mut self, mut context: ExecutionContext) {
+        let new_stack_frame = self.vm.push_stack_frame();
+        // Store current instruction pointer to current ExecutionContext.
+        if let Some(eval_state) = self
+            .execution_context_stack
+            .last_mut()
+            .and_then(|ctx| ctx.ecmascript_code.as_mut())
+        {
+            eval_state.ip = self.vm.get_instruction_pointer();
+        }
+        // If we're executing more ECMAScript code then store the instruction
+        // pointer from the ExecutionContext we're pushing and store the new VM
+        // stack frame data into the ExecutionContext we're pushing.
+        if let Some(eval_state) = &mut context.ecmascript_code {
+            self.vm.set_instruction_pointer(eval_state.ip);
+            (
+                eval_state.stack_base,
+                eval_state.reference_stack_base,
+                eval_state.iterator_stack_base,
+                eval_state.exception_handler_stack_base,
+            ) = new_stack_frame;
+        }
         self.execution_context_stack.push(context);
     }
 
     pub(crate) fn pop_execution_context(&mut self) -> Option<ExecutionContext> {
-        self.execution_context_stack.pop()
+        // Pop current ExecutionContext.
+        let result = self.execution_context_stack.pop();
+        // If we were evaluating ECMAScript code, then drop off any remnants it
+        // might've left on the VM stacks.
+        if let Some(eval_state) = result.as_ref().and_then(|r| r.ecmascript_code.as_ref()) {
+            self.vm.pop_stack_frame((
+                eval_state.stack_base,
+                eval_state.reference_stack_base,
+                eval_state.iterator_stack_base,
+                eval_state.exception_handler_stack_base,
+            ));
+        }
+        // If we're returning to evaluating ECMAScript code that was previously
+        // paused, then return the instruction pointer and stack base to their
+        // previous values.
+        if let Some(eval_state) = self
+            .execution_context_stack
+            .last()
+            .and_then(|ctx| ctx.ecmascript_code.as_ref())
+        {
+            self.vm.set_instruction_pointer(eval_state.ip);
+            self.vm.set_stack_bases(
+                eval_state.stack_base,
+                #[cfg(debug_assertions)]
+                eval_state.reference_stack_base,
+                #[cfg(debug_assertions)]
+                eval_state.iterator_stack_base,
+                eval_state.exception_handler_stack_base,
+            );
+        } else if self.execution_context_stack.is_empty() {
+            self.vm.clear_stack();
+        }
+        result
     }
 
     pub(crate) fn current_source_code<'a>(&self, gc: NoGcScope<'a, '_>) -> SourceCode<'a> {
@@ -1623,7 +1791,7 @@ impl HeapMarkAndSweep for Agent {
             execution_context_stack,
             stack_refs,
             stack_ref_collections,
-            vm_stack,
+            vm,
             options: _,
             symbol_id: _,
             global_symbol_registry,
@@ -1645,9 +1813,7 @@ impl HeapMarkAndSweep for Agent {
             .borrow()
             .iter()
             .for_each(|collection| collection.mark_values(queues));
-        vm_stack.iter().for_each(|vm_ptr| {
-            unsafe { vm_ptr.as_ref() }.mark_values(queues);
-        });
+        vm.mark_values(queues);
         global_symbol_registry.mark_values(queues);
         let mut last_filled_global_value = None;
         heap.globals
@@ -1674,7 +1840,7 @@ impl HeapMarkAndSweep for Agent {
             execution_context_stack,
             stack_refs,
             stack_ref_collections,
-            vm_stack,
+            vm,
             options: _,
             symbol_id: _,
             global_symbol_registry,
@@ -1696,9 +1862,7 @@ impl HeapMarkAndSweep for Agent {
             .borrow_mut()
             .iter_mut()
             .for_each(|entry| entry.sweep_values(compactions));
-        vm_stack
-            .iter_mut()
-            .for_each(|entry| unsafe { entry.as_mut().sweep_values(compactions) });
+        vm.sweep_values(compactions);
         global_symbol_registry.sweep_values(compactions);
     }
 }

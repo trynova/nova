@@ -7,7 +7,7 @@ mod execute_instructions;
 
 use execute_instructions::*;
 
-use std::{hint::unreachable_unchecked, ptr::NonNull};
+use std::hint::unreachable_unchecked;
 use wtf8::Wtf8Buf;
 
 use crate::{
@@ -19,11 +19,12 @@ use crate::{
         try_get_object_method, try_result_into_option_js,
     },
     engine::{
-        Bindable, GcScope, NoGcScope, Scopable, Scoped, bindable_handle,
+        Bindable, GcScope, NoGcScope, Scopable, bindable_handle,
         bytecode::{
-            Executable, IndexType, Instruction, InstructionIter, instructions::Instr,
+            IndexType, Instruction, InstructionIter, instructions::Instr,
             iterator::VmIteratorRecord,
         },
+        trivially_bindable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbols, WorkQueues},
 };
@@ -62,21 +63,17 @@ enum ContinuationKind {
     Yield,
     Await,
 }
+trivially_bindable!(ContinuationKind);
 
 /// VM exception handler.
 #[derive(Debug)]
-enum ExceptionHandler<'a> {
-    /// Indicates a jump to catch block.
-    CatchBlock {
-        /// Instruction pointer.
-        ip: u32,
-        /// The lexical environment which contains this exception jump target.
-        lexical_environment: Environment<'a>,
-    },
-    /// Indicates that any error should be ignored and the next instruction
-    /// skipped. This is used in AsyncIteratorClose handling.
-    IgnoreErrorAndNextInstruction,
+pub(crate) struct ExceptionHandler<'a> {
+    /// Instruction pointer.
+    ip: u32,
+    /// The lexical environment which contains this exception jump target.
+    lexical_environment: Environment<'a>,
 }
+bindable_handle!(ExceptionHandler);
 
 /// ## Notes
 ///
@@ -87,9 +84,15 @@ pub(crate) struct Vm {
     /// Instruction pointer.
     ip: usize,
     stack: Vec<Value<'static>>,
+    stack_base: u32,
     reference_stack: Vec<Reference<'static>>,
+    #[cfg(debug_assertions)]
+    reference_stack_base: u32,
     iterator_stack: Vec<VmIteratorRecord<'static>>,
+    #[cfg(debug_assertions)]
+    iterator_stack_base: u32,
     exception_handler_stack: Vec<ExceptionHandler<'static>>,
+    exception_handler_stack_base: u32,
     result: Option<Value<'static>>,
     reference: Option<Reference<'static>>,
 }
@@ -111,112 +114,191 @@ pub(crate) struct SuspendedVm {
     /// Note: Exception jump stack is non-empty only if the code awaits inside a
     /// try block or an await for-of loop. This means that often no heap data
     /// clone is required.
-    exception_jump_target_stack: Box<[ExceptionHandler<'static>]>,
+    exception_handler_stack: Box<[ExceptionHandler<'static>]>,
 }
 
 impl SuspendedVm {
-    pub(crate) fn resume<'gc>(
-        self,
-        agent: &mut Agent,
-        executable: Scoped<Executable>,
-        value: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> ExecutionResult<'gc> {
-        if agent.options.print_internals {
-            eprintln!("Resuming function with value\n");
-        }
-        let vm = Vm::from_suspended(self);
-        vm.resume(agent, executable, value, gc)
+    pub(crate) fn get_ip_mut(&mut self) -> &mut usize {
+        &mut self.ip
     }
 
-    pub(crate) fn resume_throw<'gc>(
-        self,
-        agent: &mut Agent,
-        executable: Scoped<Executable>,
-        err: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> ExecutionResult<'gc> {
-        if agent.options.print_internals {
-            eprintln!("Resuming function with error\n");
-        }
-        // Optimisation: Avoid unsuspending the Vm if we're just going to throw
-        // out of it immediately.
-        if self.exception_jump_target_stack.is_empty() {
-            let err = JsError::new(err.unbind());
-            return ExecutionResult::Throw(err);
-        }
-        let vm = Vm::from_suspended(self);
-        vm.resume_throw(agent, executable, err, gc)
-    }
-
-    pub(crate) fn resume_return<'gc>(
-        mut self,
-        agent: &mut Agent,
-        executable: Scoped<Executable>,
-        result: Value,
-        gc: GcScope<'gc, '_>,
-    ) -> ExecutionResult<'gc> {
-        if agent.options.print_internals {
-            eprintln!("Resuming function with return\n");
-        }
-        // Following a yield point, the next instruction is a Jump to the
-        // Normal continue handling. We need to ignore that.
-        let next_instruction = executable.get_instruction(agent, &mut self.ip);
-        assert_eq!(next_instruction.map(|i| i.kind), Some(Instruction::Jump));
-        let peek_next_instruction = executable.get_instructions(agent).get(self.ip).copied();
-        if peek_next_instruction == Some(Instruction::Return.as_u8()) {
-            // Our return handling is to just return; we can do that without
-            // unsuspending the VM.
-            return ExecutionResult::Return(result.bind(gc.into_nogc()));
-        }
-        let vm = Vm::from_suspended(self);
-        vm.resume(agent, executable, result, gc)
+    #[inline(always)]
+    pub(crate) fn has_catch_handler(&self) -> bool {
+        !self.exception_handler_stack.is_empty()
     }
 }
 
 impl Vm {
-    fn new() -> Self {
-        Self {
-            ip: 0,
-            stack: Vec::with_capacity(32),
-            reference_stack: Vec::new(),
-            iterator_stack: Vec::new(),
-            exception_handler_stack: Vec::new(),
-            result: None,
-            reference: None,
-        }
-    }
-
-    fn suspend(self) -> SuspendedVm {
+    fn suspend(
+        &mut self,
+        (stack_base, reference_stack_base, iterator_stack_base, exception_handler_stack_base): (
+            u32,
+            u32,
+            u32,
+            u32,
+        ),
+    ) -> SuspendedVm {
+        debug_assert!(self.stack.len() >= stack_base as usize);
+        debug_assert!(self.reference_stack.len() >= reference_stack_base as usize);
+        debug_assert!(self.iterator_stack.len() >= iterator_stack_base as usize);
+        debug_assert!(self.exception_handler_stack.len() >= exception_handler_stack_base as usize);
         SuspendedVm {
             ip: self.ip,
-            stack: self.stack.into_boxed_slice(),
-            reference_stack: self.reference_stack.into_boxed_slice(),
-            iterator_stack: self.iterator_stack.into_boxed_slice(),
-            exception_jump_target_stack: self.exception_handler_stack.into_boxed_slice(),
+            stack: self.stack.split_off(stack_base as usize).into_boxed_slice(),
+            reference_stack: self
+                .reference_stack
+                .split_off(reference_stack_base as usize)
+                .into_boxed_slice(),
+            iterator_stack: self
+                .iterator_stack
+                .split_off(iterator_stack_base as usize)
+                .into_boxed_slice(),
+            exception_handler_stack: self
+                .exception_handler_stack
+                .split_off(exception_handler_stack_base as usize)
+                .into_boxed_slice(),
         }
     }
 
-    fn from_suspended(suspended: SuspendedVm) -> Self {
-        Self {
-            ip: suspended.ip,
-            stack: suspended.stack.into_vec(),
-            reference_stack: suspended.reference_stack.into_vec(),
-            iterator_stack: suspended.iterator_stack.into_vec(),
-            exception_handler_stack: suspended.exception_jump_target_stack.into_vec(),
-            result: None,
-            reference: None,
+    pub(crate) fn get_instruction_pointer(&mut self) -> usize {
+        self.ip
+    }
+
+    pub(crate) fn set_instruction_pointer(&mut self, ip: usize) {
+        self.ip = ip;
+    }
+
+    pub(crate) fn get_stack_base(&self) -> u32 {
+        self.stack_base
+    }
+
+    pub(crate) fn set_stack_bases(
+        &mut self,
+        stack_base: u32,
+        #[cfg(debug_assertions)] reference_stack_base: u32,
+        #[cfg(debug_assertions)] iterator_stack_base: u32,
+        exception_handler_stack_base: u32,
+    ) {
+        self.stack_base = stack_base;
+        #[cfg(debug_assertions)]
+        {
+            self.reference_stack_base = reference_stack_base;
+            self.iterator_stack_base = iterator_stack_base;
         }
+        self.exception_handler_stack_base = exception_handler_stack_base;
+    }
+
+    pub(crate) fn push_stack_frame(&mut self) -> (u32, u32, u32, u32) {
+        let stack_base = u32::try_from(self.stack.len()).unwrap();
+        self.stack_base = stack_base;
+        let reference_stack_base = u32::try_from(self.reference_stack.len()).unwrap();
+        let iterator_stack_base = u32::try_from(self.iterator_stack.len()).unwrap();
+        let exception_handler_stack_base =
+            u32::try_from(self.exception_handler_stack.len()).unwrap();
+        self.exception_handler_stack_base = exception_handler_stack_base;
+        #[cfg(debug_assertions)]
+        {
+            self.reference_stack_base = reference_stack_base;
+            self.iterator_stack_base = iterator_stack_base;
+        }
+        (
+            stack_base,
+            reference_stack_base,
+            iterator_stack_base,
+            exception_handler_stack_base,
+        )
+    }
+
+    pub(crate) fn pop_stack_frame(&mut self, stack_frame: (u32, u32, u32, u32)) {
+        let (stack_base, reference_stack_base, iterator_stack_base, exception_handler_stack_base) =
+            stack_frame;
+        // Truncate the stacks to what we're told.
+        debug_assert!(self.stack.len() >= stack_base as usize);
+        debug_assert!(self.reference_stack.len() >= reference_stack_base as usize);
+        debug_assert!(self.iterator_stack.len() >= iterator_stack_base as usize);
+        debug_assert!(self.exception_handler_stack.len() >= exception_handler_stack_base as usize);
+        self.stack.truncate(stack_base as usize);
+        self.reference_stack.truncate(reference_stack_base as usize);
+        self.iterator_stack.truncate(iterator_stack_base as usize);
+        self.exception_handler_stack
+            .truncate(exception_handler_stack_base as usize);
+    }
+
+    pub(crate) fn clear_stack(&mut self) {
+        self.stack.clear();
+        self.reference_stack.clear();
+        self.iterator_stack.clear();
+        self.exception_handler_stack.clear();
+        self.ip = 0;
+        self.stack_base = 0;
+        self.reference = None;
+        self.result = None;
+        #[cfg(debug_assertions)]
+        {
+            self.reference_stack_base = 0;
+            self.iterator_stack_base = 0;
+        }
+        self.exception_handler_stack_base = 0;
+    }
+
+    pub(crate) fn pop_stack<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
+        self.stack
+            .pop()
+            .expect("Attempted to pop from an empty stack")
+            .bind(gc)
+    }
+
+    pub(crate) fn get_last_stack_value<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
+        self.stack
+            .last()
+            .expect("Attempted to pop from an empty stack")
+            .bind(gc)
+    }
+
+    pub(crate) fn take_result<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+        self.result
+            .take()
+            .expect("Attempted to take an empty result")
+            .bind(gc)
+    }
+
+    pub(crate) fn take_any_result<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> Option<Value<'gc>> {
+        self.result.take().bind(gc)
+    }
+
+    pub(crate) fn unsuspend(
+        &mut self,
+        SuspendedVm {
+            ip,
+            stack,
+            reference_stack,
+            iterator_stack,
+            exception_handler_stack,
+        }: SuspendedVm,
+    ) {
+        self.ip = ip;
+        self.stack.extend(stack);
+        self.reference_stack.extend(reference_stack);
+        self.iterator_stack.extend(iterator_stack);
+        self.exception_handler_stack.extend(exception_handler_stack);
     }
 
     /// Executes an executable using the virtual machine.
     pub(crate) fn execute<'gc>(
         agent: &mut Agent,
-        executable: Scoped<Executable>,
-        arguments: Option<&mut [Value<'static>]>,
+        arguments: Option<&mut [Value]>,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
-        let mut vm = Vm::new();
+        debug_assert_eq!(
+            agent.vm.result, None,
+            "In development mode result register should always be cleared before a call - this indicates a bug in the bytecode leading to the result register getting clobbered by an unexpected function call.",
+        );
+        debug_assert_eq!(
+            agent.vm.reference, None,
+            "In development mode reference register should always be cleared before a call - this indicates a bug in the bytecode leading to the reference register getting clobbered by an unexpected function call."
+        );
 
         if let Some(arguments) = arguments {
             ArgumentsList::from_mut_slice(arguments).with_scoped(
@@ -230,26 +312,29 @@ impl Vm {
                             arguments,
                         )
                     };
-                    vm.iterator_stack
+                    agent
+                        .vm
+                        .iterator_stack
                         .push(VmIteratorRecord::SliceIterator(arguments));
                     if agent.options.print_internals {
-                        vm.print_internals(agent, executable.clone(), gc.nogc());
+                        Vm::print_internals(agent, gc.nogc());
                     }
 
-                    vm.inner_execute(agent, executable, gc)
+                    Vm::inner_execute(agent, gc)
                 },
                 gc,
             )
         } else {
             if agent.options.print_internals {
-                vm.print_internals(agent, executable.clone(), gc.nogc());
+                Vm::print_internals(agent, gc.nogc());
             }
 
-            vm.inner_execute(agent, executable, gc)
+            Vm::inner_execute(agent, gc)
         }
     }
 
-    fn print_internals(&self, agent: &mut Agent, executable: Scoped<Executable>, gc: NoGcScope) {
+    fn print_internals(agent: &mut Agent, gc: NoGcScope) {
+        let executable = agent.current_executable(gc);
         eprintln!();
         eprintln!("=== Executing Executable ===");
         eprintln!("Constants: {:?}", executable.get_constants(agent, gc));
@@ -258,68 +343,67 @@ impl Vm {
         eprintln!("Instructions:");
         let iter = InstructionIter::new(executable.get_instructions(agent));
         for (ip, instr) in iter {
-            instr.debug_print(agent, ip, executable.clone(), gc);
+            instr.debug_print(agent, ip, executable, gc);
         }
         eprintln!();
     }
 
-    fn resume<'gc>(
-        mut self,
+    pub(crate) fn resume<'gc>(
         agent: &mut Agent,
-        executable: Scoped<Executable>,
         value: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
-        self.result = Some(value.unbind());
-        self.inner_execute(agent, executable, gc)
+        agent.vm.result = Some(value.unbind());
+        Vm::inner_execute(agent, gc)
     }
 
-    fn resume_throw<'gc>(
-        mut self,
+    pub(crate) fn resume_throw<'gc>(
         agent: &mut Agent,
-        executable: Scoped<Executable>,
         err: Value,
         gc: GcScope<'gc, '_>,
     ) -> ExecutionResult<'gc> {
         let err = err.bind(gc.nogc());
         let err = JsError::new(err.unbind());
-        if !self.handle_error(agent, err) {
+        if !Vm::handle_error(agent, err) {
             if agent.options.print_internals {
-                eprintln!("Exiting function with error\n");
+                Vm::print_exiting_with_error();
             }
+            // Clear the result on throw.
+            agent.vm.result = None;
+            agent.vm.reference = None;
             return ExecutionResult::Throw(err);
         }
-        self.inner_execute(agent, executable, gc)
+        Vm::inner_execute(agent, gc)
     }
 
-    fn inner_execute<'gc>(
-        mut self,
-        agent: &mut Agent,
-        executable: Scoped<Executable>,
-        mut gc: GcScope<'gc, '_>,
-    ) -> ExecutionResult<'gc> {
+    fn inner_execute<'gc>(agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> ExecutionResult<'gc> {
+        // SAFETY: The instructions buffer is owned by the current Executable,
+        // which is currently rooted by the execution context stack. The buffer
+        // is not accessible as exclusive except for dropping the Executable's
+        // heap data, and isn't dropped while the Executable is rooted. Thus,
+        // the instructions slice is guaranteed to be valid while we perform the
+        // execution inner loop.
+        let instructions =
+            unsafe { core::mem::transmute::<&[u8], &[u8]>(agent.current_instructions()) };
         let stack_depth = agent.stack_refs.borrow().len();
-        let instructions = executable.get_instructions(agent);
-        while let Some(instr) = Instr::consume_instruction(instructions, &mut self.ip) {
+        let print_internals = agent.options.print_internals;
+        while let Some(instr) = Instr::consume_instruction(instructions, &mut agent.vm.ip) {
             if agent.check_gc() {
-                self.trigger_gc(agent, gc.reborrow());
+                agent.gc(gc.reborrow());
             }
-            if agent.options.print_internals {
+            if print_internals {
                 Self::print_executing(instr.kind);
             }
-            let result = Self::execute_instruction(
-                agent,
-                &mut self,
-                executable.clone(),
-                instr,
-                gc.reborrow(),
-            );
+            let result = Self::execute_instruction(agent, instr, gc.reborrow());
             match result {
                 Ok(ContinuationKind::Normal) => {}
                 // SAFETY: result is not Ok(ContinuationKind::Normal).
                 _ => unsafe {
-                    if let Some(r) = self.handle_execute_instruction_abnormal_result(agent, result)
-                    {
+                    if let Some(r) = Vm::handle_execute_instruction_abnormal_result(
+                        agent,
+                        result.unbind(),
+                        gc.nogc(),
+                    ) {
                         return r.unbind().bind(gc.into_nogc());
                     }
                 },
@@ -327,6 +411,9 @@ impl Vm {
             agent.stack_refs.borrow_mut().truncate(stack_depth);
         }
 
+        // Clear result on "fall-off-the-edge".
+        agent.vm.result = None;
+        agent.vm.reference = None;
         ExecutionResult::Return(Value::Undefined)
     }
 
@@ -336,9 +423,9 @@ impl Vm {
     #[inline(never)]
     #[cold]
     unsafe fn handle_execute_instruction_abnormal_result<'a>(
-        &mut self,
         agent: &mut Agent,
         result: JsResult<'a, ContinuationKind>,
+        gc: NoGcScope<'a, '_>,
     ) -> Option<ExecutionResult<'a>> {
         match result {
             // SAFETY: method only called if result is not normal.
@@ -347,16 +434,20 @@ impl Vm {
                 if agent.options.print_internals {
                     Self::print_exiting();
                 }
-                let result = self.result.unwrap_or(Value::Undefined);
+                let result = agent.vm.take_any_result(gc).unwrap_or(Value::Undefined);
+                agent.vm.reference = None;
                 Some(ExecutionResult::Return(result))
             }
             Ok(ContinuationKind::Yield) => {
-                let yielded_value = self.result.take().unwrap();
+                let yielded_value = agent.vm.take_result(gc);
+                agent.vm.reference = None;
                 if agent.options.print_internals {
                     Self::print_yielding(yielded_value);
                 }
                 Some(ExecutionResult::Yield {
-                    vm: core::mem::take(self).suspend(),
+                    vm: agent
+                        .vm
+                        .suspend(agent.running_execution_context().get_stack_bases()),
                     yielded_value,
                 })
             }
@@ -364,16 +455,22 @@ impl Vm {
                 if agent.options.print_internals {
                     Self::print_awaiting();
                 }
-                let Value::Promise(promise) = self.result.take().unwrap() else {
+                let Value::Promise(promise) = agent.vm.take_result(gc) else {
                     unreachable!()
                 };
+                agent.vm.reference = None;
                 Some(ExecutionResult::Await {
-                    vm: core::mem::take(self).suspend(),
+                    vm: agent
+                        .vm
+                        .suspend(agent.running_execution_context().get_stack_bases()),
                     promise,
                 })
             }
             Err(err) => {
-                if !self.handle_error(agent, err) {
+                // Clear the result on error.
+                agent.vm.result = None;
+                agent.vm.reference = None;
+                if !Vm::handle_error(agent, err) {
                     if agent.options.print_internals {
                         Self::print_exiting_with_error();
                     }
@@ -383,12 +480,6 @@ impl Vm {
                 }
             }
         }
-    }
-
-    #[inline(never)]
-    #[cold]
-    fn trigger_gc(&mut self, agent: &mut Agent, gc: GcScope) {
-        with_vm_gc(agent, self, |agent, gc| agent.gc(gc), gc);
     }
 
     #[inline(never)]
@@ -424,28 +515,19 @@ impl Vm {
     #[inline(never)]
     #[cold]
     #[must_use]
-    fn handle_error(&mut self, agent: &mut Agent, err: JsError) -> bool {
-        if let Some(handler) = self.exception_handler_stack.pop() {
-            match handler {
-                ExceptionHandler::CatchBlock {
-                    ip,
-                    lexical_environment,
-                } => {
-                    if agent.options.print_internals {
-                        eprintln!("Error: {:?}", err.value());
-                        eprintln!("Jumping to catch block in {ip}\n");
-                    }
-                    self.ip = ip as usize;
-                    agent.set_current_lexical_environment(lexical_environment);
-                    self.result = Some(err.value().unbind());
-                }
-                ExceptionHandler::IgnoreErrorAndNextInstruction => {
-                    if agent.options.print_internals {
-                        eprintln!("Ignoring throw error and skipping to {}\n", self.ip + 1);
-                    }
-                    self.ip += 1;
-                }
+    fn handle_error(agent: &mut Agent, err: JsError) -> bool {
+        if let Some(ExceptionHandler {
+            ip,
+            lexical_environment,
+        }) = agent.vm.pop_exception_handler_stack()
+        {
+            if agent.options.print_internals {
+                eprintln!("Error: {:?}", err.value());
+                eprintln!("Jumping to catch block in {ip}\n");
             }
+            agent.vm.ip = ip as usize;
+            agent.set_current_lexical_environment(lexical_environment);
+            agent.vm.result = Some(err.value().unbind());
             true
         } else {
             false
@@ -454,83 +536,78 @@ impl Vm {
 
     fn execute_instruction<'a>(
         agent: &mut Agent,
-        vm: &mut Vm,
-        executable: Scoped<Executable>,
         instr: Instr,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ContinuationKind> {
         // Hot instructions; apply #[inline(always)] to the execute methods.
         match instr.kind {
             Instruction::Load => {
-                vm.execute_load();
+                agent.vm.execute_load();
             }
             Instruction::LoadCopy => {
-                vm.execute_load_copy();
+                agent.vm.execute_load_copy();
             }
             Instruction::PutValueToIndex => {
-                vm.execute_load_to_index(instr.get_first_index());
+                agent
+                    .vm
+                    .execute_load_to_index(instr.get_first_stack_slot(agent));
             }
             Instruction::Store => {
-                vm.execute_store();
+                agent.vm.execute_store();
             }
             Instruction::GetValueFromIndex => {
-                vm.execute_store_from_index(instr.get_first_index());
+                agent
+                    .vm
+                    .execute_store_from_index(instr.get_first_stack_slot(agent));
             }
             Instruction::StoreConstant => {
-                execute_store_constant(agent, vm, executable, instr, gc.into_nogc());
+                execute_store_constant(agent, instr, gc.into_nogc());
             }
             Instruction::PopStack => {
-                vm.execute_pop_stack();
+                agent.vm.execute_pop_stack();
             }
-            Instruction::Jump => execute_jump(agent, vm, instr),
-            Instruction::JumpIfNot => execute_jump_if_not(agent, vm, instr),
+            Instruction::Jump => execute_jump(agent, instr),
+            Instruction::JumpIfNot => execute_jump_if_not(agent, instr, gc.into_nogc()),
             Instruction::ResolveBinding => {
-                execute_resolve_binding(agent, vm, executable, instr, gc)?;
+                execute_resolve_binding(agent, instr, gc)?;
             }
-            Instruction::GetValue
-            | Instruction::GetValueWithCache
-            | Instruction::GetValueKeepReference
-            | Instruction::GetValueWithCacheKeepReference => {
-                let cache = matches!(
-                    instr.kind,
-                    Instruction::GetValueWithCache | Instruction::GetValueWithCacheKeepReference
-                );
-                let keep_reference = matches!(
-                    instr.kind,
-                    Instruction::GetValueKeepReference
-                        | Instruction::GetValueWithCacheKeepReference
-                );
-                execute_get_value(agent, vm, executable, instr, cache, keep_reference, gc)?
+            Instruction::GetValue | Instruction::GetValueWithCache => {
+                execute_get_value(
+                    agent,
+                    instr,
+                    instr.kind == Instruction::GetValueWithCache,
+                    gc,
+                )?;
             }
-            Instruction::PutValue | Instruction::PutValueWithCache => {
-                let cache = matches!(instr.kind, Instruction::PutValueWithCache);
-                execute_put_value(agent, vm, executable, instr, cache, gc)?
+            Instruction::EvaluateReference => {
+                execute_evaluate_reference(agent, gc)?;
             }
-            Instruction::ToNumeric => execute_to_numeric(agent, vm, gc)?,
+            Instruction::PutValue | Instruction::PutValueWithCache => execute_put_value(
+                agent,
+                instr,
+                instr.kind == Instruction::PutValueWithCache,
+                gc,
+            )?,
+            Instruction::ToNumeric => execute_to_numeric(agent, gc)?,
             Instruction::CreateImmutableBinding => {
-                execute_create_immutable_binding(agent, executable, instr, gc.into_nogc())
+                execute_create_immutable_binding(agent, instr, gc.into_nogc())
             }
             Instruction::CreateMutableBinding => {
-                execute_create_mutable_binding(agent, executable, instr, gc.into_nogc())
+                execute_create_mutable_binding(agent, instr, gc.into_nogc())
             }
             Instruction::InitializeReferencedBinding => {
-                execute_initialize_referenced_binding(agent, vm, gc.into_nogc())
+                execute_initialize_referenced_binding(agent, gc.into_nogc())
             }
-            Instruction::PushReference => vm.execute_push_reference(),
-            Instruction::PopReference => vm.execute_pop_reference(),
+            Instruction::PushReference => agent.vm.execute_push_reference(),
+            Instruction::PopReference => agent.vm.execute_pop_reference(),
+            Instruction::PushReferenceCopy => agent.vm.execute_push_reference_copy(),
             Instruction::EvaluatePropertyAccessWithIdentifierKey => {
-                execute_evaluate_property_access_with_identifier_key(
-                    agent,
-                    vm,
-                    executable,
-                    instr,
-                    gc.into_nogc(),
-                )
+                execute_evaluate_property_access_with_identifier_key(agent, instr, gc.into_nogc())
             }
             Instruction::EvaluatePropertyAccessWithExpressionKey => {
-                execute_evaluate_property_access_with_expression_key(agent, vm, gc.into_nogc())
+                execute_evaluate_property_access_with_expression_key(agent, gc.into_nogc())
             }
-            _ => return Self::execute_cold_instruction(agent, vm, executable, instr, gc),
+            _ => return Self::execute_cold_instruction(agent, instr, gc),
         }
 
         Ok(ContinuationKind::Normal)
@@ -539,8 +616,6 @@ impl Vm {
     #[inline(never)]
     fn execute_cold_instruction<'a>(
         agent: &mut Agent,
-        vm: &mut Vm,
-        executable: Scoped<Executable>,
         instr: Instr,
         gc: GcScope<'a, '_>,
     ) -> JsResult<'a, ContinuationKind> {
@@ -557,8 +632,7 @@ impl Vm {
             | Instruction::ResolveBinding
             | Instruction::GetValue
             | Instruction::GetValueWithCache
-            | Instruction::GetValueKeepReference
-            | Instruction::GetValueWithCacheKeepReference
+            | Instruction::EvaluateReference
             | Instruction::PutValue
             | Instruction::PutValueWithCache
             | Instruction::ToNumeric
@@ -567,34 +641,33 @@ impl Vm {
             | Instruction::InitializeReferencedBinding
             | Instruction::PushReference
             | Instruction::PopReference
+            | Instruction::PushReferenceCopy
             | Instruction::EvaluatePropertyAccessWithIdentifierKey
             | Instruction::EvaluatePropertyAccessWithExpressionKey => {
                 unreachable!("hot instruction not handled before execute_cold_instruction")
             }
             Instruction::Return => return Ok(ContinuationKind::Return),
             Instruction::Await => {
-                execute_await_promise_resolve(agent, vm, gc)?;
+                execute_await_promise_resolve(agent, gc)?;
                 return Ok(ContinuationKind::Await);
             }
             Instruction::Yield => return Ok(ContinuationKind::Yield),
-            Instruction::IsStrictlyEqual => execute_is_strictly_equal(agent, vm, gc.into_nogc()),
-            Instruction::IsNullOrUndefined => vm.execute_is_null_or_undefined(),
-            Instruction::IsNull => vm.execute_is_null(),
-            Instruction::IsUndefined => vm.execute_is_undefined(),
-            Instruction::IsObject => vm.execute_is_object(),
-            Instruction::IsConstructor => execute_is_constructor(agent, vm),
-            Instruction::JumpIfTrue => execute_jump_if_true(agent, vm, instr),
-            Instruction::LoadReplace => vm.execute_load_replace(),
-            Instruction::LoadConstant => {
-                execute_load_constant(agent, vm, executable, instr, gc.into_nogc())
-            }
-            Instruction::LoadStoreSwap => vm.execute_load_store_swap(),
-            Instruction::UpdateEmpty => vm.execute_update_empty(),
-            Instruction::Swap => vm.execute_swap(),
-            Instruction::Empty => vm.execute_empty(),
-            Instruction::LogicalNot => execute_logical_not(agent, vm),
+            Instruction::IsStrictlyEqual => execute_is_strictly_equal(agent, gc.into_nogc()),
+            Instruction::IsNullOrUndefined => agent.vm.execute_is_null_or_undefined(),
+            Instruction::IsNull => agent.vm.execute_is_null(),
+            Instruction::IsUndefined => agent.vm.execute_is_undefined(),
+            Instruction::IsObject => agent.vm.execute_is_object(),
+            Instruction::IsConstructor => execute_is_constructor(agent, gc.into_nogc()),
+            Instruction::JumpIfTrue => execute_jump_if_true(agent, instr, gc.into_nogc()),
+            Instruction::LoadReplace => agent.vm.execute_load_replace(),
+            Instruction::LoadConstant => execute_load_constant(agent, instr, gc.into_nogc()),
+            Instruction::LoadStoreSwap => agent.vm.execute_load_store_swap(),
+            Instruction::UpdateEmpty => agent.vm.execute_update_empty(),
+            Instruction::Swap => agent.vm.execute_swap(),
+            Instruction::Empty => agent.vm.execute_empty(),
+            Instruction::LogicalNot => execute_logical_not(agent, gc.into_nogc()),
             Instruction::ApplyAdditionBinaryOperator => {
-                execute_apply_addition_binary_operator(agent, vm, gc)?
+                execute_apply_addition_binary_operator(agent, gc)?
             }
             Instruction::ApplySubtractionBinaryOperator
             | Instruction::ApplyMultiplicationBinaryOperator
@@ -607,121 +680,107 @@ impl Vm {
             | Instruction::ApplyBitwiseORBinaryOperator
             | Instruction::ApplyBitwiseXORBinaryOperator
             | Instruction::ApplyBitwiseAndBinaryOperator => {
-                execute_apply_binary_operator(agent, vm, instr.kind, gc)?
+                execute_apply_binary_operator(agent, instr.kind, gc)?
             }
-            Instruction::ArrayCreate => execute_array_create(agent, vm, instr, gc.into_nogc())?,
-            Instruction::ArrayPush => execute_array_push(agent, vm, gc)?,
-            Instruction::ArrayElision => execute_array_elision(agent, vm, gc)?,
-            Instruction::BitwiseNot => execute_bitwise_not(agent, vm, gc.into_nogc())?,
+            Instruction::ArrayCreate => execute_array_create(agent, instr, gc.into_nogc())?,
+            Instruction::ArrayPush => execute_array_push(agent, gc)?,
+            Instruction::ArrayElision => execute_array_elision(agent, gc)?,
+            Instruction::BitwiseNot => execute_bitwise_not(agent, gc.into_nogc())?,
             Instruction::CreateUnmappedArgumentsObject => {
-                execute_create_unmapped_arguments_object(agent, vm, gc.into_nogc())?
+                execute_create_unmapped_arguments_object(agent, gc.into_nogc())?
             }
-            Instruction::CopyDataProperties => execute_copy_data_properties(agent, vm, gc)?,
+            Instruction::CopyDataProperties => execute_copy_data_properties(agent, gc)?,
             Instruction::CopyDataPropertiesIntoObject => {
-                execute_copy_data_properties_into_object(agent, vm, instr, gc)?
+                execute_copy_data_properties_into_object(agent, instr, gc)?
             }
-            Instruction::Delete => execute_delete(agent, vm, gc)?,
-            Instruction::DirectEvalCall => execute_direct_eval_call(agent, vm, instr, gc)?,
-            Instruction::EvaluateCall => execute_evaluate_call(agent, vm, instr, gc)?,
-            Instruction::EvaluateNew => execute_evaluate_new(agent, vm, instr, gc)?,
-            Instruction::EvaluateSuper => execute_evaluate_super(agent, vm, instr, gc)?,
+            Instruction::Delete => execute_delete(agent, gc)?,
+            Instruction::DirectEvalCall => execute_direct_eval_call(agent, instr, gc)?,
+            Instruction::EvaluateCall => execute_evaluate_call(agent, instr, gc)?,
+            Instruction::EvaluateNew => execute_evaluate_new(agent, instr, gc)?,
+            Instruction::EvaluateSuper => execute_evaluate_super(agent, instr, gc)?,
             Instruction::MakePrivateReference => {
-                execute_make_private_reference(agent, vm, executable, instr, gc.into_nogc())
+                execute_make_private_reference(agent, instr, gc.into_nogc())
             }
             Instruction::MakeSuperPropertyReferenceWithExpressionKey => {
-                execute_make_super_property_reference_with_expression_key(
-                    agent,
-                    vm,
-                    gc.into_nogc(),
-                )?
+                execute_make_super_property_reference_with_expression_key(agent, gc.into_nogc())?
             }
             Instruction::MakeSuperPropertyReferenceWithIdentifierKey => {
                 execute_make_super_property_reference_with_identifier_key(
                     agent,
-                    vm,
-                    executable,
                     instr,
                     gc.into_nogc(),
                 )?
             }
-            Instruction::GreaterThan => execute_greater_than(agent, vm, gc)?,
-            Instruction::GreaterThanEquals => execute_greater_than_equals(agent, vm, gc)?,
-            Instruction::HasProperty => execute_has_property(agent, vm, gc)?,
-            Instruction::HasPrivateElement => {
-                execute_has_private_element(agent, vm, gc.into_nogc())?
-            }
-            Instruction::Increment => execute_increment(agent, vm, gc.into_nogc()),
-            Instruction::Decrement => execute_decrement(agent, vm, gc.into_nogc()),
-            Instruction::InstanceofOperator => execute_instanceof_operator(agent, vm, gc)?,
+            Instruction::GreaterThan => execute_greater_than(agent, gc)?,
+            Instruction::GreaterThanEquals => execute_greater_than_equals(agent, gc)?,
+            Instruction::HasProperty => execute_has_property(agent, gc)?,
+            Instruction::HasPrivateElement => execute_has_private_element(agent, gc.into_nogc())?,
+            Instruction::Increment => execute_increment(agent, gc.into_nogc()),
+            Instruction::Decrement => execute_decrement(agent, gc.into_nogc()),
+            Instruction::InstanceofOperator => execute_instanceof_operator(agent, gc)?,
             Instruction::InstantiateArrowFunctionExpression => {
-                execute_instantiate_arrow_function_expression(agent, vm, executable, instr, gc)?
+                execute_instantiate_arrow_function_expression(agent, instr, gc)?
             }
             Instruction::InstantiateOrdinaryFunctionExpression => {
-                execute_instantiate_ordinary_function_expression(agent, vm, executable, instr, gc)?
+                execute_instantiate_ordinary_function_expression(agent, instr, gc)?
             }
             Instruction::ClassDefineConstructor => {
-                execute_class_define_constructor(agent, vm, executable, instr, gc)?
+                execute_class_define_constructor(agent, instr, gc)?
             }
             Instruction::ClassDefineDefaultConstructor => {
-                execute_class_define_default_constructor(agent, vm, executable, instr, gc)?
+                execute_class_define_default_constructor(agent, instr, gc)?
             }
             Instruction::ClassDefinePrivateMethod => {
-                execute_class_define_private_method(agent, vm, executable, instr, gc)?
+                execute_class_define_private_method(agent, instr, gc)?
             }
             Instruction::ClassDefinePrivateProperty => {
-                execute_class_define_private_property(agent, vm, executable, instr, gc.into_nogc())?
+                execute_class_define_private_property(agent, instr, gc.into_nogc())?
             }
             Instruction::ClassInitializePrivateElements => {
-                execute_class_initialize_private_elements(agent, vm, gc.into_nogc())?
+                execute_class_initialize_private_elements(agent, gc.into_nogc())?
             }
             Instruction::ClassInitializePrivateValue => {
-                execute_class_initialize_private_value(agent, vm, instr, gc.into_nogc())?
+                execute_class_initialize_private_value(agent, instr, gc.into_nogc())?
             }
-            Instruction::LessThan => execute_less_than(agent, vm, gc)?,
-            Instruction::LessThanEquals => execute_less_than_equals(agent, vm, gc)?,
-            Instruction::IsLooselyEqual => execute_is_loosely_equal(agent, vm, gc)?,
-            Instruction::ObjectCreate => execute_object_create(agent, vm, gc.into_nogc()),
+            Instruction::LessThan => execute_less_than(agent, gc)?,
+            Instruction::LessThanEquals => execute_less_than_equals(agent, gc)?,
+            Instruction::IsLooselyEqual => execute_is_loosely_equal(agent, gc)?,
+            Instruction::ObjectCreate => execute_object_create(agent, gc.into_nogc()),
             Instruction::ObjectCreateWithShape => {
-                execute_object_create_with_shape(agent, vm, executable, instr, gc.into_nogc())
+                execute_object_create_with_shape(agent, instr, gc.into_nogc())
             }
-            Instruction::ObjectDefineProperty => execute_object_define_property(agent, vm, gc)?,
-            Instruction::ObjectDefineMethod => {
-                execute_object_define_method(agent, vm, executable, instr, gc)?
-            }
-            Instruction::ObjectDefineGetter => {
-                execute_object_define_getter(agent, vm, executable, instr, gc)?
-            }
-            Instruction::ObjectDefineSetter => {
-                execute_object_define_setter(agent, vm, executable, instr, gc)?
-            }
-            Instruction::ObjectSetPrototype => execute_object_set_prototype(agent, vm, gc)?,
-            Instruction::PopExceptionJumpTarget => vm.execute_pop_exception_jump_target(),
+            Instruction::ObjectDefineProperty => execute_object_define_property(agent, gc)?,
+            Instruction::ObjectDefineMethod => execute_object_define_method(agent, instr, gc)?,
+            Instruction::ObjectDefineGetter => execute_object_define_getter(agent, instr, gc)?,
+            Instruction::ObjectDefineSetter => execute_object_define_setter(agent, instr, gc)?,
+            Instruction::ObjectSetPrototype => execute_object_set_prototype(agent, gc)?,
+            Instruction::PopExceptionJumpTarget => agent.vm.execute_pop_exception_jump_target(),
             Instruction::PushExceptionJumpTarget => {
-                execute_push_exception_jump_target(agent, vm, instr, gc.into_nogc())
+                execute_push_exception_jump_target(agent, instr, gc.into_nogc())
             }
-            Instruction::TruncateStack => vm.stack.truncate(instr.get_first_arg() as usize),
+            Instruction::TruncateStack => {
+                agent.vm.stack.truncate(instr.get_first_stack_slot(agent))
+            }
             Instruction::ResolveBindingWithCache => {
-                execute_resolve_binding_with_cache(agent, vm, executable, instr, gc)?
+                execute_resolve_binding_with_cache(agent, instr, gc)?
             }
-            Instruction::ResolveThisBinding => {
-                execute_resolve_this_binding(agent, vm, gc.into_nogc())?
-            }
-            Instruction::StoreCopy => vm.execute_store_copy(),
-            Instruction::StringConcat => execute_string_concat(agent, vm, instr, gc)?,
-            Instruction::Throw => vm.execute_throw(gc.into_nogc())?,
-            Instruction::ThrowError => execute_throw_error(agent, vm, instr, gc.into_nogc())?,
-            Instruction::ToNumber => execute_to_number(agent, vm, gc)?,
-            Instruction::ToObject => execute_to_object(agent, vm, gc.into_nogc())?,
-            Instruction::Typeof => execute_typeof(agent, vm, gc)?,
-            Instruction::UnaryMinus => execute_unary_minus(agent, vm, gc.into_nogc()),
+            Instruction::ResolveThisBinding => execute_resolve_this_binding(agent, gc.into_nogc())?,
+            Instruction::StoreCopy => agent.vm.execute_store_copy(gc.into_nogc()),
+            Instruction::StringConcat => execute_string_concat(agent, instr, gc)?,
+            Instruction::Throw => agent.vm.execute_throw(gc.into_nogc())?,
+            Instruction::ThrowError => execute_throw_error(agent, instr, gc.into_nogc())?,
+            Instruction::ToNumber => execute_to_number(agent, gc)?,
+            Instruction::ToObject => execute_to_object(agent, gc.into_nogc())?,
+            Instruction::Typeof => execute_typeof(agent, gc)?,
+            Instruction::UnaryMinus => execute_unary_minus(agent, gc.into_nogc()),
             Instruction::InitializeVariableEnvironment => {
-                execute_initialize_variable_environment(agent, vm, instr, gc.into_nogc())
+                execute_initialize_variable_environment(agent, instr, gc.into_nogc())
             }
             Instruction::EnterDeclarativeEnvironment => {
                 execute_enter_declarative_environment(agent, gc.into_nogc())
             }
             Instruction::EnterClassStaticElementEnvironment => {
-                execute_enter_class_static_element_environment(agent, vm, gc.into_nogc())
+                execute_enter_class_static_element_environment(agent, gc.into_nogc())
             }
             Instruction::EnterPrivateEnvironment => {
                 execute_enter_private_environment(agent, instr, gc.into_nogc())
@@ -736,10 +795,10 @@ impl Vm {
                 execute_exit_private_environment(agent, gc.into_nogc())
             }
             Instruction::BeginSimpleObjectBindingPattern => {
-                execute_begin_simple_object_binding_pattern(agent, vm, executable, instr, gc)?
+                execute_begin_simple_object_binding_pattern(agent, instr, gc)?
             }
             Instruction::BeginSimpleArrayBindingPattern => {
-                execute_begin_simple_array_binding_pattern(agent, vm, executable, instr, gc)?
+                execute_begin_simple_array_binding_pattern(agent, instr, gc)?
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindNamed
@@ -752,44 +811,38 @@ impl Vm {
             | Instruction::BindingPatternGetRestValue
             | Instruction::FinishBindingPattern => execute_binding_pattern(),
             Instruction::EnumerateObjectProperties => {
-                execute_enumerate_object_properties(agent, vm, gc.into_nogc())
+                execute_enumerate_object_properties(agent, gc.into_nogc())
             }
-            Instruction::GetIteratorSync => execute_get_iterator_sync(agent, vm, gc)?,
-            Instruction::GetIteratorAsync => execute_get_iterator_async(agent, vm, gc)?,
-            Instruction::IteratorStepValue => execute_iterator_step_value(agent, vm, instr, gc)?,
+            Instruction::GetIteratorSync => execute_get_iterator_sync(agent, gc)?,
+            Instruction::GetIteratorAsync => execute_get_iterator_async(agent, gc)?,
+            Instruction::IteratorStepValue => execute_iterator_step_value(agent, instr, gc)?,
             Instruction::IteratorStepValueOrUndefined => {
-                execute_iterator_step_value_or_undefined(agent, vm, gc)?
+                execute_iterator_step_value_or_undefined(agent, gc)?
             }
-            Instruction::IteratorCallNextMethod => {
-                execute_iterator_call_next_method(agent, vm, gc)?
-            }
-            Instruction::IteratorComplete => execute_iterator_complete(agent, vm, instr, gc)?,
-            Instruction::IteratorValue => execute_iterator_value(agent, vm, gc)?,
-            Instruction::IteratorThrow => execute_iterator_throw(agent, vm, instr, gc)?,
-            Instruction::IteratorReturn => execute_iterator_return(agent, vm, instr, gc)?,
-            Instruction::IteratorRestIntoArray => execute_iterator_rest_into_array(agent, vm, gc)?,
-            Instruction::IteratorClose => execute_iterator_close(agent, vm, gc)?,
+            Instruction::IteratorCallNextMethod => execute_iterator_call_next_method(agent, gc)?,
+            Instruction::IteratorComplete => execute_iterator_complete(agent, gc)?,
+            Instruction::IteratorValue => execute_iterator_value(agent, gc)?,
+            Instruction::IteratorThrow => execute_iterator_throw(agent, instr, gc)?,
+            Instruction::IteratorReturn => execute_iterator_return(agent, instr, gc)?,
+            Instruction::IteratorRestIntoArray => execute_iterator_rest_into_array(agent, gc)?,
+            Instruction::IteratorClose => execute_iterator_close(agent, gc)?,
             Instruction::AsyncIteratorClose => {
-                if execute_async_iterator_close(agent, vm, gc)? {
+                if execute_async_iterator_close(agent, gc)? {
                     return Ok(ContinuationKind::Await);
                 }
             }
-            Instruction::IteratorCloseWithError => execute_iterator_close_with_error(agent, vm, gc),
+            Instruction::IteratorCloseWithError => execute_iterator_close_with_error(agent, gc),
             Instruction::AsyncIteratorCloseWithError => {
-                if execute_async_iterator_close_with_error(agent, vm, gc) {
-                    return Ok(ContinuationKind::Await);
-                }
+                execute_async_iterator_close_with_error(agent, gc)
             }
             Instruction::IteratorPop => {
-                let _ = vm.pop_iterator(gc.into_nogc());
+                let _ = agent.vm.pop_iterator(gc.into_nogc());
             }
-            Instruction::GetNewTarget => execute_get_new_target(agent, vm, gc.into_nogc()),
-            Instruction::ImportCall => execute_import_call(agent, vm, gc),
-            Instruction::ImportMeta => execute_import_meta(agent, vm, gc.into_nogc()),
-            Instruction::VerifyIsObject => {
-                execute_verify_is_object(agent, vm, executable, instr, gc.into_nogc())?
-            }
-            Instruction::Debug => execute_debug(agent, vm),
+            Instruction::GetNewTarget => execute_get_new_target(agent, gc.into_nogc()),
+            Instruction::ImportCall => execute_import_call(agent, gc),
+            Instruction::ImportMeta => execute_import_meta(agent, gc.into_nogc()),
+            Instruction::VerifyIsObject => execute_verify_is_object(agent, instr, gc.into_nogc())?,
+            Instruction::Debug => execute_debug(agent),
         };
         Ok(ContinuationKind::Normal)
     }
@@ -798,8 +851,9 @@ impl Vm {
         let instr_arg0 = instr.get_first_arg();
         if instr_arg0 != IndexType::MAX {
             // Static number of arguments less than IndexType::MAX.
+            self.result = None;
             let arg_count = instr_arg0 as usize;
-            debug_assert!(self.stack.len() >= arg_count);
+            debug_assert!(self.stack.len() >= self.stack_base as usize + arg_count);
             self.stack.split_off(self.stack.len() - arg_count)
         } else {
             // Dynamic number of arguments, or exactly IndexType::MAX or more
@@ -810,8 +864,9 @@ impl Vm {
                 panic!("Expected the number of function arguments to be an integer")
             };
             let arg_count = usize::try_from(integer.into_i64()).unwrap();
-            debug_assert!(self.stack.len() > arg_count);
+            debug_assert!(self.stack.len() > self.stack_base as usize + arg_count);
             let args = self.stack.split_off(self.stack.len() - arg_count);
+            debug_assert!(self.stack.len() > self.stack_base as usize);
             let integer_copy = self.stack.pop().unwrap();
             debug_assert_eq!(Value::Integer(integer), integer_copy);
             args
@@ -824,6 +879,8 @@ impl Vm {
     ///
     /// Panics if the iterator stack is empty.
     pub(super) fn pop_iterator<'gc>(&mut self, gc: NoGcScope<'gc, '_>) -> VmIteratorRecord<'gc> {
+        #[cfg(debug_assertions)]
+        debug_assert!(self.iterator_stack.len() > self.iterator_stack_base as usize);
         self.iterator_stack
             .pop()
             .expect("Iterator stack is empty")
@@ -836,6 +893,8 @@ impl Vm {
     ///
     /// Panics if the iterator stack is empty.
     pub(super) fn get_active_iterator(&self) -> &VmIteratorRecord<'static> {
+        #[cfg(debug_assertions)]
+        debug_assert!(self.iterator_stack.len() > self.iterator_stack_base as usize);
         self.iterator_stack.last().expect("Iterator stack is empty")
     }
 
@@ -845,6 +904,8 @@ impl Vm {
     ///
     /// Panics if the iterator stack is empty.
     pub(super) fn get_active_iterator_mut(&mut self) -> &mut VmIteratorRecord<'static> {
+        #[cfg(debug_assertions)]
+        debug_assert!(self.iterator_stack.len() > self.iterator_stack_base as usize);
         self.iterator_stack
             .last_mut()
             .expect("Iterator stack is empty")
@@ -878,6 +939,7 @@ impl Vm {
             .result
             .take()
             .expect("Expected result value to not be empty");
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         self.result = Some(self.stack.pop().expect("Trying to pop from empty stack"));
         self.stack.push(temp);
     }
@@ -897,6 +959,7 @@ impl Vm {
 
     #[inline(always)]
     fn execute_update_empty(&mut self) {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         // Take top of the stack value, set it as the result if no
         // result exists yet.
         let temp = self.stack.pop().expect("Trying to pop from empty stack");
@@ -907,6 +970,7 @@ impl Vm {
 
     #[inline(always)]
     fn execute_store(&mut self) {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         self.result = Some(self.stack.pop().expect("Trying to pop from empty stack"));
     }
 
@@ -916,12 +980,13 @@ impl Vm {
     }
 
     #[inline(always)]
-    fn execute_store_copy(&mut self) {
-        self.result = Some(*self.stack.last().expect("Trying to get from empty stack"));
+    fn execute_store_copy(&mut self, gc: NoGcScope) {
+        self.result = Some(self.get_last_stack_value(gc).unbind());
     }
 
     #[inline(always)]
     fn execute_pop_stack(&mut self) {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         let _ = self.stack.pop().expect("Trying to pop from empty stack");
     }
 
@@ -931,13 +996,28 @@ impl Vm {
     }
 
     #[inline(always)]
+    fn execute_push_reference_copy(&mut self) {
+        self.reference_stack.push(self.reference.clone().unwrap());
+    }
+
+    fn pop_reference_stack(&mut self) -> Reference<'static> {
+        #[cfg(debug_assertions)]
+        debug_assert!(self.reference_stack.len() > self.reference_stack_base as usize);
+        self.reference_stack
+            .pop()
+            .expect("Attempted to pop a Reference from an empty stack")
+    }
+
+    #[inline(always)]
     fn execute_pop_reference(&mut self) {
-        self.reference = Some(self.reference_stack.pop().unwrap());
+        self.reference = Some(self.pop_reference_stack());
     }
 
     #[inline(always)]
     fn execute_swap(&mut self) {
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         let a = self.stack.pop().unwrap();
+        debug_assert!(self.stack.len() > self.stack_base as usize);
         let b = self.stack.pop().unwrap();
         self.stack.push(a);
         self.stack.push(b);
@@ -969,9 +1049,22 @@ impl Vm {
         self.result = Some(result.into());
     }
 
+    pub(crate) fn pop_exception_handler_stack(&mut self) -> Option<ExceptionHandler<'static>> {
+        if self.exception_handler_stack.len() > self.exception_handler_stack_base as usize {
+            self.exception_handler_stack.pop()
+        } else {
+            None
+        }
+    }
+
     #[inline(always)]
     fn execute_pop_exception_jump_target(&mut self) {
-        self.exception_handler_stack.pop().unwrap();
+        // Bytecode should never attempt to pop an exception handler past the
+        // stack base.
+        debug_assert!(
+            self.exception_handler_stack.len() > self.exception_handler_stack_base as usize
+        );
+        self.pop_exception_handler_stack().unwrap();
     }
 
     #[inline(always)]
@@ -1422,44 +1515,21 @@ pub(crate) fn instanceof_operator<'a, 'b>(
     }
 }
 
-#[inline(always)]
-fn with_vm_gc<'a, 'b, R: 'a>(
-    agent: &mut Agent,
-    vm: &mut Vm,
-    work: impl FnOnce(&mut Agent, GcScope<'a, 'b>) -> R,
-    gc: GcScope<'a, 'b>,
-) -> R {
-    let vm = NonNull::from(vm);
-    agent.vm_stack.push(vm);
-    let result = work(agent, gc);
-    let return_vm = agent.vm_stack.pop().unwrap();
-    assert_eq!(vm, return_vm, "VM Stack was misused");
-    result
-}
-
 impl HeapMarkAndSweep for ExceptionHandler<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        match self {
-            ExceptionHandler::CatchBlock {
-                ip: _,
-                lexical_environment,
-            } => {
-                lexical_environment.mark_values(queues);
-            }
-            ExceptionHandler::IgnoreErrorAndNextInstruction => {}
-        }
+        let Self {
+            ip: _,
+            lexical_environment,
+        } = self;
+        lexical_environment.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        match self {
-            ExceptionHandler::CatchBlock {
-                ip: _,
-                lexical_environment,
-            } => {
-                lexical_environment.sweep_values(compactions);
-            }
-            ExceptionHandler::IgnoreErrorAndNextInstruction => {}
-        }
+        let Self {
+            ip: _,
+            lexical_environment,
+        } = self;
+        lexical_environment.sweep_values(compactions);
     }
 }
 
@@ -1468,16 +1538,22 @@ impl HeapMarkAndSweep for Vm {
         let Vm {
             ip: _,
             stack,
+            stack_base: _,
             reference_stack,
+            #[cfg(debug_assertions)]
+                reference_stack_base: _,
             iterator_stack,
-            exception_handler_stack: exception_jump_target_stack,
+            #[cfg(debug_assertions)]
+                iterator_stack_base: _,
+            exception_handler_stack,
+            exception_handler_stack_base: _,
             result,
             reference,
         } = self;
         stack.as_slice().mark_values(queues);
         reference_stack.as_slice().mark_values(queues);
         iterator_stack.as_slice().mark_values(queues);
-        exception_jump_target_stack.as_slice().mark_values(queues);
+        exception_handler_stack.as_slice().mark_values(queues);
         result.mark_values(queues);
         reference.mark_values(queues);
     }
@@ -1486,16 +1562,22 @@ impl HeapMarkAndSweep for Vm {
         let Vm {
             ip: _,
             stack,
+            stack_base: _,
             reference_stack,
+            #[cfg(debug_assertions)]
+                reference_stack_base: _,
             iterator_stack,
-            exception_handler_stack: exception_jump_target_stack,
+            #[cfg(debug_assertions)]
+                iterator_stack_base: _,
+            exception_handler_stack,
+            exception_handler_stack_base: _,
             result,
             reference,
         } = self;
         stack.as_mut_slice().sweep_values(compactions);
         reference_stack.as_mut_slice().sweep_values(compactions);
         iterator_stack.as_mut_slice().sweep_values(compactions);
-        exception_jump_target_stack
+        exception_handler_stack
             .as_mut_slice()
             .sweep_values(compactions);
         result.sweep_values(compactions);
@@ -1510,7 +1592,7 @@ impl HeapMarkAndSweep for SuspendedVm {
             stack,
             reference_stack,
             iterator_stack,
-            exception_jump_target_stack,
+            exception_handler_stack: exception_jump_target_stack,
         } = self;
         stack.mark_values(queues);
         reference_stack.mark_values(queues);
@@ -1524,7 +1606,7 @@ impl HeapMarkAndSweep for SuspendedVm {
             stack,
             reference_stack,
             iterator_stack,
-            exception_jump_target_stack,
+            exception_handler_stack: exception_jump_target_stack,
         } = self;
         stack.sweep_values(compactions);
         reference_stack.sweep_values(compactions);
@@ -1537,7 +1619,6 @@ impl HeapMarkAndSweep for SuspendedVm {
 /// function name and returns it.
 fn set_class_name<'a>(
     agent: &mut Agent,
-    vm: &mut Vm,
     name: Value,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<'a, String<'a>> {
@@ -1559,18 +1640,13 @@ fn set_class_name<'a>(
         // 3. Return ? ToPropertyKey(propName).
         let prop_key = {
             let name = name.unbind();
-            with_vm_gc(
-                agent,
-                vm,
-                |agent, gc| to_property_key(agent, name, gc),
-                gc.reborrow(),
-            )
-            .unbind()?
-            .bind(gc.nogc())
+            to_property_key(agent, name, gc.reborrow())
+                .unbind()?
+                .bind(gc.nogc())
         };
 
         let name = prop_key.convert_to_value(agent, gc.nogc());
-        set_class_name(agent, vm, name.unbind().into(), gc)
+        set_class_name(agent, name.unbind().into(), gc)
     }
 }
 

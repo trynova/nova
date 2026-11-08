@@ -576,7 +576,7 @@ impl<'a> OrdinaryObject<'a> {
     }
 
     pub(crate) fn create_object_with_shape_and_data_properties(
-        agent: &mut Agent,
+        heap: &mut Heap,
         shape: ObjectShape<'a>,
         values: &[Value<'a>],
     ) -> Self {
@@ -587,14 +587,13 @@ impl<'a> OrdinaryObject<'a> {
             cap,
             len,
             len_writable: _,
-        } = agent
-            .heap
+        } = heap
             .elements
             .allocate_property_storage(values, None)
             .expect("Failed to create object");
-        assert_eq!(cap, shape.values_capacity(agent));
-        assert_eq!(len, shape.len(agent));
-        agent.heap.create(ObjectRecord::new(shape, values))
+        assert_eq!(cap, shape.values_capacity(&heap.object_shapes));
+        assert_eq!(len, shape.len(&heap.object_shapes));
+        heap.create(ObjectRecord::new(shape, values))
     }
 
     pub(crate) fn create_object_with_shape(
