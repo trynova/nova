@@ -11,7 +11,7 @@ use crate::{
         Agent, ArgumentsList, BUILTIN_STRING_MEMORY, Behaviour, Builtin, BuiltinGetter,
         BuiltinIntrinsic, CollectionIteratorKind, ExceptionType, JsResult, Number, PropertyKey,
         Realm, Set, SetIterator, String, Value, builders::OrdinaryObjectBuilder, call_function,
-        canonicalize_keyed_collection_key, is_callable, same_value,
+        canonicalize_keyed_collection_key, get_set_record, is_callable, same_value, to_boolean,
     },
     engine::{Bindable, GcScope, NoGcScope, Scopable},
     heap::{
@@ -57,6 +57,12 @@ impl Builtin for SetPrototypeHas {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::has);
+}
+struct SetPrototypeIsSubsetOf;
+impl Builtin for SetPrototypeIsSubsetOf {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isSubsetOf;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::is_subset_of);
 }
 struct SetPrototypeGetSize;
 impl Builtin for SetPrototypeGetSize {
@@ -384,6 +390,68 @@ impl SetPrototype {
         Ok(found.into())
     }
 
+    /// ### [24.2.4.11 Set.prototype.isSubsetOf ( other )](https://tc39.es/ecma262/#sec-set.prototype.issubsetof)
+    fn is_subset_of<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<'gc, Value<'gc>> {
+        let other = arguments.get(0).bind(gc.nogc());
+        // 1. Let set be the this value.
+        let set = this_value.bind(gc.nogc());
+        // 2. Perform ? RequireInternalSlot(set, [[SetData]]).
+        let set = require_set_data_internal_slot(agent, set, gc.nogc())
+            .unbind()?
+            .bind(gc.nogc());
+        let scoped_set = set.scope(agent, gc.nogc());
+        // 3. Let otherRecord be ? GetSetRecord(other).
+        let other_record = get_set_record(agent, other.unbind(), gc.reborrow())
+            .unbind()?
+            .bind(gc.nogc());
+        // 4. If SetDataSize(set.[[SetData]]) > otherRecord.[[Size]], return false.
+        let set_size = scoped_set.get(agent).get(agent).set_data.borrow().len() as i64;
+        if set_size > other_record.size.into_i64() {
+            return Ok(false.into());
+        }
+        // 5. Let thisSize be the number of elements in set.[[SetData]].
+        let mut this_size = scoped_set.get(agent).get(agent).values.len();
+        // 6. Let index be 0.
+        let mut index = 0;
+        let scoped_has = other_record.has.scope(agent, gc.nogc());
+        let scoped_set_object = other_record.set_object.scope(agent, gc.nogc());
+        // 7. Repeat, while index < thisSize,
+        while index < this_size {
+            // a. Let entry be set.[[SetData]][index].
+            let entry = scoped_set.get(agent).get(agent).values[index];
+            // b. Set index to index + 1.
+            index += 1;
+            // c. If entry is not empty, then
+            if let Some(entry) = entry {
+                // i. Let inOther be ToBoolean(? Call(otherRecord.[[Has]], otherRecord.[[SetObject]], « entry »)).
+                let has_result = call_function(
+                    agent,
+                    scoped_has.get(agent),
+                    scoped_set_object.get(agent).into(),
+                    Some(ArgumentsList::from_mut_slice(&mut [entry.unbind()])),
+                    gc.reborrow(),
+                )
+                .unbind()?
+                .bind(gc.nogc());
+                let in_other = to_boolean(agent, has_result);
+                // ii. If inOther is false, return false.
+                if !in_other {
+                    return Ok(false.into());
+                }
+                // iii. NOTE: The number of elements in set.[[SetData]] may have increased during execution of otherRecord.[[Has]].
+                // iv. Set thisSize to the number of elements in set.[[SetData]].
+                this_size = scoped_set.get(agent).get(agent).values.len();
+            }
+        }
+        // 8. Return true.
+        Ok(true.into())
+    }
+
     /// ### [24.2.4.14 get Set.prototype.size](https://tc39.es/ecma262/#sec-get-set.prototype.size)
     ///
     /// Set.prototype.size is an accessor property whose set accessor function
@@ -431,9 +499,10 @@ impl SetPrototype {
         let set_prototype_values = intrinsics.set_prototype_values();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(12)
+            .with_property_capacity(13)
             .with_prototype(object_prototype)
             .with_builtin_function_property::<SetPrototypeAdd>()
+            .with_builtin_function_property::<SetPrototypeIsSubsetOf>()
             .with_builtin_function_property::<SetPrototypeClear>()
             .with_constructor_property(set_constructor)
             .with_builtin_function_property::<SetPrototypeDelete>()
