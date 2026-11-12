@@ -880,7 +880,9 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Identi
                         while decl_id < node {
                             node = nodes.parent_id(node);
                         }
-                        if decl_id == node {
+                        if decl_id == node
+                            && is_declaration_tdz(nodes, decl_id, ref_id, scoping.symbol_span(s))
+                        {
                             // Self-referential declaration.
                             VariableKind::TemporalDeadZone
                         } else {
@@ -941,6 +943,50 @@ fn is_parameter_tdz(nodes: &oxc_semantic::AstNodes, decl_id: NodeId, ref_id: Nod
     }
     // If our reference comes after the formal parameter we might still be in
     // the TDZ but a followup check tests for that.
+    false
+}
+
+/// Checks if a reference that is found inside its own declaration is in the
+/// TDZ of the binding.
+///
+/// A binding in a declaration's pattern is initialised once its own pattern
+/// element has been destructured, so a reference to it is in the TDZ only if
+/// it comes before the binding in the pattern, or if it is in the initializer
+/// or default value whose result the binding is destructured from. Eg. in
+/// `const { a, b = a } = o` the reference in `b = a` is not in the TDZ, while
+/// in `const { a = a } = o` and `const [a] = a` it is.
+fn is_declaration_tdz(
+    nodes: &oxc_semantic::AstNodes,
+    decl_id: NodeId,
+    ref_id: NodeId,
+    binding_span: oxc_span::Span,
+) -> bool {
+    use oxc_ast::AstKind;
+    use oxc_span::GetSpan;
+    let ref_span = nodes.get_node(ref_id).kind().span();
+    if ref_span.start < binding_span.start {
+        // Reference comes before the binding.
+        return true;
+    }
+    let mut node = ref_id;
+    while node != decl_id {
+        node = nodes.parent_id(node);
+        let (pattern, init) = match nodes.get_node(node).kind() {
+            AstKind::AssignmentPattern(p) => (p.left.span(), Some(p.right.span())),
+            AstKind::FormalParameter(p) => {
+                (p.pattern.span(), p.initializer.as_ref().map(|i| i.span()))
+            }
+            AstKind::VariableDeclarator(d) => (d.id.span(), d.init.as_ref().map(|i| i.span())),
+            _ => continue,
+        };
+        if init.is_some_and(|init| init.contains_inclusive(ref_span))
+            && pattern.contains_inclusive(binding_span)
+        {
+            // Reference is in the value that the binding gets destructured
+            // from.
+            return true;
+        }
+    }
     false
 }
 

@@ -281,13 +281,20 @@ impl<'a, 's, 'gc, 'scope> CompileEvaluation<'a, 's, 'gc, 'scope> for ast::Class<
                         instance_private_fields.push((dn, prop.value.as_ref()));
                     }
                 } else if let ast::ClassElement::MethodDefinition(method) = class_element {
+                    // Note: a getter/setter pair shares one Private Name, so
+                    // only the first half of the pair takes a new index.
+                    let is_new_name = !private_name_lookup_map.contains_key(dn);
                     if class_element.r#static() {
                         i = static_private_method_count;
-                        static_private_method_count += 1;
+                        if is_new_name {
+                            static_private_method_count += 1;
+                        }
                         static_private_methods.push((dn, &**method));
                     } else {
                         i = instance_private_method_count;
-                        instance_private_method_count += 1;
+                        if is_new_name {
+                            instance_private_method_count += 1;
+                        }
                         instance_private_methods.push((dn, &**method));
                     }
                 } else {
