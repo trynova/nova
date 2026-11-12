@@ -136,6 +136,8 @@ pub(super) fn get_template_object<'a>(
     }
     // 13. Perform ! SetIntegrityLevel(rawObj, frozen).
     unwrap_try(raw_obj.try_prevent_extensions(agent, gc));
+    // Note: the elements are already non-writable and non-configurable.
+    raw_obj.set_length_readonly(agent);
     let prototype = template.internal_prototype(agent).unwrap();
     // 14. Perform ! DefinePropertyOrThrow(template,
     let template_backing_object = OrdinaryObject::create_object(
@@ -162,6 +164,7 @@ pub(super) fn get_template_object<'a>(
     template.set_backing_object(agent, template_backing_object.unbind());
     // 15. Perform ! SetIntegrityLevel(template, frozen).
     unwrap_try(template.try_prevent_extensions(agent, gc));
+    template.set_length_readonly(agent);
     // 16. Append the Record { [[Site]]: templateLiteral, [[Array]]: template }
     //     to realm.[[TemplateMap]].
     // 17. Return template.

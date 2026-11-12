@@ -241,10 +241,6 @@ impl<'gc> ElementsVector<'gc> {
         self.len == self.cap()
     }
 
-    pub(crate) fn writable(&self) -> bool {
-        self.len_writable
-    }
-
     /// Get shared access to the elements storage of an array.
     ///
     /// Value slots with None are either array holes, or accessor properties.

@@ -313,11 +313,12 @@ impl<'a> InternalSlots<'a> for Array<'a> {
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+        // Note: preventing extensions does not make "length" read-only; the
+        // backing object's shape holds the [[Extensible]] flag.
         let ArrayHeapDataMut {
-            elements: elems,
+            elements: _,
             object_index: backing_object,
         } = self.get_mut(agent);
-        elems.len_writable = value;
         if let Some(object_index) = backing_object {
             object_index.internal_set_extensible(agent, value)
         } else if !value {
@@ -438,6 +439,12 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             if index >= length {
                 // g. If index ≥ length and lengthDesc.[[Writable]] is false, return false.
                 if !length_writable {
+                    return TryResult::Continue(false);
+                }
+                // Note: index ≥ length means that P is not an own property,
+                // so OrdinaryDefineOwnProperty below fails if A is not
+                // extensible.
+                if !self.internal_extensible(agent) {
                     return TryResult::Continue(false);
                 }
                 let Heap {
@@ -910,7 +917,7 @@ fn ordinary_define_own_property_for_array(
         // Hole
 
         // a. If extensible is false, return false.
-        if !elements.writable() {
+        if !array.internal_extensible(agent) {
             return false;
         }
 
