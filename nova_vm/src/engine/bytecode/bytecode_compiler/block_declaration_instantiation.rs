@@ -37,9 +37,21 @@ pub(super) fn instantiation<'s, 'gc>(
     // 1. Let declarations be the LexicallyScopedDeclarations of code.
     // 2. Let privateEnv be the running execution context's PrivateEnvironment.
     // 3. For each element d of declarations, do
+    // Note: function declarations are instantiated after all other
+    // declarations so that the function objects capture the block's
+    // environment even when the bindings that need it come later in the
+    // block. The order is not observable otherwise.
+    let mut functions = Vec::new();
     code.lexically_scoped_declarations(&mut |d| {
-        handle_block_lexically_scoped_declaration(ctx, &mut block_prep, d);
+        if let LexicallyScopedDeclaration::Function(_) = d {
+            functions.push(d);
+        } else {
+            handle_block_lexically_scoped_declaration(ctx, &mut block_prep, d);
+        }
     });
+    for d in functions {
+        handle_block_lexically_scoped_declaration(ctx, &mut block_prep, d);
+    }
 
     // 4. Return unused.
     let result = cb(ctx);
