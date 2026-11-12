@@ -7431,7 +7431,6 @@
   "staging/sm/Array/change-array-by-copy-cross-compartment-create.js": "FAIL",
   "staging/sm/Array/change-array-by-copy-errors-from-correct-realm.js": "FAIL",
   "staging/sm/Array/isArray.js": "FAIL",
-  "staging/sm/Array/length-01.js": "FAIL",
   "staging/sm/Array/set-with-indexed-property-on-prototype-chain.js": "FAIL",
   "staging/sm/Array/sort-non-function.js": "FAIL",
   "staging/sm/Array/species.js": "FAIL",
