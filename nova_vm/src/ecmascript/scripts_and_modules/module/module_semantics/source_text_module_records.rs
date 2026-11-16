@@ -33,7 +33,7 @@ use crate::{
     },
     engine::{
         Bindable, Executable, ExecutionResult, GcScope, GcToken, HeapRootData, NoGcScope, Scopable,
-        Scoped, Vm, bindable_handle,
+        Scoped, bindable_handle,
     },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
     ndt,
@@ -234,10 +234,6 @@ impl<'m> SourceTextModule<'m> {
                 self.get(agent).ecmascript_code.as_ref(),
             )
         }
-    }
-
-    pub(crate) fn get_executable(self, agent: &Agent) -> Executable<'m> {
-        self.get(agent).compiled_bytecode.unwrap()
     }
 
     fn set_executable(self, agent: &mut Agent, executable: Executable<'m>) {
@@ -1238,6 +1234,12 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         // 8. Let moduleContext be a new ECMAScript code execution context.
         let module_context = ExecutionContext {
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+                ip: 0,
+                executable: None,
+                stack_base: 0,
+                iterator_stack_base: 0,
+                reference_stack_base: 0,
+                exception_handler_stack_base: 0,
                 // 14. Set the LexicalEnvironment of moduleContext to
                 //     module.[[Environment]].
                 lexical_environment: env.unbind().into(),
@@ -1431,6 +1433,12 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
         let source_code = module.source_code(agent);
         let module_context = ExecutionContext {
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+                ip: 0,
+                executable: None,
+                stack_base: 0,
+                iterator_stack_base: 0,
+                reference_stack_base: 0,
+                exception_handler_stack_base: 0,
                 // 7. Set the LexicalEnvironment of moduleContext to
                 //    module.[[Environment]].
                 lexical_environment: environment.unbind().into(),
@@ -1459,9 +1467,10 @@ impl CyclicModuleMethods for SourceTextModule<'_> {
             agent.push_execution_context(module_context);
             // c. Let result be Completion(Evaluation of
             //    module.[[ECMAScriptCode]]).
-            let bytecode =
-                Executable::compile_module(agent, module, gc.nogc()).scope(agent, gc.nogc());
-            let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow())
+            let bytecode = Executable::compile_module(agent, module, gc.nogc());
+            agent.set_running_executable(bytecode);
+            let result = agent
+                .execute(None, gc.reborrow())
                 .into_js_result()
                 .unbind()
                 .bind(gc.into_nogc());
@@ -1514,7 +1523,7 @@ fn async_module_start(
     agent: &mut Agent,
     promise_capability: PromiseCapability,
     module: SourceTextModule,
-    async_context: ExecutionContext,
+    mut async_context: ExecutionContext,
     mut gc: GcScope,
 ) {
     let promise_capability = promise_capability.bind(gc.nogc());
@@ -1525,15 +1534,14 @@ fn async_module_start(
     // 3. Set the code evaluation state of asyncContext such that when
     //    evaluation is resumed for that execution context, closure will be
     //    called with no arguments.
-    let bytecode = Executable::compile_module(agent, module, gc.nogc()).scope(agent, gc.nogc());
+    async_context.ecmascript_code.as_mut().unwrap().executable =
+        Some(Executable::compile_module(agent, module, gc.nogc()).unbind());
     // 4. Push asyncContext onto the execution context stack; asyncContext is
     //    now the running execution context.
     agent.push_execution_context(async_context);
     // 5. Resume the suspended evaluation of asyncContext. Let result be the
     //    value returned by the resumed computation.
-    let result = Vm::execute(agent, bytecode.clone(), None, gc.reborrow())
-        .unbind()
-        .bind(gc.nogc());
+    let result = agent.execute(None, gc.reborrow()).unbind().bind(gc.nogc());
 
     // AsyncBlockStart will run the module until it returns, throws or
     // gets suspended with an await.
@@ -1542,7 +1550,6 @@ fn async_module_start(
             let _ = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
             let promise = unsafe {
-                let _ = bytecode.take(agent);
                 let promise = promise.take(agent).bind(gc.nogc());
                 let _ = scoped_module.take(agent);
                 promise
@@ -1560,7 +1567,6 @@ fn async_module_start(
             let _ = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
             let promise = unsafe {
-                let _ = bytecode.take(agent);
                 let promise = promise.take(agent).bind(gc.nogc());
                 let _ = scoped_module.take(agent);
                 promise
@@ -1578,12 +1584,18 @@ fn async_module_start(
         } => {
             let async_context = agent.pop_execution_context().unwrap();
             // SAFETY: not shared.
-            let (bytecode, promise, module) = unsafe {
-                let bytecode = bytecode.take(agent).bind(gc.nogc());
+            let (promise, module) = unsafe {
                 let promise = promise.take(agent).bind(gc.nogc());
                 let module = scoped_module.take(agent).bind(gc.nogc());
-                (bytecode, promise, module)
+                (promise, module)
             };
+            let bytecode = async_context
+                .ecmascript_code
+                .as_ref()
+                .unwrap()
+                .executable
+                .unwrap()
+                .bind(gc.nogc());
             let promise_capability = PromiseCapability::from_promise(promise, true);
             let handler = agent
                 .heap

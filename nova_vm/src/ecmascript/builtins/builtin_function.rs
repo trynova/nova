@@ -251,6 +251,7 @@ impl<'value> Deref for ArgumentsList<'_, 'value> {
 ///
 /// The arguments can be accessed through the Agent for the duration of the
 /// function call.
+#[derive(Clone)]
 pub struct ScopedArgumentsList<'scope> {
     index: u32,
     value: PhantomData<Value<'scope>>,

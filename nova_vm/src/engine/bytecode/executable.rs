@@ -8,8 +8,8 @@ use crate::{
         SourceCode, SourceTextModule, String, Value,
     },
     engine::{
-        Bindable, NoGcScope, Scoped, bindable_handle,
-        bytecode::{CompileContext, NamedEvaluationParameter, instructions::Instr},
+        Bindable, NoGcScope, bindable_handle,
+        bytecode::{CompileContext, NamedEvaluationParameter},
     },
     heap::{
         ArenaAccess, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -208,49 +208,26 @@ impl<'gc> Executable<'gc> {
         ctx.finish()
     }
 
-    /// Drops the Executable's heap-allocated data if possible.
-    ///
-    /// ## Safety
-    ///
-    /// Any attempt to use the Executable after this call will lead to a crash
-    /// if the drop was performed.
-    pub(crate) unsafe fn try_drop(self, agent: &mut Agent) {
-        debug_assert!(!agent.heap.executables.is_empty());
-        let index = self.get_index();
-        let last_index = agent.heap.executables.len() - 1;
-        if last_index == index {
-            // This bytecode was the last-allocated bytecode, and we can drop
-            // it from the Heap without affecting any other indexes. The caller
-            // guarantees that the Executable will not be used anymore.
-            agent.heap.alloc_counter = agent
-                .heap
-                .alloc_counter
-                .saturating_sub(core::mem::size_of::<ExecutableHeapData>());
-            let _ = agent.heap.executables.pop().unwrap();
-        }
-    }
-
     /// SAFETY: The returned reference is valid until the Executable is garbage
     /// collected.
     #[inline]
-    fn get_instructions(self, agent: &Agent) -> &'static [u8] {
+    pub(crate) fn get_instructions(self, agent: &Agent) -> &'static [u8] {
         // SAFETY: As long as we're alive the instructions Box lives, and it is
         // never accessed mutably.
         unsafe { core::mem::transmute(&self.get(agent).instructions[..]) }
     }
 
     #[inline]
-    fn get_instruction(self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
-        Instr::consume_instruction(&self.get(agent).instructions, ip)
-    }
-
-    #[inline]
-    fn get_constants<'a>(self, agent: &'a Agent, _: NoGcScope<'gc, '_>) -> &'a [Value<'gc>] {
+    pub(crate) fn get_constants<'a>(
+        self,
+        agent: &'a Agent,
+        _: NoGcScope<'gc, '_>,
+    ) -> &'a [Value<'gc>] {
         &self.get(agent).constants[..]
     }
 
     #[inline]
-    fn fetch_cache(
+    pub(crate) fn fetch_cache(
         self,
         agent: &Agent,
         index: usize,
@@ -260,12 +237,22 @@ impl<'gc> Executable<'gc> {
     }
 
     #[inline]
-    fn fetch_constant(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+    pub(crate) fn fetch_constant(
+        self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Value<'gc> {
         self.get(agent).constants[index].bind(gc)
     }
 
     #[inline]
-    fn fetch_identifier(self, agent: &Agent, index: usize, gc: NoGcScope<'gc, '_>) -> String<'gc> {
+    pub(crate) fn fetch_identifier(
+        self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> String<'gc> {
         let value = self.get(agent).constants[index];
         let Ok(value) = String::try_from(value) else {
             handle_identifier_failure()
@@ -274,7 +261,7 @@ impl<'gc> Executable<'gc> {
     }
 
     #[inline]
-    fn fetch_property_key(
+    pub(crate) fn fetch_property_key(
         self,
         agent: &Agent,
         index: usize,
@@ -285,7 +272,7 @@ impl<'gc> Executable<'gc> {
         unsafe { PropertyKey::from_value_unchecked(value).bind(gc) }
     }
 
-    fn fetch_function_expression<'a>(
+    pub(crate) fn fetch_function_expression<'a>(
         self,
         agent: &'a Agent,
         index: usize,
@@ -294,7 +281,7 @@ impl<'gc> Executable<'gc> {
         &self.get(agent).function_expressions[index]
     }
 
-    fn fetch_arrow_function_expression<'a>(
+    pub(crate) fn fetch_arrow_function_expression<'a>(
         self,
         agent: &'a Agent,
         index: usize,
@@ -305,7 +292,7 @@ impl<'gc> Executable<'gc> {
         &self.get(agent).arrow_function_expressions[index]
     }
 
-    fn fetch_class_initializer_bytecode(
+    pub(crate) fn fetch_class_initializer_bytecode(
         self,
         agent: &Agent,
         index: usize,
@@ -314,117 +301,13 @@ impl<'gc> Executable<'gc> {
         self.get(agent).class_initializer_bytecodes[index]
     }
 
-    fn fetch_object_shape(
+    pub(crate) fn fetch_object_shape(
         self,
         agent: &Agent,
         index: usize,
         gc: NoGcScope<'gc, '_>,
     ) -> ObjectShape<'gc> {
         self.get(agent).shapes[index].bind(gc)
-    }
-}
-
-impl Scoped<'_, Executable<'static>> {
-    #[inline]
-    pub(super) fn get_instructions(&self, agent: &Agent) -> &[u8] {
-        // SAFETY: Executable is scoped, the instructions reference is bound to
-        // the Scoped.
-        self.get(agent).get_instructions(agent)
-    }
-
-    #[inline]
-    pub(super) fn get_instruction(&self, agent: &Agent, ip: &mut usize) -> Option<Instr> {
-        self.get(agent).get_instruction(agent, ip)
-    }
-
-    #[inline]
-    pub(super) fn get_constants<'a, 'gc>(
-        &self,
-        agent: &'a Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> &'a [Value<'gc>] {
-        self.get(agent).get_constants(agent, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_cache<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> PropertyLookupCache<'gc> {
-        self.get(agent).fetch_cache(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_identifier<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> String<'gc> {
-        self.get(agent).fetch_identifier(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_property_key<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> PropertyKey<'gc> {
-        self.get(agent).fetch_property_key(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_constant<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> Value<'gc> {
-        self.get(agent).fetch_constant(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_function_expression<'a, 'gc>(
-        &self,
-        agent: &'a Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> &'a FunctionExpression<'gc> {
-        self.get(agent).fetch_function_expression(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_arrow_function_expression<'a>(
-        &self,
-        agent: &'a Agent,
-        index: usize,
-    ) -> &'a ArrowFunctionExpression {
-        self.get(agent)
-            .fetch_arrow_function_expression(agent, index)
-    }
-
-    #[inline]
-    pub(super) fn fetch_class_initializer_bytecode<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> (Option<Executable<'gc>>, bool) {
-        self.get(agent)
-            .fetch_class_initializer_bytecode(agent, index, gc)
-    }
-
-    #[inline]
-    pub(super) fn fetch_object_shape<'gc>(
-        &self,
-        agent: &Agent,
-        index: usize,
-        gc: NoGcScope<'gc, '_>,
-    ) -> ObjectShape<'gc> {
-        self.get(agent).fetch_object_shape(agent, index, gc)
     }
 }
 

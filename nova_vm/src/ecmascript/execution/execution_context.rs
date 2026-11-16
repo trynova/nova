@@ -5,7 +5,7 @@
 use super::{Agent, Environment, JsResult, PrivateEnvironment, Realm, get_this_environment};
 use crate::{
     ecmascript::{Function, Object, ScriptOrModule, SourceCode, Value},
-    engine::{Bindable, NoGcScope},
+    engine::{Bindable, Executable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -18,6 +18,18 @@ pub(crate) type ECMAScriptCode = ECMAScriptCodeEvaluationState;
 /// listed in Table 26.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ECMAScriptCodeEvaluationState {
+    /// Instruction pointer.
+    pub(crate) ip: usize,
+    /// Executable being evaluated.
+    pub(crate) executable: Option<Executable<'static>>,
+    /// Names the Vm stack 0 position for the code being evaluated.
+    pub(crate) stack_base: u32,
+    /// Names the Vm reference stack 0 position for the code being evaluated.
+    pub(crate) reference_stack_base: u32,
+    /// Names the Vm iterator stack 0 position for the code being evaluated.
+    pub(crate) iterator_stack_base: u32,
+    /// Names the Vm exception jump target stack 0 position for the code being evaluated.
+    pub(crate) exception_handler_stack_base: u32,
     /// ### LexicalEnvironment
     ///
     /// Identifies the Environment Record used to resolve identifier references
@@ -92,17 +104,34 @@ impl ExecutionContext {
     pub(crate) fn suspend(&self) {
         // TODO: What does this actually mean in the end?
     }
+
+    pub(crate) fn get_stack_bases(&self) -> (u32, u32, u32, u32) {
+        let ecmascript_code = self.ecmascript_code.as_ref().unwrap();
+        (
+            ecmascript_code.stack_base,
+            ecmascript_code.reference_stack_base,
+            ecmascript_code.iterator_stack_base,
+            ecmascript_code.exception_handler_stack_base,
+        )
+    }
 }
 
 impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
+            ip: _,
+            executable,
+            stack_base: _,
+            reference_stack_base: _,
+            iterator_stack_base: _,
+            exception_handler_stack_base: _,
             lexical_environment,
             variable_environment,
             private_environment,
             is_strict_mode: _,
             source_code,
         } = self;
+        executable.mark_values(queues);
         lexical_environment.mark_values(queues);
         variable_environment.mark_values(queues);
         private_environment.mark_values(queues);
@@ -111,12 +140,19 @@ impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
+            ip: _,
+            executable,
+            stack_base: _,
+            reference_stack_base: _,
+            iterator_stack_base: _,
+            exception_handler_stack_base: _,
             lexical_environment,
             variable_environment,
             private_environment,
             is_strict_mode: _,
             source_code,
         } = self;
+        executable.sweep_values(compactions);
         lexical_environment.sweep_values(compactions);
         variable_environment.sweep_values(compactions);
         private_environment.sweep_values(compactions);
