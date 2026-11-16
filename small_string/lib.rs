@@ -207,26 +207,35 @@ impl SmallString {
     pub fn utf8_index(&self, utf16_idx: usize) -> Option<usize> {
         if self.is_ascii() {
             return Some(utf16_idx);
+        } else if utf16_idx >= self.utf16_len() {
+            return None;
         }
         let mut current_utf16_index = 0;
+        let mut current_utf8_index = 0;
         let mut scratch = [0u16; 2];
-        for (idx, ch) in self.as_wtf8().code_points().enumerate() {
+        for ch in self.as_wtf8().code_points() {
             match current_utf16_index.cmp(&utf16_idx) {
-                Ordering::Equal => return Some(idx),
+                Ordering::Equal => return Some(current_utf8_index),
                 Ordering::Greater => return None,
                 Ordering::Less => {
                     current_utf16_index += ch
                         .to_char()
                         .map(|ch| ch.encode_utf16(&mut scratch).len())
-                        .unwrap_or(1)
+                        .unwrap_or(1);
+                    // Lone surrogates take 3 bytes in WTF-8.
+                    current_utf8_index += match ch.to_u32() {
+                        0..=0x7F => 1,
+                        0x80..=0x7FF => 2,
+                        0x800..=0xFFFF => 3,
+                        _ => 4,
+                    };
                 }
             }
         }
         if current_utf16_index > utf16_idx {
             return None;
         }
-        debug_assert_eq!(utf16_idx, current_utf16_index);
-        Some(self.len())
+        Some(current_utf8_index)
     }
 
     /// Get the corresponding WTF-16 code unit index for a given UTF-8 code
@@ -614,4 +623,15 @@ fn str_conversion() {
     let too_large_unicode = "🤗🤗🤗";
     assert!(SmallString::try_from(too_large_unicode).is_err());
     assert!(SmallString::try_from(Wtf8::from_str(too_large_unicode)).is_err());
+}
+
+#[test]
+fn utf8_indexing() {
+    let unicode = "あ<";
+    let str = SmallString::try_from(unicode).unwrap();
+    assert_eq!(str.len(), 4);
+    assert_eq!(str, unicode);
+    assert_eq!(str.utf8_index(0), Some(0));
+    assert_eq!(str.utf8_index(1), Some(3));
+    assert_eq!(str.utf8_index(2), None);
 }
