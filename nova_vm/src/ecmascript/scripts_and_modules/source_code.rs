@@ -166,7 +166,7 @@ impl<'a> SourceCode<'a> {
                         panicked,
                         ..
                     } = sloppy_result;
-                    if panicked {
+                    if panicked || !sloppy_errors.is_empty() {
                         return Err(sloppy_errors);
                     }
                     let SemanticBuilderReturn {
@@ -431,6 +431,40 @@ mod test {
         .unwrap_err();
 
         assert!(!errors.is_empty());
+    }
+
+    #[test]
+    fn strict_script_with_top_level_await() {
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let mut gc = GcScope::new(&mut gc, &mut scope);
+        let mut agent = Agent::new(AgentOptions::default(), &DefaultHostHooks);
+        initialize_default_realm(&mut agent, gc.reborrow());
+
+        for source_type in [
+            SourceCodeType::Script { strict: true },
+            SourceCodeType::Eval {
+                direct: false,
+                strict: true,
+            },
+        ] {
+            for source in ["await 10;", "for await (let x of []) {}"] {
+                let source_text = String::from_static_str(&mut agent, source, gc.nogc());
+                // SAFETY: tests.
+                let errors = unsafe {
+                    SourceCode::parse_source(
+                        &mut agent,
+                        source_text,
+                        source_type,
+                        #[cfg(feature = "typescript")]
+                        false,
+                        gc.nogc(),
+                    )
+                }
+                .unwrap_err();
+
+                assert!(!errors.is_empty());
+            }
+        }
     }
 
     #[test]
